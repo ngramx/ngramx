@@ -54,8 +54,11 @@ class AgentsManagedBodyProviderTest extends TestCase
         $markdown = $provider->getMarkdown();
 
         $this->assertStringContainsString('Linear Ticket Conventions', $markdown);
-        $this->assertStringContainsString('Routing labels', $markdown);
         $this->assertStringContainsString('Dependencies and ordering', $markdown);
+
+        $this->assertStringNotContainsString('Routing labels', $markdown);
+        $this->assertStringNotContainsString('sub-issue', $markdown);
+        $this->assertStringNotContainsString('Parent branch creation', $markdown);
     }
 
     /**
