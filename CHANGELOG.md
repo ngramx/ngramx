@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.15.0](https://github.com/gigabyte-software/cortex-cli/compare/v2.14.0...v2.15.0) (2026-05-10)
+
+
+### Features
+
+* add auto-merge workflow and Linear ticket conventions for agent-driven PR routing ([0a07e43](https://github.com/gigabyte-software/cortex-cli/commit/0a07e4379f6bb1f7b83ba73d169e5cc9074d60ad))
+
 # [2.14.0](https://github.com/gigabyte-software/cortex-cli/compare/v2.13.0...v2.14.0) (2026-05-10)
 
 
