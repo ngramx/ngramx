@@ -90,9 +90,11 @@ class InitGithubActionsCommandTest extends TestCase
                 'acme/shared-workflows/.github/workflows/auto-merge.yml@v2',
                 $autoMerge
             );
+            $this->assertStringContainsString("risk-low-label: 'risk:low'", $autoMerge);
+            $this->assertStringContainsString("size-small-label: 'size:small'", $autoMerge);
             $this->assertStringContainsString("auto-merge-label: 'auto-merge'", $autoMerge);
             $this->assertStringContainsString(
-                "protected-branches: 'master,main,stage,staging,test,testing,prod,production'",
+                "protected-branches: 'prod,production,stage,staging,test,testing'",
                 $autoMerge
             );
             $this->assertStringContainsString("merge-method: 'squash'", $autoMerge);
@@ -115,6 +117,8 @@ class InitGithubActionsCommandTest extends TestCase
             $tester = new CommandTester($command);
             $tester->execute([
                 '--repo' => 'acme/shared-workflows',
+                '--risk-low-label' => 'risk-low',
+                '--size-small-label' => 'size-xs',
                 '--auto-merge-label' => 'ship-it',
                 '--protected-branches' => ' main , release ,, main, qa ',
                 '--merge-method' => 'rebase',
@@ -123,6 +127,8 @@ class InitGithubActionsCommandTest extends TestCase
             $this->assertSame(0, $tester->getStatusCode());
             $autoMerge = file_get_contents($this->testDir . '/.github/workflows/auto-merge.yml');
             $this->assertIsString($autoMerge);
+            $this->assertStringContainsString("risk-low-label: 'risk-low'", $autoMerge);
+            $this->assertStringContainsString("size-small-label: 'size-xs'", $autoMerge);
             $this->assertStringContainsString("auto-merge-label: 'ship-it'", $autoMerge);
             $this->assertStringContainsString("protected-branches: 'main,release,qa'", $autoMerge);
             $this->assertStringContainsString("merge-method: 'rebase'", $autoMerge);

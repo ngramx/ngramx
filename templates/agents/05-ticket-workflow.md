@@ -46,6 +46,29 @@ When opening a pull request:
 - Use the branch description as the PR title, formatted in Title Case, e.g. `GIG-1599: PWA Rebranding App Name Logo Favicon`.
 - Target the project's default integration branch (typically `main`).
 - **Never open draft PRs.** CI and automated review should run against the PR from the moment it is created.
+- never add 'cursor/' prefix to branch names
+
+## PR risk and size labels
+ 
+Every PR gets two labels — one for risk, one for size. These describe the PR; the merge automation reads them and decides whether to auto-merge. Your job is to classify honestly, not to decide the merge outcome.
+ 
+**Risk:**
+ 
+- `risk:low` — docs, tests-only, comments, dependency bumps with passing CI, isolated UI tweaks, internal tooling
+- `risk:medium` — feature work or refactors that touch shared code but follow established patterns
+- `risk:high` — auth, payments, migrations, infra/deployment, customer data, external integrations, anything that could cause an outage or data loss
+
+**Size:**
+ 
+- `size:small` — ≤5 files, ≤200 lines
+- `size:medium` — ≤15 files, ≤600 lines
+- `size:large` — anything bigger
+
+**Rules:**
+ 
+- When in doubt, escalate. Default to higher risk and larger size when uncertain — over-review is cheap, a wrong auto-merge is not.
+- Include a one-line rationale in the PR description, e.g. *"Labelled `risk:low` because only touches docs and tests, no production code paths."*
+- Never open a PR without both labels.
 
 ## Completion record
 

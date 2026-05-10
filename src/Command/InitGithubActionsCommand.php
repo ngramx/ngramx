@@ -62,18 +62,32 @@ class InitGithubActionsCommand extends Command
             ->addOption('no-composer', null, InputOption::VALUE_NONE, 'Set run-composer-install=false on reusable workflow inputs')
             ->addOption('no-npm', null, InputOption::VALUE_NONE, 'Set run-npm-ci=false on reusable workflow inputs')
             ->addOption(
+                'risk-low-label',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Label that marks a PR as low risk (one of two gates for auto-merge)',
+                'risk:low'
+            )
+            ->addOption(
+                'size-small-label',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Label that marks a PR as small (one of two gates for auto-merge)',
+                'size:small'
+            )
+            ->addOption(
                 'auto-merge-label',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'Label that opts a PR into auto-merge',
+                'Label applied to PRs that pass the auto-merge gate',
                 'auto-merge'
             )
             ->addOption(
                 'protected-branches',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'Comma-separated branch names that must NEVER be auto-merged into',
-                'master,main,stage,staging,test,testing,prod,production'
+                'Comma-separated branch names that must NEVER be auto-merged into. Defaults to environment-promotion branches; main/master are intentionally excluded so the small + low-risk gate can flow into them.',
+                'prod,production,stage,staging,test,testing'
             )
             ->addOption(
                 'merge-method',
@@ -108,6 +122,8 @@ class InitGithubActionsCommand extends Command
             $nodeVersion = (string) $input->getOption('node-version');
             $runComposer = $input->getOption('no-composer') ? 'false' : 'true';
             $runNpm = $input->getOption('no-npm') ? 'false' : 'true';
+            $riskLowLabel = (string) $input->getOption('risk-low-label');
+            $sizeSmallLabel = (string) $input->getOption('size-small-label');
             $autoMergeLabel = (string) $input->getOption('auto-merge-label');
             $protectedBranches = $this->normalizeProtectedBranches((string) $input->getOption('protected-branches'));
             $mergeMethod = (string) $input->getOption('merge-method');
@@ -131,6 +147,8 @@ class InitGithubActionsCommand extends Command
                 '{{NODE_VERSION}}' => $nodeVersion,
                 '{{RUN_COMPOSER}}' => $runComposer,
                 '{{RUN_NPM}}' => $runNpm,
+                '{{RISK_LOW_LABEL}}' => $riskLowLabel,
+                '{{SIZE_SMALL_LABEL}}' => $sizeSmallLabel,
                 '{{AUTO_MERGE_LABEL}}' => $autoMergeLabel,
                 '{{PROTECTED_BRANCHES}}' => $protectedBranches,
                 '{{MERGE_METHOD}}' => $mergeMethod,
