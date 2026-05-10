@@ -57,4 +57,71 @@ class AgentsManagedBodyProviderTest extends TestCase
         $this->assertStringContainsString('Routing labels', $markdown);
         $this->assertStringContainsString('Dependencies and ordering', $markdown);
     }
+
+    /**
+     * Regression: previously this used glob(), which silently returns no
+     * matches when the templates directory is on a stream wrapper such as
+     * phar://. The provider must enumerate the agents directory using
+     * scandir() so it works inside a Phar build. We can't easily exercise
+     * a real phar:// path here (phar.readonly is on in many environments),
+     * but we can prove that file selection works against an arbitrary
+     * directory and that only correctly-named files are picked up.
+     */
+    public function test_get_markdown_enumerates_agents_dir_via_scandir_and_filters_by_pattern(): void
+    {
+        $tmpRoot = sys_get_temp_dir() . '/cortex_agents_provider_test_' . uniqid();
+        $agentsDir = $tmpRoot . '/agents';
+        mkdir($agentsDir, 0755, true);
+
+        try {
+            file_put_contents($agentsDir . '/01-first.md', "# First\n\nfirst-body");
+            file_put_contents($agentsDir . '/02-second.md', "# Second\n\nsecond-body");
+            file_put_contents($agentsDir . '/10-tenth.md', "# Tenth\n\ntenth-body");
+            file_put_contents($agentsDir . '/README.md', '# Should be ignored');
+            file_put_contents($agentsDir . '/1-single-digit.md', '# Should be ignored');
+            file_put_contents($agentsDir . '/03-empty.md', '');
+
+            $provider = new AgentsManagedBodyProvider($tmpRoot);
+            $markdown = $provider->getMarkdown();
+
+            $this->assertStringContainsString('first-body', $markdown);
+            $this->assertStringContainsString('second-body', $markdown);
+            $this->assertStringContainsString('tenth-body', $markdown);
+            $this->assertStringNotContainsString('Should be ignored', $markdown);
+
+            $this->assertStringContainsString("first-body\n\n---\n\n", $markdown);
+            $this->assertStringContainsString("second-body\n\n---\n\n", $markdown);
+
+            $firstPos = strpos($markdown, 'first-body');
+            $secondPos = strpos($markdown, 'second-body');
+            $tenthPos = strpos($markdown, 'tenth-body');
+            $this->assertNotFalse($firstPos);
+            $this->assertNotFalse($secondPos);
+            $this->assertNotFalse($tenthPos);
+            $this->assertLessThan($secondPos, $firstPos);
+            $this->assertLessThan($tenthPos, $secondPos);
+        } finally {
+            @unlink($agentsDir . '/01-first.md');
+            @unlink($agentsDir . '/02-second.md');
+            @unlink($agentsDir . '/10-tenth.md');
+            @unlink($agentsDir . '/README.md');
+            @unlink($agentsDir . '/1-single-digit.md');
+            @unlink($agentsDir . '/03-empty.md');
+            @rmdir($agentsDir);
+            @rmdir($tmpRoot);
+        }
+    }
+
+    public function test_get_markdown_returns_empty_string_when_agents_dir_missing(): void
+    {
+        $tmpRoot = sys_get_temp_dir() . '/cortex_agents_missing_' . uniqid();
+        mkdir($tmpRoot, 0755, true);
+
+        try {
+            $provider = new AgentsManagedBodyProvider($tmpRoot);
+            $this->assertSame('', $provider->getMarkdown());
+        } finally {
+            @rmdir($tmpRoot);
+        }
+    }
 }
