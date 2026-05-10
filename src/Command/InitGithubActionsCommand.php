@@ -50,7 +50,7 @@ class InitGithubActionsCommand extends Command
                 null,
                 InputOption::VALUE_REQUIRED,
                 'PHP version passed to reusable workflows (setup-php)',
-                '8.2'
+                '8.3'
             )
             ->addOption(
                 'node-version',
