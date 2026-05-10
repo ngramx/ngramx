@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.17.0](https://github.com/gigabyte-software/cortex-cli/compare/v2.16.0...v2.17.0) (2026-05-10)
+
+
+### Features
+
+* instruct agents to pre-create the parent branch and target it from sub-issue PRs ([64b877f](https://github.com/gigabyte-software/cortex-cli/commit/64b877fee09c2beb55ec1e3af0093638bf112c7b))
+
 # [2.16.0](https://github.com/gigabyte-software/cortex-cli/compare/v2.15.0...v2.16.0) (2026-05-10)
 
 
