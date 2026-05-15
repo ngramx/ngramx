@@ -48,6 +48,12 @@ class DockerCompose
         $process->run();
 
         if (!$process->isSuccessful()) {
+            // Don't silently assume "images exist" — that masks a broken
+            // compose config and lies about first-run state. We can't
+            // throw here without breaking back-compat with the existing
+            // boolean contract, but we *can* tell the user something is
+            // wrong instead of vanishing the failure.
+            $this->warnAboutComposeFailure('config --images', $process->getErrorOutput());
             return true;
         }
 
@@ -388,6 +394,13 @@ class DockerCompose
         $process->run();
 
         if (!$process->isSuccessful()) {
+            // Returning `[]` here lets the caller continue, but it also
+            // silently disables crash-loop detection and the network
+            // reconciler downstream. Surface the underlying compose
+            // error so the user can do something about it rather than
+            // wondering why their broken compose file produced a
+            // smoothly "successful" boot with none of the safety nets.
+            $this->warnAboutComposeFailure('config --services', $process->getErrorOutput());
             return [];
         }
 
@@ -400,6 +413,24 @@ class DockerCompose
         }
 
         return $services;
+    }
+
+    /**
+     * Emit a one-line stderr warning when a "shouldn't fail" subcommand
+     * (compose config, compose ps -q, etc.) returned non-zero. We use PHP's
+     * STDERR directly because this helper is several layers below the
+     * OutputFormatter and we don't want to thread an output interface all
+     * the way down for an exceptional-but-non-fatal case. The user still
+     * sees the message because Symfony Console doesn't capture STDERR by
+     * default.
+     */
+    private function warnAboutComposeFailure(string $subcommand, string $stderr): void
+    {
+        $stderr = trim($stderr);
+        $detail = $stderr === '' ? '(no stderr)' : $stderr;
+        if (defined('STDERR') && is_resource(STDERR)) {
+            fwrite(STDERR, "[cortex] warning: docker-compose {$subcommand} failed: {$detail}\n");
+        }
     }
 
     /**

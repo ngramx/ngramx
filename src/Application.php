@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cortex;
 
 use Cortex\Agents\AgentsMdSynchronizer;
+use Cortex\Caddy\CaddyService;
 use Cortex\Command\DownCommand;
 use Cortex\Command\DynamicCommand;
 use Cortex\Command\InitCommand;
@@ -18,10 +19,10 @@ use Cortex\Command\ReviewCommand;
 use Cortex\Command\SecureCommand;
 use Cortex\Command\SelfUpdateCommand;
 use Cortex\Command\ShellCommand;
-use Cortex\Command\SyncAgentsCommand;
 use Cortex\Command\ShowUrlCommand;
 use Cortex\Command\StatusCommand;
 use Cortex\Command\StyleDemoCommand;
+use Cortex\Command\SyncAgentsCommand;
 use Cortex\Command\UpCommand;
 use Cortex\Config\ConfigLoader;
 use Cortex\Config\ConfigWarningChecker;
@@ -36,7 +37,6 @@ use Cortex\Docker\NamespaceResolver;
 use Cortex\Docker\PortOffsetManager;
 use Cortex\Executor\HostCommandExecutor;
 use Cortex\Git\GitRepositoryService;
-use Cortex\Caddy\CaddyService;
 use Cortex\Herd\HerdService;
 use Cortex\Laravel\LaravelLogParser;
 use Cortex\Laravel\LaravelService;
@@ -69,10 +69,30 @@ class Application extends BaseApplication
     /** @var list<string> */
     private array $configWarnings = [];
 
+    /** @var list<string> */
+    private array $configLoadErrors = [];
+
     /** @return list<string> */
     public function getConfigWarnings(): array
     {
         return $this->configWarnings;
+    }
+
+    /**
+     * Errors surfaced while attempting to load `cortex.yml` during boot.
+     *
+     * The constructor used to swallow these silently to allow commands like
+     * `help` and `self-update` to work from any directory, but that also
+     * meant that a malformed config caused subsequent commands to behave
+     * oddly with no explanation. Now we capture them here and let
+     * `doRunCommand` decide whether to surface them based on which command
+     * is running.
+     *
+     * @return list<string>
+     */
+    public function getConfigLoadErrors(): array
+    {
+        return $this->configLoadErrors;
     }
     protected function getDefaultCommands(): array
     {
@@ -216,32 +236,50 @@ class Application extends BaseApplication
             $overrideGenerator
         ));
 
-        // Try to load cortex.yml and register custom commands dynamically
+        // Try to load cortex.yml and register custom commands dynamically.
+        //
+        // The "no cortex.yml in scope" case is silent on purpose — users
+        // are allowed to run `cortex --version`, `cortex help`, etc. from
+        // anywhere. But if a cortex.yml DOES exist and we couldn't parse
+        // it, that almost always means a real config bug, and silently
+        // swallowing the error leaves the user staring at a CLI that's
+        // missing all their custom commands with no explanation.
+        $configPath = null;
         try {
             $configPath = $configLoader->findConfigFile();
-            $config = $configLoader->load($configPath);
+        } catch (ConfigException) {
+            // No cortex.yml found in cwd or its parents — fine.
+        }
 
-            // Register each custom command as a real command
-            foreach ($config->commands as $name => $cmdDef) {
-                // Skip if command name conflicts with built-in commands
-                if ($this->has($name)) {
-                    continue;
+        if ($configPath !== null) {
+            try {
+                $config = $configLoader->load($configPath);
+
+                // Register each custom command as a real command
+                foreach ($config->commands as $name => $cmdDef) {
+                    // Skip if command name conflicts with built-in commands
+                    if ($this->has($name)) {
+                        continue;
+                    }
+
+                    $this->add(new DynamicCommand(
+                        $name,
+                        $cmdDef,
+                        $config,
+                        $commandOrchestrator
+                    ));
                 }
 
-                $this->add(new DynamicCommand(
-                    $name,
-                    $cmdDef,
-                    $config,
-                    $commandOrchestrator
-                ));
+                // Check for missing recommended commands
+                $warningChecker = new ConfigWarningChecker();
+                $this->configWarnings = $warningChecker->check($config);
+            } catch (\Throwable $e) {
+                $this->configLoadErrors[] = sprintf(
+                    'Failed to load %s — %s',
+                    $configPath,
+                    $e->getMessage(),
+                );
             }
-
-            // Check for missing recommended commands
-            $warningChecker = new ConfigWarningChecker();
-            $this->configWarnings = $warningChecker->check($config);
-        } catch (\Exception $e) {
-            // Silently ignore if no cortex.yml found
-            // User might be running from wrong directory or checking version/help
         }
     }
 
@@ -249,6 +287,18 @@ class Application extends BaseApplication
     {
         if (!in_array($command->getName(), self::SKIP_AGENTS_SYNC_FOR, true)) {
             $this->synchronizeAgentsMdInProject();
+        }
+
+        if (
+            $this->configLoadErrors !== []
+            && !in_array($command->getName(), self::SKIP_WARNINGS_FOR, true)
+        ) {
+            $formatter = new OutputFormatter($output);
+            foreach ($this->configLoadErrors as $error) {
+                $formatter->warning("  ⚠ $error");
+            }
+            $formatter->info('Custom commands from `cortex.yml` are unavailable until the file is fixed.');
+            $output->writeln('');
         }
 
         if ($this->configWarnings !== [] && !in_array($command->getName(), self::SKIP_WARNINGS_FOR, true)) {

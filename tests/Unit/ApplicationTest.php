@@ -66,4 +66,61 @@ class ApplicationTest extends TestCase
             @rmdir($tmp);
         }
     }
+
+    /**
+     * A cortex.yml that's present but cannot be parsed used to vanish into
+     * a silent catch in the Application constructor — the user would see a
+     * CLI missing all their custom commands with zero explanation. We now
+     * capture the error and surface it.
+     */
+    public function test_unparseable_cortex_yml_is_captured_as_load_error(): void
+    {
+        $originalCwd = getcwd();
+        $this->assertIsString($originalCwd);
+
+        $tmp = sys_get_temp_dir() . '/cortex-app-test-' . bin2hex(random_bytes(6));
+        mkdir($tmp, 0o755, true);
+
+        try {
+            file_put_contents($tmp . '/cortex.yml', ": this : is : not : valid : yaml\n  bad indent\n");
+            chdir($tmp);
+
+            $app = new Application();
+
+            $errors = $app->getConfigLoadErrors();
+            $this->assertNotEmpty(
+                $errors,
+                'A malformed cortex.yml must be surfaced via getConfigLoadErrors(), not silently swallowed.'
+            );
+            $this->assertStringContainsString('cortex.yml', $errors[0]);
+        } finally {
+            chdir($originalCwd);
+            @unlink($tmp . '/cortex.yml');
+            @rmdir($tmp);
+        }
+    }
+
+    public function test_missing_cortex_yml_stays_silent(): void
+    {
+        $originalCwd = getcwd();
+        $this->assertIsString($originalCwd);
+
+        $tmp = sys_get_temp_dir() . '/cortex-app-test-' . bin2hex(random_bytes(6));
+        mkdir($tmp, 0o755, true);
+
+        try {
+            chdir($tmp);
+
+            $app = new Application();
+
+            $this->assertSame(
+                [],
+                $app->getConfigLoadErrors(),
+                'Running outside any cortex.yml-scoped project must remain silent — only PRESENT-BUT-BROKEN configs are an error.'
+            );
+        } finally {
+            chdir($originalCwd);
+            @rmdir($tmp);
+        }
+    }
 }
