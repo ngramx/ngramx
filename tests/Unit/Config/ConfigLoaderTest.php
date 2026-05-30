@@ -148,4 +148,127 @@ class ConfigLoaderTest extends TestCase
         $this->assertEquals('NOVA_ACCOUNT_EMAIL', $config->secrets->required[0]);
         $this->assertEquals('NOVA_LICENSE_KEY', $config->secrets->required[1]);
     }
+
+    public function test_find_config_file_returns_config_in_current_directory(): void
+    {
+        $root = $this->makeTempDir();
+        file_put_contents($root . '/ngramx.yml', "version: '1.0'\n");
+
+        $this->inDirectory($root, function () use ($root): void {
+            $this->assertSame($root . '/ngramx.yml', $this->loader->findConfigFile());
+        });
+    }
+
+    public function test_find_config_file_walks_up_to_a_parent_directory(): void
+    {
+        $root = $this->makeTempDir();
+        file_put_contents($root . '/ngramx.yml', "version: '1.0'\n");
+        $nested = $root . '/src/app';
+        mkdir($nested, 0755, true);
+
+        $this->inDirectory($nested, function () use ($root): void {
+            $this->assertSame($root . '/ngramx.yml', $this->loader->findConfigFile());
+        });
+    }
+
+    public function test_find_config_file_does_not_escape_the_repository_boundary(): void
+    {
+        // Parent repo carries the config; a linked worktree lives inside it and
+        // its root has a `.git` pointer file but does NOT track ngramx.yml.
+        // Resolution must stop at the worktree boundary instead of inheriting
+        // the parent's config (which would collide container names).
+        $parent = $this->makeTempDir();
+        file_put_contents($parent . '/ngramx.yml', "version: '1.0'\n");
+
+        $worktree = $parent . '/.ngramx/worktrees/ticket';
+        mkdir($worktree, 0755, true);
+        file_put_contents($worktree . '/.git', "gitdir: {$parent}/.git/worktrees/ticket\n");
+
+        $this->inDirectory($worktree, function (): void {
+            $this->expectException(ConfigException::class);
+            $this->expectExceptionMessage('ngramx.yml not found');
+            $this->loader->findConfigFile();
+        });
+    }
+
+    public function test_find_config_file_finds_config_inside_the_worktree(): void
+    {
+        // When the worktree DOES carry its own ngramx.yml, it is used directly
+        // rather than the parent's — even though both exist.
+        $parent = $this->makeTempDir();
+        file_put_contents($parent . '/ngramx.yml', "version: 'parent'\n");
+
+        $worktree = $parent . '/.ngramx/worktrees/ticket';
+        mkdir($worktree, 0755, true);
+        file_put_contents($worktree . '/.git', "gitdir: {$parent}/.git/worktrees/ticket\n");
+        file_put_contents($worktree . '/ngramx.yml', "version: 'worktree'\n");
+
+        $this->inDirectory($worktree, function () use ($worktree): void {
+            $this->assertSame($worktree . '/ngramx.yml', $this->loader->findConfigFile());
+        });
+    }
+
+    private function makeTempDir(): string
+    {
+        $dir = sys_get_temp_dir() . '/ngramx-config-test-' . uniqid('', true);
+        mkdir($dir, 0755, true);
+        // Resolve symlinks (macOS /tmp -> /private/tmp) so path assertions match
+        // what getcwd() reports from inside the directory.
+        $real = realpath($dir);
+        $this->tempDirs[] = $real !== false ? $real : $dir;
+
+        return $real !== false ? $real : $dir;
+    }
+
+    private function inDirectory(string $dir, callable $callback): void
+    {
+        $original = getcwd();
+        chdir($dir);
+
+        try {
+            $callback();
+        } finally {
+            if ($original !== false) {
+                chdir($original);
+            }
+        }
+    }
+
+    /** @var list<string> */
+    private array $tempDirs = [];
+
+    protected function tearDown(): void
+    {
+        foreach (array_reverse($this->tempDirs) as $dir) {
+            $this->removeDirectory($dir);
+        }
+        $this->tempDirs = [];
+    }
+
+    private function removeDirectory(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $items = scandir($dir);
+        if ($items === false) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+
+            $path = $dir . '/' . $item;
+            if (is_dir($path)) {
+                $this->removeDirectory($path);
+            } else {
+                unlink($path);
+            }
+        }
+
+        rmdir($dir);
+    }
 }

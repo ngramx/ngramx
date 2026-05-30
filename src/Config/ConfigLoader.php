@@ -77,6 +77,20 @@ class ConfigLoader
                 return $configPath;
             }
 
+            // Stop at the repository boundary. A linked git worktree lives
+            // *inside* its parent repo (e.g. <repo>/.ngramx/worktrees/<name>)
+            // and its root carries a `.git` pointer file. Without this guard a
+            // worktree whose branch does not track ngramx.yml would silently
+            // keep walking up and inherit the PARENT repo's config — resolving
+            // the parent's compose file and dropping the worktree's generated
+            // override, which makes parallel stacks fight over the same
+            // hard-coded container names. Treat any directory containing a
+            // `.git` entry (dir for a normal clone, file for a worktree) as the
+            // top of the search so config never leaks across repo boundaries.
+            if (file_exists($currentDir . '/.git')) {
+                break;
+            }
+
             $parentDir = dirname($currentDir);
             if ($parentDir === $currentDir) {
                 break; // Reached root
@@ -86,7 +100,9 @@ class ConfigLoader
             $depth++;
         }
 
-        throw new ConfigException('ngramx.yml not found in current directory or any parent directory');
+        throw new ConfigException(
+            'ngramx.yml not found in the current directory or any parent up to the repository root'
+        );
     }
 
     private function resolveConfigPath(string $path): string

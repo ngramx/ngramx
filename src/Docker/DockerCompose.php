@@ -10,15 +10,58 @@ use Symfony\Component\Process\Process;
 class DockerCompose
 {
     /**
+     * Number of times to probe the Docker daemon before declaring it down.
+     */
+    private const DAEMON_PROBE_ATTEMPTS = 3;
+
+    /**
+     * Per-attempt timeout for the daemon probe, in seconds.
+     */
+    private const DAEMON_PROBE_TIMEOUT = 30;
+
+    /**
+     * Seconds to wait between daemon probes.
+     */
+    private const DAEMON_PROBE_BACKOFF = 2;
+
+    /**
      * Check if the Docker daemon is running and accessible.
+     *
+     * Docker Desktop — especially under WSL2 — can take well over ten seconds
+     * to answer the first `docker info` after the engine has been idle, while
+     * the daemon spins back up. A single short-timeout probe then reports a
+     * false "Docker is not running", which is exactly why re-running the same
+     * command "just works" a moment later. To avoid that flake we probe a few
+     * times with a generous timeout and a short backoff, giving a cold daemon
+     * a fair chance to respond before we give up.
+     *
+     * A daemon that is genuinely down fails fast (connection refused) rather
+     * than timing out, so the retry loop adds only a couple of seconds in the
+     * true-negative case.
      */
     public function isDockerRunning(): bool
     {
-        $process = new Process(['docker', 'info']);
-        $process->setTimeout(10);
-        $process->run();
+        for ($attempt = 1; $attempt <= self::DAEMON_PROBE_ATTEMPTS; $attempt++) {
+            $process = new Process(['docker', 'info']);
+            $process->setTimeout(self::DAEMON_PROBE_TIMEOUT);
 
-        return $process->isSuccessful();
+            try {
+                $process->run();
+            } catch (ProcessTimedOutException) {
+                // The daemon was reachable but slow to answer; fall through and
+                // retry rather than reporting it as down.
+            }
+
+            if ($process->isSuccessful()) {
+                return true;
+            }
+
+            if ($attempt < self::DAEMON_PROBE_ATTEMPTS) {
+                sleep(self::DAEMON_PROBE_BACKOFF);
+            }
+        }
+
+        return false;
     }
 
     /**

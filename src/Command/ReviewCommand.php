@@ -74,17 +74,19 @@ class ReviewCommand extends Command
         $this
             ->setName('review')
             ->setDescription('Prepare the development environment for reviewing a ticket by checking out its branch and resetting the database')
-            ->addArgument('ticket', InputArgument::REQUIRED, 'The ticket number to prepare for review')
+            ->addArgument('ticket', InputArgument::OPTIONAL, 'The ticket number to prepare for review. Optional with --cleanup, where it targets a single worktree (omit it to clean up every worktree).')
             ->addOption('quick', null, InputOption::VALUE_NONE, 'Use the "clear" command instead of "fresh" — skips the database reset. Only safe on branches with no schema or seed changes.')
             ->addOption('worktree', 'w', InputOption::VALUE_NONE, 'Review in an isolated git worktree + parallel dev environment under .ngramx/worktrees/ instead of checking the branch out in place')
             ->addOption('cursor', null, InputOption::VALUE_NONE, 'Open the worktree in a new Cursor window once it is ready (implies --worktree)')
-            ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove the worktree + parallel environment created for this ticket');
+            ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. Targets one ticket when given, or every worktree when no ticket is provided.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $formatter = new OutputFormatter($output);
-        $ticketNumber = $input->getArgument('ticket');
+        $ticketArgument = $input->getArgument('ticket');
+        $ticketNumber = is_string($ticketArgument) ? trim($ticketArgument) : '';
+        $hasTicket = $ticketNumber !== '';
 
         // --cursor implies worktree mode: you can only open a parallel Cursor window
         // if there is a separate worktree for it to live in.
@@ -99,7 +101,17 @@ class ReviewCommand extends Command
             $repositoryPath = dirname($configPath);
 
             if ((bool) $input->getOption('cleanup')) {
-                return $this->runWorktreeCleanup($output, $formatter, $repositoryPath, $ticketNumber);
+                return $hasTicket
+                    ? $this->runWorktreeCleanup($output, $formatter, $repositoryPath, $ticketNumber)
+                    : $this->runWorktreeCleanupAll($output, $formatter, $repositoryPath);
+            }
+
+            if (!$hasTicket) {
+                $formatter->error(
+                    'A ticket number is required to prepare a review. '
+                    . 'To remove worktrees instead, pass --cleanup (with a ticket to target one, or alone to remove them all).'
+                );
+                return Command::FAILURE;
             }
 
             if (!$worktreeMode) {
@@ -236,6 +248,7 @@ class ReviewCommand extends Command
         $this->gitExcludeManager->ensureExcluded($repositoryPath, self::EXCLUDE_ENTRY);
         $this->gitExcludeManager->ensureCursorIgnored($repositoryPath, self::EXCLUDE_ENTRY);
 
+        $this->seedWorktreeConfig($repositoryPath, $worktreePath, $formatter);
         $this->seedWorktreeEnv($repositoryPath, $worktreePath, $worktreeUrl, $formatter);
         $this->primeWorktreeDependencies($repositoryPath, $worktreePath, $formatter);
 
@@ -334,6 +347,65 @@ class ReviewCommand extends Command
         $worktreePath = $matches[0];
         $formatter->section('Cleaning up worktree: ' . basename($worktreePath));
 
+        if (!$this->teardownWorktree($output, $formatter, $repositoryPath, $worktreePath)) {
+            return Command::FAILURE;
+        }
+
+        $formatter->success("✓ Removed worktree for ticket $ticketNumber");
+        $output->writeln('');
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Stop and remove every worktree (and its parallel Docker environment) created
+     * under .ngramx/worktrees/. Used by `review --cleanup` with no ticket argument
+     * to reclaim every parallel review environment in one pass.
+     */
+    private function runWorktreeCleanupAll(
+        OutputInterface $output,
+        OutputFormatter $formatter,
+        string $repositoryPath
+    ): int {
+        $worktrees = $this->listWorktreeDirectories($repositoryPath);
+
+        if ($worktrees === []) {
+            $formatter->info('No worktrees found under .ngramx/worktrees/ — nothing to clean up.');
+            return Command::SUCCESS;
+        }
+
+        $formatter->section('Cleaning up all worktrees (' . count($worktrees) . ')');
+
+        $failed = [];
+        foreach ($worktrees as $worktreePath) {
+            $formatter->info('Removing worktree: ' . basename($worktreePath));
+            if (!$this->teardownWorktree($output, $formatter, $repositoryPath, $worktreePath)) {
+                $failed[] = basename($worktreePath);
+            }
+        }
+
+        if ($failed !== []) {
+            $formatter->error('Failed to remove ' . count($failed) . ' worktree(s): ' . implode(', ', $failed));
+            return Command::FAILURE;
+        }
+
+        $formatter->success('✓ Removed all worktrees (' . count($worktrees) . ')');
+        $output->writeln('');
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Stop a single worktree's environment (if running) and delete its directory,
+     * pruning the git worktree admin entry. Returns false if the directory could
+     * not be removed.
+     */
+    private function teardownWorktree(
+        OutputInterface $output,
+        OutputFormatter $formatter,
+        string $repositoryPath,
+        string $worktreePath
+    ): bool {
         if (file_exists($worktreePath . '/.ngramx.lock')) {
             $originalCwd = getcwd();
             if ($originalCwd !== false && chdir($worktreePath) !== false) {
@@ -361,13 +433,10 @@ class ReviewCommand extends Command
 
         if (is_dir($worktreePath)) {
             $formatter->error('Failed to remove the worktree directory. Remove it manually: ' . $worktreePath);
-            return Command::FAILURE;
+            return false;
         }
 
-        $formatter->success("✓ Removed worktree for ticket $ticketNumber");
-        $output->writeln('');
-
-        return Command::SUCCESS;
+        return true;
     }
 
     /**
@@ -406,6 +475,21 @@ class ReviewCommand extends Command
      */
     private function findWorktreesForTicket(string $repositoryPath, string $ticketNumber): array
     {
+        $needle = mb_strtolower($ticketNumber);
+
+        return array_values(array_filter(
+            $this->listWorktreeDirectories($repositoryPath),
+            fn (string $path): bool => str_contains(mb_strtolower(basename($path)), $needle)
+        ));
+    }
+
+    /**
+     * List every worktree directory under .ngramx/worktrees/.
+     *
+     * @return list<string> Absolute paths to worktree directories
+     */
+    private function listWorktreeDirectories(string $repositoryPath): array
+    {
         $worktreesDir = $repositoryPath . '/' . self::WORKTREE_DIR;
 
         if (!is_dir($worktreesDir)) {
@@ -417,7 +501,6 @@ class ReviewCommand extends Command
             return [];
         }
 
-        $needle = mb_strtolower($ticketNumber);
         $matches = [];
 
         foreach ($entries as $entry) {
@@ -426,7 +509,7 @@ class ReviewCommand extends Command
             }
 
             $path = $worktreesDir . '/' . $entry;
-            if (is_dir($path) && str_contains(mb_strtolower($entry), $needle)) {
+            if (is_dir($path)) {
                 $matches[] = $path;
             }
         }
@@ -577,6 +660,38 @@ class ReviewCommand extends Command
                 // Non-fatal: the install step will simply repopulate it.
                 $formatter->warning("Could not copy $dir into the worktree — the install step will fetch it instead.");
             }
+        }
+    }
+
+    /**
+     * Ensure the worktree has its own ngramx.yml.
+     *
+     * A worktree lives inside the parent repo, so config resolution walks *up*
+     * the tree. If the branch being reviewed predates the project adopting
+     * Ngramx (or otherwise doesn't track ngramx.yml), the worktree has no
+     * config of its own and resolution escapes into the parent repo. `up` then
+     * runs against the parent's compose file and silently drops the worktree's
+     * generated override, so the stack comes up with the base file's hard-coded
+     * container names and collides with the main checkout (or other worktrees).
+     *
+     * Seeding ngramx.yml from the parent — exactly like we seed .env — keeps the
+     * worktree self-contained so its namespaced override is always applied. When
+     * the branch *does* track ngramx.yml we leave it untouched.
+     */
+    private function seedWorktreeConfig(string $repositoryPath, string $worktreePath, OutputFormatter $formatter): void
+    {
+        $worktreeConfig = $worktreePath . '/ngramx.yml';
+        if (file_exists($worktreeConfig)) {
+            return;
+        }
+
+        $parentConfig = $repositoryPath . '/ngramx.yml';
+        if (!file_exists($parentConfig)) {
+            return;
+        }
+
+        if (@copy($parentConfig, $worktreeConfig)) {
+            $formatter->info('Seeded ngramx.yml from parent checkout (branch does not track it)');
         }
     }
 
