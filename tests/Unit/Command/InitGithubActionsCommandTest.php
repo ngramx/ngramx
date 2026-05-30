@@ -43,7 +43,6 @@ class InitGithubActionsCommandTest extends TestCase
                 '--ref' => 'v1',
                 '--ci-workflow-name' => 'CI',
                 '--base-branch' => 'develop',
-                '--primary-check-name' => 'PHP 8.3',
             ]);
 
             $this->assertSame(0, $tester->getStatusCode());
@@ -61,7 +60,7 @@ class InitGithubActionsCommandTest extends TestCase
             $linear = file_get_contents($this->testDir . '/.github/workflows/linear-status-sync.yml');
             $this->assertIsString($linear);
             $this->assertStringContainsString('acme/shared-workflows/.github/workflows/linear-status-sync.yml@v1', $linear);
-            $this->assertStringContainsString("primary-check-name: 'PHP 8.3'", $linear);
+            $this->assertStringContainsString('workflows: ["CI"]', $linear);
             $this->assertStringContainsString("in-progress-state-name: 'In Progress'", $linear);
             $this->assertStringContainsString("in-review-state-name: 'In Review'", $linear);
             $this->assertStringContainsString('secrets: inherit', $linear);

@@ -97,13 +97,6 @@ class InitGithubActionsCommand extends Command
                 'squash'
             )
             ->addOption(
-                'primary-check-name',
-                null,
-                InputOption::VALUE_REQUIRED,
-                'Name of the check run that drives the Linear status sync (de-dupes noisy check_run events)',
-                'build'
-            )
-            ->addOption(
                 'linear-in-progress-state-name',
                 null,
                 InputOption::VALUE_REQUIRED,
@@ -148,7 +141,6 @@ class InitGithubActionsCommand extends Command
             $autoMergeLabel = (string) $input->getOption('auto-merge-label');
             $protectedBranches = $this->normalizeProtectedBranches((string) $input->getOption('protected-branches'));
             $mergeMethod = (string) $input->getOption('merge-method');
-            $primaryCheckName = (string) $input->getOption('primary-check-name');
             $linearInProgressStateName = (string) $input->getOption('linear-in-progress-state-name');
             $linearInReviewStateName = (string) $input->getOption('linear-in-review-state-name');
             $force = (bool) $input->getOption('force');
@@ -176,7 +168,6 @@ class InitGithubActionsCommand extends Command
                 '{{AUTO_MERGE_LABEL}}' => $autoMergeLabel,
                 '{{PROTECTED_BRANCHES}}' => $protectedBranches,
                 '{{MERGE_METHOD}}' => $mergeMethod,
-                '{{PRIMARY_CHECK_NAME}}' => $primaryCheckName,
                 '{{LINEAR_IN_PROGRESS_STATE_NAME}}' => $linearInProgressStateName,
                 '{{LINEAR_IN_REVIEW_STATE_NAME}}' => $linearInReviewStateName,
             ];
@@ -224,10 +215,9 @@ class InitGithubActionsCommand extends Command
 
                 $formatter->section('Next steps');
                 $formatter->info('1. Set the organisation secrets listed above (or per-repo if you are not using org-wide secrets)');
-                $formatter->info('2. Confirm the Linear primary check name matches your CI (currently --primary-check-name: ' . $primaryCheckName . ')');
-                $formatter->info('3. Confirm the CI workflow name matches --ci-workflow-name (currently: ' . $ciName . ')');
-                $formatter->info('4. Pin --ref to a tag or SHA in production rather than a moving branch');
-                $formatter->info('5. See shared repo README: https://github.com/' . $sharedRepo);
+                $formatter->info('2. Confirm the CI workflow name matches --ci-workflow-name (currently: ' . $ciName . '). Linear status sync watches this workflow, then waits for the PR\'s full check rollup before moving to "' . $linearInReviewStateName . '".');
+                $formatter->info('3. Pin --ref to a tag or SHA in production rather than a moving branch');
+                $formatter->info('4. See shared repo README: https://github.com/' . $sharedRepo);
             }
 
             return Command::SUCCESS;
