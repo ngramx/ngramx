@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.23.4](https://github.com/ngramx/ngramx/compare/v2.23.3...v2.23.4) (2026-05-30)
+
+
+### Bug Fixes
+
+* **worktree:** chown worktrees to the developer uid so Laravel can write storage ([cd27025](https://github.com/ngramx/ngramx/commit/cd270253052f61b2ff710fa598611b4a00960011))
+
 ## [2.23.3](https://github.com/ngramx/ngramx/compare/v2.23.2...v2.23.3) (2026-05-30)
 
 
