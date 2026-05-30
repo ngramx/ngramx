@@ -834,4 +834,3 @@ This project follows PSR-12 coding standards and uses PHP 8.2+ features. See [de
 ## License
 
 See [LICENSE](LICENSE) file for details.
-
