@@ -637,9 +637,17 @@ class ReviewCommand extends Command
      * into a fresh worktree so the install step is near-instant instead of a cold
      * download. Skipped per-directory when the parent lacks it or the worktree
      * already has it (e.g. a reused worktree).
+     *
+     * The copies are started concurrently and waited on together: priming both
+     * vendor and node_modules is one of the slowest steps of a worktree review,
+     * and the two trees are independent, so running them in parallel roughly
+     * halves the wall-clock cost on the common path.
      */
     private function primeWorktreeDependencies(string $repositoryPath, string $worktreePath, OutputFormatter $formatter): void
     {
+        /** @var array<string, Process> $processes */
+        $processes = [];
+
         foreach (self::DEPENDENCY_DIRS as $dir) {
             $source = $repositoryPath . '/' . $dir;
             $target = $worktreePath . '/' . $dir;
@@ -654,7 +662,13 @@ class ReviewCommand extends Command
             // clone on supporting filesystems and falls back to a normal copy otherwise.
             $process = new Process(['cp', '-a', '--reflink=auto', $source, $target]);
             $process->setTimeout(300);
-            $process->run();
+            $process->start();
+
+            $processes[$dir] = $process;
+        }
+
+        foreach ($processes as $dir => $process) {
+            $process->wait();
 
             if (!$process->isSuccessful()) {
                 // Non-fatal: the install step will simply repopulate it.
