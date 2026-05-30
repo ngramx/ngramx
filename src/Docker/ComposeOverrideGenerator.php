@@ -106,29 +106,36 @@ YAML;
     }
 
     /**
-     * Apply port offset to a port mapping
+     * Apply port offset to a port mapping.
+     *
+     * Handles env-var interpolation in the host port (e.g. "${VAR:-3827}:4173")
+     * by splitting on top-level colons only, so the interpolation block is left
+     * intact instead of being corrupted into invalid Compose syntax.
      */
     private function applyOffset(mixed $portMapping, int $offset): ?string
     {
-        if (is_string($portMapping)) {
-            $parts = explode(':', $portMapping);
-
-            if (count($parts) === 2) {
-                // "80:80" format
-                $hostPort = (int) $parts[0];
-                $containerPort = $parts[1];
-                return ($hostPort + $offset) . ':' . $containerPort;
-            } elseif (count($parts) === 3) {
-                // "127.0.0.1:80:80" format
-                $interface = $parts[0];
-                $hostPort = (int) $parts[1];
-                $containerPort = $parts[2];
-                return $interface . ':' . ($hostPort + $offset) . ':' . $containerPort;
-            }
+        if (!is_string($portMapping)) {
+            // Long-format (array) port mappings are not offset here.
+            return null;
         }
 
-        // For complex formats, return as-is (could be enhanced later)
-        return null;
+        $parts = PortMapping::split($portMapping);
+
+        if (count($parts) === 2) {
+            // "80:80" or "${VAR:-3827}:4173" format
+            [$hostPort, $containerPort] = $parts;
+            return PortMapping::offsetHostPort($hostPort, $offset) . ':' . $containerPort;
+        }
+
+        if (count($parts) === 3) {
+            // "127.0.0.1:80:80" or "127.0.0.1:${VAR:-3827}:4173" format
+            [$interface, $hostPort, $containerPort] = $parts;
+            return $interface . ':' . PortMapping::offsetHostPort($hostPort, $offset) . ':' . $containerPort;
+        }
+
+        // Container-only ("4173") or unrecognised shapes: preserve as-is so the
+        // mapping is not dropped from the override file.
+        return $portMapping;
     }
 
     /**

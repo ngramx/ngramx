@@ -155,6 +155,59 @@ class ComposeOverrideGeneratorTest extends TestCase
         $this->assertEquals(['127.0.0.1:1080:80'], $ports);
     }
 
+    public function test_it_offsets_interpolated_port_default_without_corrupting_syntax(): void
+    {
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'pwa-preview' => [
+                    'image' => 'node',
+                    'ports' => ['${EK_PWA_PREVIEW_PORT:-3827}:4173'],
+                ],
+            ],
+        ]);
+
+        $this->generator->generate($composeFile, 1000, null);
+
+        $overrideContent = file_get_contents($this->tempDir . '/docker-compose.override.yml');
+        $this->assertNotFalse($overrideContent, 'Failed to read override file');
+
+        // The interpolation block must stay intact (no extra colon, closing brace present).
+        $this->assertStringNotContainsString('${EK_PWA_PREVIEW_PORT:3827', $overrideContent);
+
+        $override = Yaml::parse($overrideContent, Yaml::PARSE_CUSTOM_TAGS);
+        $ports = $override['services']['pwa-preview']['ports'];
+        if ($ports instanceof \Symfony\Component\Yaml\Tag\TaggedValue) {
+            $ports = $ports->getValue();
+        }
+
+        $this->assertEquals(['${EK_PWA_PREVIEW_PORT:-4827}:4173'], $ports);
+    }
+
+    public function test_it_preserves_interpolated_port_without_default(): void
+    {
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'pwa-preview' => [
+                    'image' => 'node',
+                    'ports' => ['${EK_PWA_PREVIEW_PORT}:4173'],
+                ],
+            ],
+        ]);
+
+        $this->generator->generate($composeFile, 1000, null);
+
+        $overrideContent = file_get_contents($this->tempDir . '/docker-compose.override.yml');
+        $this->assertNotFalse($overrideContent, 'Failed to read override file');
+
+        $override = Yaml::parse($overrideContent, Yaml::PARSE_CUSTOM_TAGS);
+        $ports = $override['services']['pwa-preview']['ports'];
+        if ($ports instanceof \Symfony\Component\Yaml\Tag\TaggedValue) {
+            $ports = $ports->getValue();
+        }
+
+        $this->assertEquals(['${EK_PWA_PREVIEW_PORT}:4173'], $ports);
+    }
+
     public function test_it_applies_offset_to_multiple_services(): void
     {
         $composeFile = $this->createComposeFile([

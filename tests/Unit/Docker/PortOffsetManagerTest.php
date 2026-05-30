@@ -70,6 +70,39 @@ class PortOffsetManagerTest extends TestCase
         $this->assertContains(8080, $ports);
     }
 
+    public function test_it_extracts_interpolated_port_default(): void
+    {
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'pwa-preview' => [
+                    'image' => 'node',
+                    'ports' => ['${EK_PWA_PREVIEW_PORT:-3827}:4173'],
+                ],
+            ],
+        ]);
+
+        $ports = $this->manager->extractBasePorts($composeFile);
+
+        $this->assertCount(1, $ports);
+        $this->assertContains(3827, $ports);
+    }
+
+    public function test_it_skips_interpolated_port_without_default(): void
+    {
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'pwa-preview' => [
+                    'image' => 'node',
+                    'ports' => ['${EK_PWA_PREVIEW_PORT}:4173'],
+                ],
+            ],
+        ]);
+
+        $ports = $this->manager->extractBasePorts($composeFile);
+
+        $this->assertEmpty($ports);
+    }
+
     public function test_it_extracts_ports_from_multiple_services(): void
     {
         $composeFile = $this->createComposeFile([

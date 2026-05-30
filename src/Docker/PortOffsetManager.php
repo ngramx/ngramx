@@ -211,15 +211,16 @@ class PortOffsetManager
     private function parsePortMapping(mixed $portMapping): ?int
     {
         if (is_string($portMapping)) {
-            // Handle "80:80" or "127.0.0.1:80:80" format
-            $parts = explode(':', $portMapping);
+            // Split on top-level colons only so env-var interpolation in the
+            // host port (e.g. "${VAR:-3827}:4173") is not corrupted.
+            $parts = PortMapping::split($portMapping);
 
             if (count($parts) === 2) {
                 // "80:80" format - host port is first
-                return (int) $parts[0];
+                return PortMapping::hostPortNumber($parts[0]);
             } elseif (count($parts) === 3) {
                 // "127.0.0.1:80:80" format - host port is second
-                return (int) $parts[1];
+                return PortMapping::hostPortNumber($parts[1]);
             }
         } elseif (is_array($portMapping)) {
             // Long format: {target: 80, published: 8080}
