@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.23.6](https://github.com/ngramx/ngramx/compare/v2.23.5...v2.23.6) (2026-05-30)
+
+
+### Bug Fixes
+
+* **review:** allow cleanup of all worktrees without a ticket argument ([038132a](https://github.com/ngramx/ngramx/commit/038132ace878164267cd8b5c07b8d44c87165a01))
+* **worktree:** keep config inside the worktree and retry the docker daemon probe ([54149cd](https://github.com/ngramx/ngramx/commit/54149cdb203217aa7db1e7c6d16763320ddc5166))
+
 ## [2.23.5](https://github.com/ngramx/ngramx/compare/v2.23.4...v2.23.5) (2026-05-30)
 
 
