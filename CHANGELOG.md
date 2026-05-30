@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.21.1](https://github.com/gigabyte-software/cortex-cli/compare/v2.21.0...v2.21.1) (2026-05-30)
+
+
+### Bug Fixes
+
+* **agents:** reorder templates so ticket workflow appears last in AGENTS.md ([bbe0a53](https://github.com/gigabyte-software/cortex-cli/commit/bbe0a5334ec3d5da4375e4f8c3848fd3f33fdb9f))
+
 # [2.21.0](https://github.com/gigabyte-software/cortex-cli/compare/v2.20.2...v2.21.0) (2026-05-15)
 
 
