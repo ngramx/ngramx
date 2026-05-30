@@ -41,6 +41,13 @@ class GitExcludeManager
     public function ensureCursorIgnored(string $repositoryPath, string $entry): void
     {
         $this->ensureLineInFile($repositoryPath . '/.cursorignore', $entry);
+
+        // Keep the generated .cursorignore out of the parent's git status the
+        // same way we hide the worktrees themselves, so the file stays a purely
+        // local artifact rather than dirtying the working tree. This is a no-op
+        // in repos that already track .cursorignore (git never ignores tracked
+        // files).
+        $this->ensureExcluded($repositoryPath, '/.cursorignore');
     }
 
     /**

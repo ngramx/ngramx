@@ -83,6 +83,16 @@ class GitExcludeManagerTest extends TestCase
         $this->assertSame(1, substr_count($contents, '/.ngramx/worktrees/'));
     }
 
+    public function test_it_excludes_generated_cursorignore_from_git(): void
+    {
+        $manager = new GitExcludeManager();
+        $manager->ensureCursorIgnored($this->tmpDir, '/.ngramx/worktrees/');
+
+        $exclude = $this->tmpDir . '/.git/info/exclude';
+        $this->assertFileExists($exclude);
+        $this->assertStringContainsString('/.cursorignore', (string) file_get_contents($exclude));
+    }
+
     private function removeDirectory(string $dir): void
     {
         if (!is_dir($dir)) {
