@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.23.0](https://github.com/ngramx/ngramx/compare/v2.22.1...v2.23.0) (2026-05-30)
+
+
+### Bug Fixes
+
+* **review:** make worktree git resolve inside containers + merge-safe override ([90076f3](https://github.com/ngramx/ngramx/commit/90076f37f738160aa296ecbbf5024c065d9e85e2))
+
+
+### Features
+
+* **wait:** probe real service readiness and fail fast on crash loops ([5bf9e74](https://github.com/ngramx/ngramx/commit/5bf9e74483dba1be8c92c307e912375d868ac85b))
+
 ## [2.22.1](https://github.com/ngramx/ngramx/compare/v2.22.0...v2.22.1) (2026-05-30)
 
 
