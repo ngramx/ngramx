@@ -96,6 +96,13 @@ class InitGithubActionsCommand extends Command
                 'Merge method to use (merge, squash, rebase)',
                 'squash'
             )
+            ->addOption(
+                'primary-check-name',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Name of the check run that drives the Linear status sync (de-dupes noisy check_run events)',
+                'build'
+            )
             ->addOption('force', 'f', InputOption::VALUE_NONE, 'Overwrite existing workflow files');
     }
 
@@ -127,6 +134,7 @@ class InitGithubActionsCommand extends Command
             $autoMergeLabel = (string) $input->getOption('auto-merge-label');
             $protectedBranches = $this->normalizeProtectedBranches((string) $input->getOption('protected-branches'));
             $mergeMethod = (string) $input->getOption('merge-method');
+            $primaryCheckName = (string) $input->getOption('primary-check-name');
             $force = (bool) $input->getOption('force');
 
             $allowedMergeMethods = ['merge', 'squash', 'rebase'];
@@ -152,6 +160,7 @@ class InitGithubActionsCommand extends Command
                 '{{AUTO_MERGE_LABEL}}' => $autoMergeLabel,
                 '{{PROTECTED_BRANCHES}}' => $protectedBranches,
                 '{{MERGE_METHOD}}' => $mergeMethod,
+                '{{PRIMARY_CHECK_NAME}}' => $primaryCheckName,
             ];
 
             $formatter->welcome('Init GitHub Actions (shared workflows)');
@@ -190,9 +199,10 @@ class InitGithubActionsCommand extends Command
                 $formatter->section('Next steps');
                 $formatter->info('1. Ensure repository secrets exist: CLAUDE_FIXER_APP_ID, CLAUDE_FIXER_APP_PRIVATE_KEY, ANTHROPIC_API_KEY');
                 $formatter->info('2. Optionally add COMPOSER_GITHUB_TOKEN for private Composer packages');
-                $formatter->info('3. Confirm the CI workflow name matches --ci-workflow-name (currently: ' . $ciName . ')');
-                $formatter->info('4. Pin --ref to a tag or SHA in production rather than a moving branch');
-                $formatter->info('5. See shared repo README: https://github.com/' . $sharedRepo);
+                $formatter->info('3. For Linear status sync, set secrets: LINEAR_API_KEY, LINEAR_IN_PROGRESS_STATE_ID, LINEAR_IN_REVIEW_STATE_ID (and confirm primary-check-name: ' . $primaryCheckName . ')');
+                $formatter->info('4. Confirm the CI workflow name matches --ci-workflow-name (currently: ' . $ciName . ')');
+                $formatter->info('5. Pin --ref to a tag or SHA in production rather than a moving branch');
+                $formatter->info('6. See shared repo README: https://github.com/' . $sharedRepo);
             }
 
             return Command::SUCCESS;
@@ -213,6 +223,7 @@ class InitGithubActionsCommand extends Command
             ['template' => 'claude-auto-rebase.caller.yml.template', 'filename' => 'claude-auto-rebase.yml'],
             ['template' => 'claude-fix-review-comments.caller.yml.template', 'filename' => 'claude-fix-review-comments.yml'],
             ['template' => 'auto-merge.caller.yml.template', 'filename' => 'auto-merge.yml'],
+            ['template' => 'linear-status-sync.caller.yml.template', 'filename' => 'linear-status-sync.yml'],
         ];
     }
 

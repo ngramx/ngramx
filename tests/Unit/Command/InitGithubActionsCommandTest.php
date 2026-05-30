@@ -43,6 +43,7 @@ class InitGithubActionsCommandTest extends TestCase
                 '--ref' => 'v1',
                 '--ci-workflow-name' => 'CI',
                 '--base-branch' => 'develop',
+                '--primary-check-name' => 'PHP 8.3',
             ]);
 
             $this->assertSame(0, $tester->getStatusCode());
@@ -50,11 +51,18 @@ class InitGithubActionsCommandTest extends TestCase
             $this->assertFileExists($this->testDir . '/.github/workflows/claude-auto-rebase.yml');
             $this->assertFileExists($this->testDir . '/.github/workflows/claude-fix-review-comments.yml');
             $this->assertFileExists($this->testDir . '/.github/workflows/auto-merge.yml');
+            $this->assertFileExists($this->testDir . '/.github/workflows/linear-status-sync.yml');
 
             $fix = file_get_contents($this->testDir . '/.github/workflows/claude-auto-fix.yml');
             $this->assertIsString($fix);
             $this->assertStringContainsString('acme/shared-workflows/.github/workflows/claude-auto-fix.yml@v1', $fix);
             $this->assertStringContainsString('workflows: ["CI"]', $fix);
+
+            $linear = file_get_contents($this->testDir . '/.github/workflows/linear-status-sync.yml');
+            $this->assertIsString($linear);
+            $this->assertStringContainsString('acme/shared-workflows/.github/workflows/linear-status-sync.yml@v1', $linear);
+            $this->assertStringContainsString("primary-check-name: 'PHP 8.3'", $linear);
+            $this->assertStringContainsString('secrets: inherit', $linear);
 
             $rebase = file_get_contents($this->testDir . '/.github/workflows/claude-auto-rebase.yml');
             $this->assertIsString($rebase);
