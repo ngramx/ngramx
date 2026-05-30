@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.22.0](https://github.com/ngramx/ngramx/compare/v2.21.1...v2.22.0) (2026-05-30)
+
+
+### Bug Fixes
+
+* **ci:** unblock release and restore version baseline ([65bf1ea](https://github.com/ngramx/ngramx/commit/65bf1eabd8eec72952c29bb2d0be91eeae81779f))
+* **completion:** ship completion templates in phar and auto-install ([b9272c7](https://github.com/ngramx/ngramx/commit/b9272c75ef93cce818916e76e3baf6a58c2c53d1))
+* **ports:** preserve env-var interpolation in compose port mappings ([806d064](https://github.com/ngramx/ngramx/commit/806d064ead17250f36116d1e3fe882d5e5e80604))
+* **review:** surface git output when branch checkout fails ([9519a4b](https://github.com/ngramx/ngramx/commit/9519a4bfccef7c124c0b44a805e6c8ce524ca016))
+
+
+### Features
+
+* Added --worktree to code review command and moved a lot of AGENTS.md to skills and made sure cursorules are also written because instructions were being ignored ([4dd8ef1](https://github.com/ngramx/ngramx/commit/4dd8ef135da8c391b0e161bca8e4bcfcb07f9240))
+
 # 1.0.0 (2026-05-30)
 
 
