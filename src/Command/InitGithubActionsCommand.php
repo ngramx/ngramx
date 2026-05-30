@@ -103,6 +103,20 @@ class InitGithubActionsCommand extends Command
                 'Name of the check run that drives the Linear status sync (de-dupes noisy check_run events)',
                 'build'
             )
+            ->addOption(
+                'linear-in-progress-state-name',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Linear workflow state name set when CI starts (matched by name within the issue\'s team)',
+                'In Progress'
+            )
+            ->addOption(
+                'linear-in-review-state-name',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Linear workflow state name set when CI passes (matched by name within the issue\'s team)',
+                'In Review'
+            )
             ->addOption('force', 'f', InputOption::VALUE_NONE, 'Overwrite existing workflow files');
     }
 
@@ -135,6 +149,8 @@ class InitGithubActionsCommand extends Command
             $protectedBranches = $this->normalizeProtectedBranches((string) $input->getOption('protected-branches'));
             $mergeMethod = (string) $input->getOption('merge-method');
             $primaryCheckName = (string) $input->getOption('primary-check-name');
+            $linearInProgressStateName = (string) $input->getOption('linear-in-progress-state-name');
+            $linearInReviewStateName = (string) $input->getOption('linear-in-review-state-name');
             $force = (bool) $input->getOption('force');
 
             $allowedMergeMethods = ['merge', 'squash', 'rebase'];
@@ -161,6 +177,8 @@ class InitGithubActionsCommand extends Command
                 '{{PROTECTED_BRANCHES}}' => $protectedBranches,
                 '{{MERGE_METHOD}}' => $mergeMethod,
                 '{{PRIMARY_CHECK_NAME}}' => $primaryCheckName,
+                '{{LINEAR_IN_PROGRESS_STATE_NAME}}' => $linearInProgressStateName,
+                '{{LINEAR_IN_REVIEW_STATE_NAME}}' => $linearInReviewStateName,
             ];
 
             $formatter->welcome('Init GitHub Actions (shared workflows)');
@@ -199,11 +217,10 @@ class InitGithubActionsCommand extends Command
                 $formatter->section('Required organisation secrets');
                 $formatter->info('These workflows authenticate using organisation-level secrets (Settings → Secrets and variables → Actions, at the org level). Set them once for the whole org so every repo inherits them — the workflows cannot log in without these:');
                 $formatter->info('  • LINEAR_API_KEY — Linear API key used to log in and update issue status');
-                $formatter->info('  • LINEAR_IN_PROGRESS_STATE_ID — UUID of the "In Progress" Linear state');
-                $formatter->info('  • LINEAR_IN_REVIEW_STATE_ID — UUID of the "In Review" Linear state');
                 $formatter->info('  • CLAUDE_FIXER_APP_ID, CLAUDE_FIXER_APP_PRIVATE_KEY, ANTHROPIC_API_KEY — Claude automation');
                 $formatter->info('  • COMPOSER_GITHUB_TOKEN — optional, for private Composer packages');
-                $formatter->warning('⚠ Without LINEAR_API_KEY and the two Linear state IDs set at the org (or repo) level, the Linear status sync will skip silently.');
+                $formatter->info('The Linear status sync resolves "' . $linearInProgressStateName . '"/"' . $linearInReviewStateName . '" state UUIDs by name within each issue\'s team, so no per-team state-ID secrets are needed.');
+                $formatter->warning('⚠ Without LINEAR_API_KEY set at the org (or repo) level, the Linear status sync will skip silently.');
 
                 $formatter->section('Next steps');
                 $formatter->info('1. Set the organisation secrets listed above (or per-repo if you are not using org-wide secrets)');

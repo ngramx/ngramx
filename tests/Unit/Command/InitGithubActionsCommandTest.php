@@ -62,6 +62,8 @@ class InitGithubActionsCommandTest extends TestCase
             $this->assertIsString($linear);
             $this->assertStringContainsString('acme/shared-workflows/.github/workflows/linear-status-sync.yml@v1', $linear);
             $this->assertStringContainsString("primary-check-name: 'PHP 8.3'", $linear);
+            $this->assertStringContainsString("in-progress-state-name: 'In Progress'", $linear);
+            $this->assertStringContainsString("in-review-state-name: 'In Review'", $linear);
             $this->assertStringContainsString('secrets: inherit', $linear);
 
             $rebase = file_get_contents($this->testDir . '/.github/workflows/claude-auto-rebase.yml');

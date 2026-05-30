@@ -4,12 +4,12 @@
 # Syncs the linked Linear issue's status from CI check activity on a PR:
 #   primary check started   -> In Progress
 #   primary check succeeded  -> In Review
-# The issue is resolved from the PR head branch name (e.g. gbs-123-fix-login -> GBS-123).
+# The issue is resolved from the PR head branch name (e.g. gbs-123-fix-login -> GBS-123),
+# and the target state is matched by name within that issue's team — so a single org-wide
+# LINEAR_API_KEY works across every team with no per-team state-ID configuration.
 #
-# Required secrets in this repo (org or repo level), passed via `secrets: inherit`:
-#   LINEAR_API_KEY                - Linear API key (used directly as the Authorization header; no "Bearer" prefix)
-#   LINEAR_IN_PROGRESS_STATE_ID   - UUID of the "In Progress" Linear workflow state
-#   LINEAR_IN_REVIEW_STATE_ID     - UUID of the "In Review" Linear workflow state
+# Required secret in this repo (org or repo level), passed via `secrets: inherit`:
+#   LINEAR_API_KEY  - Linear API key (used directly as the Authorization header; no "Bearer" prefix)
 
 name: Linear Status Sync
 
@@ -24,3 +24,6 @@ jobs:
     with:
       # Name of the check run to listen to (de-dupes noisy check_run events).
       primary-check-name: '{{PRIMARY_CHECK_NAME}}'
+      # Target Linear states, matched by name within the issue's team.
+      in-progress-state-name: '{{LINEAR_IN_PROGRESS_STATE_NAME}}'
+      in-review-state-name: '{{LINEAR_IN_REVIEW_STATE_NAME}}'
