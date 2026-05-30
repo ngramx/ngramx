@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.23.9](https://github.com/ngramx/ngramx/compare/v2.23.8...v2.23.9) (2026-05-30)
+
+
+### Bug Fixes
+
+* **github-actions:** trigger linear-status-sync on workflow_run ([176b574](https://github.com/ngramx/ngramx/commit/176b5743fc894f063b21c773b95e5ba8257712f0))
+
 ## [2.23.8](https://github.com/ngramx/ngramx/compare/v2.23.7...v2.23.8) (2026-05-30)
 
 
