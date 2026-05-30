@@ -431,6 +431,71 @@ class ReviewCommandTest extends TestCase
         $this->assertStringContainsString('uncommitted changes', $display);
     }
 
+    public function test_it_errors_when_no_ticket_and_not_cleanup(): void
+    {
+        $config = $this->createMockConfig([]);
+        $this->setupConfigLoader($config);
+
+        $this->commandOrchestrator->expects($this->never())->method('run');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('ticket number is required', $tester->getDisplay());
+    }
+
+    public function test_cleanup_without_ticket_removes_all_worktrees(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-foo', 0755, true);
+        mkdir($worktreesDir . '/gig-2-bar', 0755, true);
+
+        $config = $this->createMockConfig([]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['--cleanup' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('Cleaning up all worktrees (2)', $display);
+        $this->assertStringContainsString('Removed all worktrees', $display);
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-foo');
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-2-bar');
+    }
+
+    public function test_cleanup_without_ticket_when_no_worktrees(): void
+    {
+        $config = $this->createMockConfig([]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['--cleanup' => true]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('nothing to clean up', $tester->getDisplay());
+    }
+
+    public function test_cleanup_with_ticket_removes_only_matching_worktree(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-foo', 0755, true);
+        mkdir($worktreesDir . '/gig-2-bar', 0755, true);
+
+        $config = $this->createMockConfig([]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'gig-1', '--cleanup' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('Removed worktree for ticket gig-1', $display);
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-foo');
+        $this->assertDirectoryExists($worktreesDir . '/gig-2-bar');
+    }
+
     private function createCommand(): ReviewCommand
     {
         return new ReviewCommand(

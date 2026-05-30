@@ -226,6 +226,7 @@ ngramx review GIG-1234 --quick   # Checks out the branch and runs `clear` instea
 ngramx review GIG-1234 --worktree # Reviews in an isolated worktree + parallel env
 ngramx review GIG-1234 --cursor   # Same as --worktree, then opens a new Cursor window
 ngramx review GIG-1234 --cleanup  # Tears down + removes that ticket's worktree env
+ngramx review --cleanup           # Tears down + removes every worktree env
 ```
 
 This command:
@@ -240,7 +241,7 @@ This command:
 - `--quick` — Run the `clear` command instead of `fresh`. This skips the database reset and only installs deps and clears caches, so it's much faster. **Only use `--quick` on branches that don't change your database schema or seed data** — otherwise you'll be reviewing against stale data. When in doubt, use the default (`fresh`).
 - `--worktree` / `-w` — Review in an **isolated git worktree with its own parallel dev environment** instead of checking the branch out in your main working directory. This lets you review (or fix) several tickets at once without your editor and Docker stack fighting over a single branch.
 - `--cursor` — Everything `--worktree` does, then opens the worktree in a **new Cursor window**. Implies `--worktree`.
-- `--cleanup` — Stop the worktree's Docker stack (including its volumes) and remove the git worktree for this ticket. Use this when you're done reviewing. (If the container left root-owned files behind, cleanup removes them via a short-lived helper container.)
+- `--cleanup` — Stop the worktree's Docker stack (including its volumes) and remove the git worktree for this ticket. Use this when you're done reviewing. **Omit the ticket argument** (`ngramx review --cleanup`) to tear down and remove *every* worktree under `.ngramx/worktrees/` in one pass. (If a container left root-owned files behind, cleanup removes them via a short-lived helper container.)
 
 **How worktree mode works:**
 
