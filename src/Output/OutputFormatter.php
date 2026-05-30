@@ -119,7 +119,8 @@ class OutputFormatter
     public function error(string $message): void
     {
         $lines = explode("\n", $message);
-        $first = array_shift($lines) ?? '';
+        // explode() always yields at least one element, so this is never null.
+        $first = array_shift($lines);
 
         $this->output->writeln("<fg=red>✗ {$first}</>");
 

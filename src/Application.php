@@ -113,7 +113,7 @@ class Application extends BaseApplication
 
     public function __construct()
     {
-        parent::__construct('Ngramx CLI', '1.0.0');
+        parent::__construct('Ngramx CLI', '2.21.1');
 
         // Simple dependency injection
         $configValidator = new ConfigValidator();
