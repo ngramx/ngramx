@@ -714,6 +714,42 @@ non-zero — instead of hanging or firing exec commands at a dead container.
 
 The legacy `wait_for: [{ service, timeout }]` shape continues to work unchanged.
 
+### Agent instructions and skills (`agents`)
+
+Ngramx distributes a managed set of agent instructions (architecture, DB, ticket
+workflow conventions) and skills (`start-ticket`, `create-pr`, …) into each
+project. `ngramx sync-agents` — also run as part of `ngramx up` — regenerates
+these from the bundled templates.
+
+The optional `agents` block controls **where** that content is written. Both the
+rules (`targets`) and the skills (`skills`) respect these settings:
+
+```yaml
+agents:
+  # Managed rule/instruction destinations.
+  # Valid: agents_md, cursor_rules, claude_md, copilot_instructions
+  # Default: [agents_md, cursor_rules]
+  targets:
+    - agents_md             # AGENTS.md (managed block, read by most agents)
+    - cursor_rules          # .cursor/rules/ngramx.mdc
+    - claude_md             # CLAUDE.md
+    - copilot_instructions  # .github/copilot-instructions.md
+
+  # Skill folder destinations.
+  # Valid: cursor, claude
+  # Default: [cursor]
+  skills:
+    - cursor                # .cursor/skills/<name>/SKILL.md
+    - claude                # .claude/skills/<name>/SKILL.md
+```
+
+- Omit the whole `agents:` block to accept the defaults (`agents_md` +
+  `cursor_rules` for rules, `cursor` for skills).
+- **Claude is opt-in.** To distribute the rules and skills to Claude as well as
+  Cursor, add `claude_md` to `targets` and `claude` to `skills`.
+- Unknown values are rejected at load time, so a typo fails fast rather than
+  silently skipping a target.
+
 ## Tab Completion
 
 Tab completion is automatically installed by the install script. To set it up manually, see [COMPLETION.md](COMPLETION.md).

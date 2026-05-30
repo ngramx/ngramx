@@ -66,3 +66,13 @@ commands:
     description: "Run all validation checks (composer, phpstan, tests)"
     timeout: 180
 
+# Dogfood the managed agent instructions and skills for both Cursor and Claude.
+agents:
+  targets:
+    - agents_md       # AGENTS.md (managed block)
+    - cursor_rules    # .cursor/rules/ngramx.mdc
+    - claude_md       # CLAUDE.md
+  skills:
+    - cursor          # .cursor/skills/<name>/SKILL.md
+    - claude          # .claude/skills/<name>/SKILL.md
+

@@ -1,15 +1,4 @@
-# Agent instructions
-
-Add project-specific notes for AI assistants above the Ngramx-managed section.
-
-<!-- NGRAMX_AGENTS_MANAGED_BEGIN -->
----
-### Ngramx-managed agent rules
-
-Ngramx CLI replaces everything between the HTML comment markers below. Add project-specific instructions **above** `NGRAMX_AGENTS_MANAGED_BEGIN`. Do not edit between the markers.
-
----
-
+<!-- NGRAMX_CLAUDE_MANAGED_BEGIN -->
 # Development environment
 
 When this repository uses Ngramx, bring up the local stack with:
@@ -117,4 +106,4 @@ When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion
 - **Never open draft PRs.** CI and automated review should run against the PR from the moment it is created.
 - **Never add a `cursor/` (or any other tool-specific) prefix to branch names.** The branch name should describe the work, not the tool that produced it.
 - One ticket = one branch = one PR.
-<!-- NGRAMX_AGENTS_MANAGED_END -->
+<!-- NGRAMX_CLAUDE_MANAGED_END -->

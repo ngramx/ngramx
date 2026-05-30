@@ -41,6 +41,10 @@ Every PR gets two labels — one for risk, one for size. The merge automation re
 - Include a one-line rationale in the PR description, e.g. *"Labelled `risk:low` because only touches docs and tests."*
 - Never open a PR without both labels.
 
+## Linear status — leave it alone
+
+Do **not** change the Linear issue status when creating or updating the PR. The ticket should already be **"In Progress"** (set when work began), and the CI-driven `linear-status-sync` workflow moves it to **"In Review"** automatically once checks pass. Manually setting the status here would conflict with that automation.
+
 ## Completion record
 
 After the PR is created, add `.ngramx/tickets/[ticket-id]/completion.md`:

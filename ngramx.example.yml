@@ -57,3 +57,24 @@ commands:
     description: "Run composer, phpstan and phpunit in parallel"
     timeout: 180
 
+# Optional: control where Ngramx writes its managed agent instructions and skills.
+# `ngramx sync-agents` (and `ngramx up`) regenerate these from the bundled templates.
+# Both `targets` (rules) and `skills` respect the lists below — omit the whole
+# `agents:` block to accept the defaults shown here.
+agents:
+  # Where the managed rule/instruction content is written.
+  # Valid: agents_md, cursor_rules, claude_md, copilot_instructions
+  # Default: [agents_md, cursor_rules]
+  targets:
+    - agents_md             # AGENTS.md (managed block, read by most agents)
+    - cursor_rules          # .cursor/rules/ngramx.mdc
+    - claude_md             # CLAUDE.md (add this to distribute rules to Claude)
+    - copilot_instructions  # .github/copilot-instructions.md
+
+  # Where skill folders (start-ticket, create-pr, …) are copied.
+  # Valid: cursor, claude
+  # Default: [cursor]
+  skills:
+    - cursor                # .cursor/skills/<name>/SKILL.md
+    - claude                # .claude/skills/<name>/SKILL.md
+

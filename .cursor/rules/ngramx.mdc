@@ -67,6 +67,11 @@ When using `foreignUuid()->constrained()`, pass the **explicit table name** if t
 
 # Ticket and PR conventions
 
+## Linear issue status
+
+- When you **begin work** on a Linear issue, move it to **"In Progress"** (use the Linear MCP).
+- After you **create or update a pull request**, do **not** change the Linear issue status yourself. CI-driven automation (the `linear-status-sync` workflow) moves the issue to **"In Review"** once checks pass, so manual status changes at PR time would fight that automation. Leave the status alone and let CI drive it.
+
 ## Ticket folder
 
 Every ticket gets a `.ngramx/tickets/[ticket-id]/` directory at the repo root containing:

@@ -44,10 +44,17 @@ Create `.ngramx/tickets/[ticket-id]/` at the repo root with:
 
 If the ticket exists in Linear, fetch the ticket data using the Linear MCP and save it as `ticket.json`. Omit for non-Linear work.
 
+## Linear status
+
+When you begin work on a Linear ticket, move it to **"In Progress"** using the Linear MCP. Do this once, at the start.
+
+Do **not** change the status again when you later create or update the PR — CI-driven automation (the `linear-status-sync` workflow) moves the issue to **"In Review"** once checks pass.
+
 ## Workflow
 
 1. Fetch the ticket from Linear (if applicable) to understand requirements.
-2. Create and checkout the branch from `origin/main`.
-3. Create the `.ngramx/tickets/[ticket-id]/` folder with `README.md` and `ticket.json`.
-4. Commit the ticket folder as the first commit on the branch.
-5. Summarise the ticket requirements back to the user and confirm the approach before starting implementation.
+2. Move the Linear ticket to **"In Progress"** (skip for non-Linear work).
+3. Create and checkout the branch from `origin/main`.
+4. Create the `.ngramx/tickets/[ticket-id]/` folder with `README.md` and `ticket.json`.
+5. Commit the ticket folder as the first commit on the branch.
+6. Summarise the ticket requirements back to the user and confirm the approach before starting implementation.
