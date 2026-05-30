@@ -46,7 +46,7 @@ If the ticket exists in Linear, fetch the ticket data using the Linear MCP and s
 
 ## Linear status
 
-When you begin work on a Linear ticket, move it to **"In Progress"** using the Linear MCP. Do this once, at the start.
+When you begin work on a Linear ticket, move it to **"In Progress"** using the Linear MCP.
 
 Do **not** change the status again when you later create or update the PR — CI-driven automation (the `linear-status-sync` workflow) moves the issue to **"In Review"** once checks pass.
 
