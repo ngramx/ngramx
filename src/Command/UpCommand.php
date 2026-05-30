@@ -100,7 +100,7 @@ class UpCommand extends Command
                 if ($warnings !== []) {
                     $formatter->getOutput()->writeln('');
                     foreach ($warnings as $warning) {
-                        $formatter->warning("  ⚠ $warning");
+                        $formatter->warning("⚠ $warning");
                     }
                 }
             }

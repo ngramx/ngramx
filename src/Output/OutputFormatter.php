@@ -19,6 +19,15 @@ class OutputFormatter
 
     private const SERVICE_NAME_PAD = 2;
 
+    /**
+     * Sticky indentation (in spaces) shared by all messages. Methods that have
+     * a semantic level (info, command, commandOutput, section, …) set this, and
+     * contextual messages (warning, error, success) inherit it unless an
+     * explicit indent is passed. The effect: a warning/error appears at the same
+     * indentation as the surrounding output instead of jumping back to column 0.
+     */
+    private int $indent = 0;
+
     public function __construct(
         private readonly OutputInterface $output,
     ) {
@@ -27,6 +36,37 @@ class OutputFormatter
     public function getOutput(): OutputInterface
     {
         return $this->output;
+    }
+
+    /**
+     * Explicitly set the sticky indentation (in spaces) for subsequent messages
+     * that don't pin their own indent.
+     */
+    public function setIndent(int $spaces): void
+    {
+        $this->indent = max(0, $spaces);
+    }
+
+    /**
+     * Reset the sticky indentation back to column 0. Useful at the start of a
+     * top-level block (e.g. a fatal error) that should not inherit indentation.
+     */
+    public function resetIndent(): void
+    {
+        $this->indent = 0;
+    }
+
+    /**
+     * Write a single styled line. When $indent is given it becomes the new
+     * sticky indent; when null, the current sticky indent is reused.
+     */
+    private function writeAt(?int $indent, string $styled): void
+    {
+        if ($indent !== null) {
+            $this->indent = max(0, $indent);
+        }
+
+        $this->output->writeln(str_repeat(' ', $this->indent) . $styled);
     }
 
     /**
@@ -98,17 +138,17 @@ class OutputFormatter
     public function section(string $title): void
     {
         $this->output->writeln('');
-        $this->output->writeln('<fg=' . self::COLOR_TEAL . ">▸ $title</>");
+        $this->writeAt(0, '<fg=' . self::COLOR_TEAL . ">▸ $title</>");
     }
 
     public function command(CommandDefinition $cmd): void
     {
-        $this->output->writeln('  <fg=' . self::COLOR_SMOKE . ">{$cmd->description}</>");
+        $this->writeAt(2, '<fg=' . self::COLOR_SMOKE . ">{$cmd->description}</>");
     }
 
-    public function success(string $message): void
+    public function success(string $message, ?int $indent = null): void
     {
-        $this->output->writeln('<fg=' . self::COLOR_PURPLE . ">$message</>");
+        $this->writeAt($indent, '<fg=' . self::COLOR_PURPLE . ">$message</>");
     }
 
     /**
@@ -116,16 +156,21 @@ class OutputFormatter
      * stands out from surrounding output. Multi-line messages (e.g. captured git
      * output) keep their continuation lines indented to align under the first line.
      */
-    public function error(string $message): void
+    public function error(string $message, ?int $indent = null): void
     {
+        if ($indent !== null) {
+            $this->indent = max(0, $indent);
+        }
+        $pad = str_repeat(' ', $this->indent);
+
         $lines = explode("\n", $message);
         // explode() always yields at least one element, so this is never null.
         $first = array_shift($lines);
 
-        $this->output->writeln("<fg=red>✗ {$first}</>");
+        $this->output->writeln("{$pad}<fg=red>✗ {$first}</>");
 
         foreach ($lines as $line) {
-            $this->output->writeln("<fg=red>  {$line}</>");
+            $this->output->writeln("{$pad}<fg=red>  {$line}</>");
         }
 
         $this->output->writeln('');
@@ -140,26 +185,29 @@ class OutputFormatter
         return ConsoleFormatter::escape($text);
     }
 
-    public function warning(string $message): void
+    public function warning(string $message, ?int $indent = null): void
     {
-        $this->output->writeln("<fg=yellow>$message</>");
+        $this->writeAt($indent, "<fg=yellow>$message</>");
     }
 
     public function info(string $message): void
     {
-        $this->output->writeln('<fg=' . self::COLOR_SMOKE . ">  $message</>");
+        $this->writeAt(2, '<fg=' . self::COLOR_SMOKE . ">$message</>");
     }
 
     public function commandOutput(string $output): void
     {
+        $this->indent = 4;
+        $pad = str_repeat(' ', $this->indent);
         $lines = explode("\n", trim($output));
         foreach ($lines as $line) {
-            $this->output->writeln("    <fg=gray>$line</>");
+            $this->output->writeln("{$pad}<fg=gray>$line</>");
         }
     }
 
     public function welcome(string $title = 'Starting Development Environment'): void
     {
+        $this->indent = 0;
         $this->output->writeln('');
         $this->output->writeln('<fg=' . self::COLOR_PURPLE . '>──────────────────────────────────────────────────</>');
         $this->output->writeln('<fg=' . self::COLOR_PURPLE . '> ' . $title . '</>');
@@ -169,6 +217,7 @@ class OutputFormatter
 
     public function completionSummary(float $totalTime, ?string $appUrl = null): void
     {
+        $this->indent = 0;
         $this->output->writeln('');
         $this->output->writeln(sprintf('<fg=' . self::COLOR_PURPLE . '>Environment ready! (%.1fs)</>', $totalTime));
         if ($appUrl !== null) {
@@ -179,7 +228,7 @@ class OutputFormatter
 
     public function url(string $label, string $url): void
     {
-        $this->output->writeln(sprintf('<fg=' . self::COLOR_TEAL . '>➜ %s:</> %s', $label, $url));
+        $this->writeAt(null, sprintf('<fg=' . self::COLOR_TEAL . '>➜ %s:</> %s', $label, $url));
     }
 
     /**
