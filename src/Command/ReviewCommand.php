@@ -772,7 +772,8 @@ class ReviewCommand extends Command
     }
 
     /**
-     * Look for a completion.md (case-insensitive) in .ngramx/tickets/<ticket>/ and display any URLs found.
+     * Look for completion.json (preferred) or completion.md (legacy fallback) in
+     * .ngramx/tickets/<ticket>/ and display the completion info.
      */
     private function displayCompletionUrls(string $repositoryPath, string $ticketNumber, OutputFormatter $formatter): void
     {
@@ -782,27 +783,137 @@ class ReviewCommand extends Command
             return;
         }
 
-        $completionFile = $this->findCompletionFile($ticketDir);
+        $jsonFile = $this->findFileInDirectory($ticketDir, 'completion.json');
+        if ($jsonFile !== null) {
+            $this->displayCompletionJson($jsonFile, $formatter);
 
-        if ($completionFile === null) {
             return;
         }
 
-        $contents = file_get_contents($completionFile);
+        $mdFile = $this->findFileInDirectory($ticketDir, 'completion.md');
+        if ($mdFile !== null) {
+            $contents = file_get_contents($mdFile);
+            if ($contents !== false) {
+                $urls = $this->parseLegacyCompletionMd($contents);
+                if ($urls !== []) {
+                    $formatter->getOutput()->writeln('');
+                    foreach ($urls as $label => $url) {
+                        $formatter->url($label, $url);
+                    }
+                }
+            }
+        }
+    }
+
+    private const COMPLETION_RULE_WIDTH = 78;
+    private const COMPLETION_CONTENT_WIDTH = 74;
+    private const COLOR_DIM = '#6B7B8D';
+    private const COLOR_STALE_GREEN = '#4A7A4A';
+
+    /**
+     * Parse and display the full completion.json with title, description,
+     * test plan (with active/stale status), and links.
+     */
+    private function displayCompletionJson(string $filePath, OutputFormatter $formatter): void
+    {
+        $contents = file_get_contents($filePath);
         if ($contents === false) {
             return;
         }
 
-        $urls = $this->parseCompletionUrls($contents);
-
-        if ($urls === []) {
+        $data = json_decode($contents, true);
+        if (!is_array($data)) {
             return;
         }
 
-        $formatter->getOutput()->writeln('');
-        foreach ($urls as $label => $url) {
-            $formatter->url($label, $url);
+        $output = $formatter->getOutput();
+        $teal = OutputFormatter::COLOR_TEAL;
+        $smoke = OutputFormatter::COLOR_SMOKE;
+        $purple = OutputFormatter::COLOR_PURPLE;
+        $dim = self::COLOR_DIM;
+        $rule = str_repeat('━', self::COMPLETION_RULE_WIDTH);
+
+        $output->writeln('');
+        $output->writeln("<fg={$purple}>{$rule}</>");
+
+        if (isset($data['title']) && is_string($data['title'])) {
+            foreach ($this->wrapText($data['title'], self::COMPLETION_CONTENT_WIDTH) as $line) {
+                $output->writeln("  <fg={$teal};options=bold>{$line}</>");
+            }
         }
+
+        if (isset($data['description']) && is_string($data['description'])) {
+            foreach ($this->wrapText($data['description'], self::COMPLETION_CONTENT_WIDTH) as $line) {
+                $output->writeln("  <fg={$smoke}>{$line}</>");
+            }
+        }
+
+        $output->writeln("<fg={$purple}>{$rule}</>");
+
+        if (isset($data['test_plan']) && is_array($data['test_plan']) && $data['test_plan'] !== []) {
+            $output->writeln('');
+            $output->writeln("<fg={$teal}>▸ How to Test</>");
+
+            $blocks = array_values(array_filter($data['test_plan'], 'is_array'));
+            $lastIdx = count($blocks) - 1;
+
+            foreach ($blocks as $i => $block) {
+                $isStale = ($block['status'] ?? 'active') === 'stale';
+                $isLast = ($i === $lastIdx);
+                $branch = $isLast ? '└─' : '├─';
+
+                $output->writeln('');
+
+                if ($isStale) {
+                    $desc = $block['description'] ?? '';
+                    $output->writeln("<fg={$purple}>{$branch}</> <fg=" . self::COLOR_STALE_GREEN . ">✓</> \e[9m<fg={$dim}>{$desc}</>\e[0m");
+                } else {
+                    $desc = $block['description'] ?? '';
+                    $output->writeln("<fg={$purple}>{$branch}</> <fg={$smoke}>{$desc}</>");
+
+                    $steps = $block['steps'] ?? [];
+                    if (is_array($steps)) {
+                        $gutter = $isLast ? '   ' : "<fg={$purple}>│</>  ";
+                        $lastStepIdx = count($steps) - 1;
+                        foreach ($steps as $j => $step) {
+                            if (!is_string($step)) {
+                                continue;
+                            }
+                            $stepBranch = ($j === $lastStepIdx) ? '└─' : '├─';
+                            $output->writeln("   {$gutter}<fg={$dim}>{$stepBranch}</> <fg={$dim}>{$step}</>");
+                        }
+                    }
+                }
+            }
+        }
+
+        $output->writeln('');
+
+        if (isset($data['pr_url']) && is_string($data['pr_url'])) {
+            $formatter->url('PR', $data['pr_url']);
+        }
+
+        if (isset($data['linear_url']) && is_string($data['linear_url'])) {
+            $formatter->url('Linear', $data['linear_url']);
+        }
+
+        if (isset($data['test_urls']) && is_array($data['test_urls'])) {
+            foreach ($data['test_urls'] as $entry) {
+                if (is_array($entry) && isset($entry['label'], $entry['url']) && is_string($entry['label']) && is_string($entry['url'])) {
+                    $formatter->url($entry['label'], $entry['url']);
+                }
+            }
+        }
+
+        $output->writeln('');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function wrapText(string $text, int $width): array
+    {
+        return explode("\n", wordwrap($text, $width, "\n", true));
     }
 
     /**
@@ -841,18 +952,18 @@ class ReviewCommand extends Command
     }
 
     /**
-     * Case-insensitive search for completion.md.
+     * Case-insensitive search for a file by name in a directory.
      */
-    private function findCompletionFile(string $ticketDir): ?string
+    private function findFileInDirectory(string $directory, string $filename): ?string
     {
-        $files = scandir($ticketDir);
+        $files = scandir($directory);
         if ($files === false) {
             return null;
         }
 
         foreach ($files as $file) {
-            if (strcasecmp($file, 'completion.md') === 0) {
-                return $ticketDir . '/' . $file;
+            if (strcasecmp($file, $filename) === 0) {
+                return $directory . '/' . $file;
             }
         }
 
@@ -860,9 +971,11 @@ class ReviewCommand extends Command
     }
 
     /**
+     * Legacy parser for completion.md files (bullet-line format).
+     *
      * @return array<string, string> label => URL
      */
-    private function parseCompletionUrls(string $contents): array
+    private function parseLegacyCompletionMd(string $contents): array
     {
         $urls = [];
 

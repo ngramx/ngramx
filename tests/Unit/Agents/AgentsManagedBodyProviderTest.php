@@ -34,8 +34,8 @@ class AgentsManagedBodyProviderTest extends TestCase
         $markdown = $provider->getMarkdown();
 
         $this->assertStringContainsString('Never open draft PRs', $markdown);
-        $this->assertStringContainsString('completion.md', $markdown);
-        $this->assertStringContainsString('Click to Test', $markdown);
+        $this->assertStringContainsString('completion.json', $markdown);
+        $this->assertStringContainsString('test_urls', $markdown);
     }
 
     public function test_get_markdown_does_not_include_skill_content(): void

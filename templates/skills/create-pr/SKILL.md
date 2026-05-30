@@ -47,26 +47,44 @@ Do **not** change the Linear issue status when creating or updating the PR. The 
 
 ## Completion record
 
-After the PR is created, add `.ngramx/tickets/[ticket-id]/completion.md`:
+After the PR is created, add `.ngramx/tickets/[ticket-id]/completion.json`. This file **must** be valid JSON — do not use markdown, do not add extra keys:
 
-```markdown
-## GitHub PR
-
-[URL of the pull request]
-
-## Linear ticket
-
-[URL of the Linear ticket, or omit if not applicable]
-
-## Click to Test
-
-[Deep-link into the running application at the route that demonstrates the change.
-Use the local development URL. Include bypass tokens if needed.]
+```json
+{
+  "title": "GIG-123: Invoice PDF Export With Custom Templates",
+  "description": "Adds PDF export to the invoice detail page with support for custom Blade templates.",
+  "pr_url": "https://github.com/org/repo/pull/42",
+  "linear_url": "https://linear.app/team/issue/GIG-123",
+  "test_urls": [
+    {
+      "label": "Invoice detail",
+      "url": "https://app.localhost/invoices/INV-0042?bypass=hello@example.com"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "PDF download from the invoice detail page",
+      "status": "active",
+      "steps": [
+        "Navigate to an invoice with line items",
+        "Click Actions → Download PDF",
+        "Verify the PDF contains the correct invoice data"
+      ]
+    }
+  ]
+}
 ```
+
+- `title` (required): PR title including ticket ID, e.g. `GIG-123: Short Title`.
+- `description` (required): One or two sentences describing what the changes are.
+- `pr_url` (required): Full URL of the GitHub pull request.
+- `linear_url` (optional): Full URL of the Linear ticket. Set to `null` or omit for non-Linear work.
+- `test_urls` (required): Array of `{ "label", "url" }` objects. Deep-links into the running application. Use the local development URL and include bypass tokens if needed.
+- `test_plan` (required): Array of test blocks. Each has `description` (short summary), `status` (always `"active"` when creating a PR), and `steps` (ordered testing instructions).
 
 ## Workflow
 
 1. Ensure all changes are committed and pushed.
 2. Run `gh pr create` with title, body (including risk/size rationale), and labels.
-3. Create the completion record in the ticket folder.
+3. Create `completion.json` in the ticket folder.
 4. Report the PR URL to the user.

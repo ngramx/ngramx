@@ -210,17 +210,30 @@ class ReviewCommandTest extends TestCase
         $this->assertStringContainsString("'clear' is not defined", $tester->getDisplay());
     }
 
-    public function test_it_displays_completion_urls_when_file_exists(): void
+    public function test_it_displays_full_completion_json(): void
     {
         $ticketDir = $this->tmpDir . '/.ngramx/tickets/GIG-123';
         mkdir($ticketDir, 0755, true);
-        file_put_contents($ticketDir . '/COMPLETION.md', implode("\n", [
-            '# Completion',
-            '',
-            '- Linear: https://linear.app/team/GIG-123',
-            '- PR: https://github.com/org/repo/pull/42',
-            '- App: https://app.example.com/invoices',
-        ]));
+        file_put_contents($ticketDir . '/completion.json', json_encode([
+            'title' => 'GIG-123: Invoice PDF Export',
+            'description' => 'Adds PDF export to the invoice detail page.',
+            'pr_url' => 'https://github.com/org/repo/pull/42',
+            'linear_url' => 'https://linear.app/team/GIG-123',
+            'test_urls' => [
+                ['label' => 'Invoice list', 'url' => 'https://app.example.com/invoices'],
+            ],
+            'test_plan' => [
+                [
+                    'description' => 'PDF download works',
+                    'status' => 'active',
+                    'steps' => [
+                        'Open an invoice',
+                        'Click Download PDF',
+                        'Verify the PDF content',
+                    ],
+                ],
+            ],
+        ], JSON_PRETTY_PRINT));
 
         $config = $this->createMockConfig([
             'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
@@ -234,17 +247,88 @@ class ReviewCommandTest extends TestCase
 
         $display = $tester->getDisplay();
         $this->assertSame(0, $exitCode);
-        $this->assertStringContainsString('https://linear.app/team/GIG-123', $display);
+        // Title in heavy rules
+        $this->assertStringContainsString('━━━', $display);
+        $this->assertStringContainsString('GIG-123: Invoice PDF Export', $display);
+        $this->assertStringContainsString('Adds PDF export to the invoice detail page.', $display);
+        // Test plan with tree lines before links
+        $this->assertStringContainsString('How to Test', $display);
+        $this->assertStringContainsString('PDF download works', $display);
+        $this->assertStringContainsString('Open an invoice', $display);
+        $this->assertStringContainsString('Click Download PDF', $display);
+        $this->assertStringContainsString('Verify the PDF content', $display);
+        // Links at the bottom
         $this->assertStringContainsString('https://github.com/org/repo/pull/42', $display);
+        $this->assertStringContainsString('https://linear.app/team/GIG-123', $display);
         $this->assertStringContainsString('https://app.example.com/invoices', $display);
+        // Test plan appears before links
+        $testPlanPos = strpos($display, 'How to Test');
+        $prPos = strpos($display, 'https://github.com/org/repo/pull/42');
+        $this->assertNotFalse($testPlanPos);
+        $this->assertNotFalse($prPos);
+        $this->assertLessThan($prPos, $testPlanPos);
     }
 
-    public function test_it_finds_completion_file_case_insensitively(): void
+    public function test_it_renders_stale_and_active_test_blocks(): void
+    {
+        $ticketDir = $this->tmpDir . '/.ngramx/tickets/GIG-123';
+        mkdir($ticketDir, 0755, true);
+        file_put_contents($ticketDir . '/completion.json', json_encode([
+            'title' => 'GIG-123: Invoice Export',
+            'description' => 'Export invoices.',
+            'pr_url' => 'https://github.com/org/repo/pull/42',
+            'test_urls' => [],
+            'test_plan' => [
+                [
+                    'description' => 'Original PDF test',
+                    'status' => 'stale',
+                    'steps' => ['Step A', 'Step B'],
+                ],
+                [
+                    'description' => 'New logo test',
+                    'status' => 'active',
+                    'steps' => ['Check the logo appears', 'Verify no stretching'],
+                ],
+            ],
+        ], JSON_PRETTY_PRINT));
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode);
+        // Stale block headline is shown (strikethrough stripped by test output)
+        $this->assertStringContainsString('Original PDF test', $display);
+        // Stale block steps are NOT shown
+        $this->assertStringNotContainsString('Step A', $display);
+        $this->assertStringNotContainsString('Step B', $display);
+        // Active block headline and steps are shown
+        $this->assertStringContainsString('New logo test', $display);
+        $this->assertStringContainsString('Check the logo appears', $display);
+        $this->assertStringContainsString('Verify no stretching', $display);
+        // Tree lines present
+        $this->assertStringContainsString('├─', $display);
+        $this->assertStringContainsString('└─', $display);
+    }
+
+    public function test_it_finds_completion_json_case_insensitively(): void
     {
         $ticketDir = $this->tmpDir . '/.ngramx/tickets/GIG-456';
         mkdir($ticketDir, 0755, true);
-        file_put_contents($ticketDir . '/completion.md', implode("\n", [
-            '- Linear: https://linear.app/team/GIG-456',
+        file_put_contents($ticketDir . '/Completion.JSON', json_encode([
+            'title' => 'GIG-456: Some Feature',
+            'description' => 'A feature.',
+            'pr_url' => 'https://github.com/org/repo/pull/56',
+            'linear_url' => 'https://linear.app/team/GIG-456',
+            'test_urls' => [],
+            'test_plan' => [],
         ]));
 
         $this->gitRepositoryService = $this->createMock(GitRepositoryService::class);
@@ -299,9 +383,13 @@ class ReviewCommandTest extends TestCase
     {
         $ticketDir = $this->tmpDir . '/.ngramx/tickets/gig-1603';
         mkdir($ticketDir, 0755, true);
-        file_put_contents($ticketDir . '/completion.md', implode("\n", [
-            '- GitHub PR: https://github.com/org/repo/pull/54',
-            '- Linear Ticket: https://linear.app/gigabyte/issue/GIG-1603',
+        file_put_contents($ticketDir . '/completion.json', json_encode([
+            'title' => 'GIG-1603: Some Feature',
+            'description' => 'A feature.',
+            'pr_url' => 'https://github.com/org/repo/pull/54',
+            'linear_url' => 'https://linear.app/gigabyte/issue/GIG-1603',
+            'test_urls' => [],
+            'test_plan' => [],
         ]));
 
         $this->gitRepositoryService = $this->createMock(GitRepositoryService::class);
@@ -326,12 +414,21 @@ class ReviewCommandTest extends TestCase
         $this->assertStringContainsString('https://linear.app/gigabyte/issue/GIG-1603', $display);
     }
 
-    public function test_it_finds_completion_file_without_at_prefix(): void
+    public function test_it_displays_multiple_test_urls_from_json(): void
     {
         $ticketDir = $this->tmpDir . '/.ngramx/tickets/GIG-123';
         mkdir($ticketDir, 0755, true);
-        file_put_contents($ticketDir . '/completion.md', implode("\n", [
-            '- PR: https://github.com/org/repo/pull/99',
+        file_put_contents($ticketDir . '/completion.json', json_encode([
+            'title' => 'GIG-123: Dashboard Update',
+            'description' => 'Updates the dashboard across web and PWA.',
+            'pr_url' => 'https://github.com/org/repo/pull/99',
+            'test_urls' => [
+                ['label' => 'Web app', 'url' => 'https://app.localhost/dashboard'],
+                ['label' => 'PWA', 'url' => 'https://pwa.localhost/dashboard'],
+            ],
+            'test_plan' => [
+                ['description' => 'Dashboard loads', 'status' => 'active', 'steps' => ['Open dashboard']],
+            ],
         ]));
 
         $config = $this->createMockConfig([
@@ -344,8 +441,70 @@ class ReviewCommandTest extends TestCase
         $tester = new CommandTester($this->createCommand());
         $exitCode = $tester->execute(['ticket' => 'GIG-123']);
 
+        $display = $tester->getDisplay();
         $this->assertSame(0, $exitCode);
-        $this->assertStringContainsString('https://github.com/org/repo/pull/99', $tester->getDisplay());
+        $this->assertStringContainsString('https://github.com/org/repo/pull/99', $display);
+        $this->assertStringContainsString('https://app.localhost/dashboard', $display);
+        $this->assertStringContainsString('https://pwa.localhost/dashboard', $display);
+    }
+
+    public function test_it_falls_back_to_legacy_completion_md(): void
+    {
+        $ticketDir = $this->tmpDir . '/.ngramx/tickets/GIG-123';
+        mkdir($ticketDir, 0755, true);
+        file_put_contents($ticketDir . '/completion.md', implode("\n", [
+            '- PR: https://github.com/org/repo/pull/99',
+            '- Linear: https://linear.app/team/GIG-123',
+        ]));
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('https://github.com/org/repo/pull/99', $display);
+        $this->assertStringContainsString('https://linear.app/team/GIG-123', $display);
+    }
+
+    public function test_it_prefers_completion_json_over_completion_md(): void
+    {
+        $ticketDir = $this->tmpDir . '/.ngramx/tickets/GIG-123';
+        mkdir($ticketDir, 0755, true);
+        file_put_contents($ticketDir . '/completion.json', json_encode([
+            'title' => 'GIG-123: New Feature',
+            'description' => 'A new feature.',
+            'pr_url' => 'https://github.com/org/repo/pull/100',
+            'test_urls' => [],
+            'test_plan' => [
+                ['description' => 'Works', 'status' => 'active', 'steps' => ['Test it']],
+            ],
+        ]));
+        file_put_contents($ticketDir . '/completion.md', implode("\n", [
+            '- PR: https://github.com/org/repo/pull/OLD',
+        ]));
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('GIG-123: New Feature', $display);
+        $this->assertStringContainsString('https://github.com/org/repo/pull/100', $display);
+        $this->assertStringNotContainsString('pull/OLD', $display);
     }
 
     public function test_it_gracefully_skips_when_no_ticket_folder(): void

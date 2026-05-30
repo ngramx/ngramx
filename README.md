@@ -234,7 +234,7 @@ This command:
 1. Fetches from `origin`
 2. Finds branches containing the ticket number and checks one out (prompts if there are multiple)
 3. Runs either `fresh` (default) or `clear` (with `--quick`) to sync the environment
-4. Prints any URLs from `.ngramx/tickets/<ticket>/completion.md`
+4. Prints any URLs from `.ngramx/tickets/<ticket>/completion.json` (falls back to legacy `completion.md`)
 
 **Options:**
 

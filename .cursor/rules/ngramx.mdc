@@ -95,15 +95,46 @@ Every ticket gets a `.ngramx/tickets/[ticket-id]/` directory at the repo root co
   ```
 
 - `ticket.json` — raw Linear ticket data (if the ticket exists in Linear). Omit for non-Linear work.
-- `completion.md` — see below.
+- `completion.json` — see below.
 
 ## Completion record
 
-When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion.md` containing at least:
+When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion.json`. This file **must** be valid JSON matching this exact schema — do not use markdown, do not add extra keys, do not omit required fields:
 
-- **GitHub PR:** URL of the pull request.
-- **Linear ticket:** URL of the Linear ticket (omit if not applicable).
-- **Click to Test:** a deep-link into the running application at the exact route that demonstrates the change. Use the local development URL (inspect the project's Docker / Ngramx setup to find it). If the project requires a bypass token (for example `?bypass=hello@example.com`), include it on the URL so reviewers can open the page directly. Some projects ship more than one app (for example a web app and a PWA); link to every surface the change touches.
+```json
+{
+  "title": "GIG-123: Invoice PDF Export With Custom Templates",
+  "description": "Adds PDF export to the invoice detail page with support for custom Blade templates.",
+  "pr_url": "https://github.com/org/repo/pull/42",
+  "linear_url": "https://linear.app/team/issue/GIG-123",
+  "test_urls": [
+    {
+      "label": "Invoice detail",
+      "url": "https://app.localhost/invoices/INV-0042?bypass=hello@example.com"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "PDF download from the invoice detail page",
+      "status": "active",
+      "steps": [
+        "Navigate to an invoice with line items",
+        "Click Actions → Download PDF",
+        "Verify the PDF contains the correct invoice data"
+      ]
+    }
+  ]
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `title` | Yes | PR title including ticket ID, e.g. `GIG-123: Short Title In Title Case`. |
+| `description` | Yes | One or two sentences describing what the ticket resolves or what the changes are. |
+| `pr_url` | Yes | Full URL of the GitHub pull request. |
+| `linear_url` | No | Full URL of the Linear ticket. Set to `null` or omit for non-Linear work. |
+| `test_urls` | Yes | Array of `{ "label", "url" }` objects. Deep-links into the running application at routes that demonstrate the change. Use the local development URL. Include bypass tokens if the project requires them. |
+| `test_plan` | Yes | Array of test blocks. Each has `description` (one sentence), `status` (`"active"` or `"stale"`), and `steps` (ordered array of testing instructions). When creating a PR, all blocks are `"active"`. When updating a PR after review feedback, existing blocks become `"stale"` and new blocks are added as `"active"`. |
 
 ## Hard rules
 

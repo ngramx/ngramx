@@ -101,10 +101,39 @@ These labels exist in both Linear and GitHub. The linear should already have the
 
 ## Completion record
 
-When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion.md` containing at least:
+When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion.json`:
 
-- **GitHub PR:** URL of the pull request.
-- **Linear ticket:** URL of the Linear ticket (omit if not applicable).
-- **Click to Test:** a deep-link into the running application at the exact route that demonstrates the change. Use the local development URL (inspect the project's Docker / Ngramx setup to find it). If the project requires a bypass token (for example `?bypass=hello@example.com`), include it on the URL so reviewers can open the page directly. Some projects ship more than one app (for example a web app and a PWA); link to every surface the change touches.
+```json
+{
+  "title": "GIG-123: Invoice PDF Export With Custom Templates",
+  "description": "Adds PDF export to the invoice detail page with support for custom Blade templates.",
+  "pr_url": "https://github.com/org/repo/pull/42",
+  "linear_url": "https://linear.app/team/issue/GIG-123",
+  "test_urls": [
+    {
+      "label": "Invoice detail",
+      "url": "https://app.localhost/invoices/INV-0042?bypass=hello@example.com"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "PDF download from the invoice detail page",
+      "status": "active",
+      "steps": [
+        "Navigate to an invoice with line items",
+        "Click Actions → Download PDF",
+        "Verify the PDF contains the correct invoice data"
+      ]
+    }
+  ]
+}
+```
+
+- `title` (required): PR title including ticket ID.
+- `description` (required): One or two sentences describing what the changes are.
+- `pr_url` (required): Full URL of the GitHub pull request.
+- `linear_url` (optional): Full URL of the Linear ticket. Set to `null` or omit for non-Linear work.
+- `test_urls` (required): Array of `{ "label", "url" }` objects. Deep-links into the running application. Use the local development URL and include bypass tokens if needed.
+- `test_plan` (required): Array of `{ "description", "status", "steps" }` objects. Each block covers one testable flow. `status` is `"active"` or `"stale"`.
 
 This record makes handover and review straightforward regardless of which AI agent or human picks up the review.
