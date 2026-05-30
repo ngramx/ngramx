@@ -35,6 +35,31 @@ class ContainerExecutor
     }
 
     /**
+     * Run a command inside the container purely to test its exit code, used as
+     * a readiness probe (e.g. `php artisan --version`). Returns true only when
+     * the command exits 0. Output is discarded and any failure to spawn the
+     * process is treated as "not ready" rather than thrown, so probes can be
+     * retried with backoff.
+     */
+    public function succeeds(
+        string $composeFile,
+        string $service,
+        string $command,
+        int $timeout = 15,
+        ?string $projectName = null
+    ): bool {
+        try {
+            $process = new Process($this->buildExecCommand($composeFile, $service, $command, $projectName));
+            $process->setTimeout($timeout);
+            $process->run();
+
+            return $process->isSuccessful();
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
      * Build the argv used to run a non-interactive `docker-compose exec` for the given command.
      *
      * Exposed so callers that need to manage the `Process` lifecycle themselves (e.g. parallel

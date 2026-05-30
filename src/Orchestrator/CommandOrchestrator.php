@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Ngramx\Orchestrator;
 
 use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\ServiceWaitConfig;
 use Ngramx\Docker\ContainerExecutor;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\HealthChecker;
+use Ngramx\Docker\ServiceReadinessWaiter;
 use Ngramx\Executor\ContainerCommandExecutor;
 use Ngramx\Executor\ParallelContainerExecutor;
 use Ngramx\Executor\Result\ParallelCommandResult;
@@ -15,9 +19,25 @@ use Symfony\Component\Process\Process;
 
 class CommandOrchestrator
 {
+    /**
+     * Default budget for the pre-command readiness gate when the primary
+     * service has no explicit `wait_for` entry. Long enough for a heavy
+     * entrypoint (composer/npm install, migrations) re-running on boot.
+     */
+    private const DEFAULT_READINESS_TIMEOUT = 300;
+
+    private readonly ServiceReadinessWaiter $readinessWaiter;
+
     public function __construct(
         private readonly OutputFormatter $formatter,
+        ?ServiceReadinessWaiter $readinessWaiter = null,
     ) {
+        $this->readinessWaiter = $readinessWaiter ?? new ServiceReadinessWaiter(
+            new DockerCompose(),
+            new HealthChecker(),
+            $this->formatter,
+            new ContainerExecutor(),
+        );
     }
 
     /**
@@ -32,6 +52,11 @@ class CommandOrchestrator
         }
 
         $cmd = $config->commands[$commandName];
+
+        // Gate every container command behind a real readiness probe so we never
+        // fire `docker compose exec` at a primary service whose entrypoint is
+        // still installing dependencies or running migrations.
+        $this->ensurePrimaryServiceReady($config, $projectName);
 
         if ($cmd->isParallel()) {
             return $this->runParallel($commandName, $cmd->commands, $cmd->timeout, $cmd->description, $config, $projectName);
@@ -91,6 +116,38 @@ class CommandOrchestrator
         }
 
         return $result;
+    }
+
+    /**
+     * Block until the primary service passes its configured readiness probe.
+     * Reuses the `wait_for` entry for the primary service when present so the
+     * gate honours the project's healthcheck/ready_command/ready_log settings;
+     * otherwise falls back to a default-timeout running check.
+     *
+     * @throws \Ngramx\Docker\Exception\ServiceNotHealthyException
+     */
+    private function ensurePrimaryServiceReady(NgramxConfig $config, ?string $projectName): void
+    {
+        $waitConfig = $this->resolvePrimaryWaitConfig($config);
+
+        $this->readinessWaiter->waitForReady(
+            $config->docker->composeFile,
+            $waitConfig,
+            $projectName,
+        );
+    }
+
+    private function resolvePrimaryWaitConfig(NgramxConfig $config): ServiceWaitConfig
+    {
+        $primary = $config->docker->primaryService;
+
+        foreach ($config->docker->waitFor as $waitConfig) {
+            if ($waitConfig->service === $primary) {
+                return $waitConfig;
+            }
+        }
+
+        return new ServiceWaitConfig(service: $primary, timeout: self::DEFAULT_READINESS_TIMEOUT);
     }
 
     private function runSingle(string $commandName, NgramxConfig $config, ?string $projectName = null): float

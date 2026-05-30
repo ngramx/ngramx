@@ -38,6 +38,7 @@ use Ngramx\Docker\HealthChecker;
 use Ngramx\Docker\ImageReuser;
 use Ngramx\Docker\NamespaceResolver;
 use Ngramx\Docker\PortOffsetManager;
+use Ngramx\Docker\ServiceReadinessWaiter;
 use Ngramx\Executor\HostCommandExecutor;
 use Ngramx\Git\GitExcludeManager;
 use Ngramx\Git\GitRepositoryService;
@@ -143,7 +144,15 @@ class Application extends BaseApplication
             $outputFormatter
         );
 
-        $commandOrchestrator = new CommandOrchestrator($outputFormatter);
+        $commandOrchestrator = new CommandOrchestrator(
+            $outputFormatter,
+            new ServiceReadinessWaiter(
+                $dockerCompose,
+                $healthChecker,
+                $outputFormatter,
+                $containerExecutor,
+            ),
+        );
 
         // Create Git and Laravel services
         $gitRepositoryService = new GitRepositoryService();

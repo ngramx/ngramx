@@ -219,6 +219,6 @@ class OutputFormatter
 
     private function isHealthyStatus(string $status): bool
     {
-        return $status === 'healthy' || $status === 'running';
+        return $status === 'healthy' || $status === 'running' || $status === 'ready';
     }
 }

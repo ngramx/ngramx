@@ -1,0 +1,14 @@
+version: "1.0"
+
+docker:
+  compose_file: "docker-compose.test.yml"
+  primary_service: "app"
+  app_url: "http://localhost:8080"
+  wait_for:
+    - service: "app"
+      timeout: 300
+      healthcheck: true
+      ready_command: "php artisan --version"
+      ready_log: "is ready!"
+    - service: "db"
+      timeout: 60

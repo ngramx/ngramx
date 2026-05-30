@@ -49,19 +49,84 @@ class HealthChecker
     /**
      * Get the health status of a service
      *
+     * Returns the Docker healthcheck status (`healthy`, `unhealthy`, `starting`)
+     * when the container declares a healthcheck, otherwise the raw container
+     * state (`running`, `exited`, `restarting`, ...). Returns `unknown` when no
+     * container exists for the service or it cannot be inspected.
+     *
      * @return string Status: 'healthy', 'unhealthy', 'starting', 'running', 'exited', 'unknown'
      */
     public function getHealthStatus(string $composeFile, string $service, ?string $projectName = null): string
     {
-        // First, get the container name for this service
-        $command = ['docker-compose', '-f', $composeFile];
-
-        // Add override file if it exists
-        $overrideFile = dirname($composeFile) . '/docker-compose.override.yml';
-        if (file_exists($overrideFile)) {
-            $command[] = '-f';
-            $command[] = $overrideFile;
+        $containerId = $this->getContainerId($composeFile, $service, $projectName);
+        if ($containerId === null) {
+            return 'unknown';
         }
+
+        $status = $this->inspect(
+            $containerId,
+            '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}'
+        );
+
+        return $status ?? 'unknown';
+    }
+
+    /**
+     * Whether the service's container declares a Docker healthcheck.
+     */
+    public function hasHealthcheck(string $composeFile, string $service, ?string $projectName = null): bool
+    {
+        $containerId = $this->getContainerId($composeFile, $service, $projectName);
+        if ($containerId === null) {
+            return false;
+        }
+
+        $value = $this->inspect($containerId, '{{if .State.Health}}yes{{else}}no{{end}}');
+
+        return $value === 'yes';
+    }
+
+    /**
+     * Get the raw container state (`running`, `restarting`, `exited`, `dead`,
+     * `created`, `paused`). Returns `unknown` when no container exists.
+     */
+    public function getContainerState(string $composeFile, string $service, ?string $projectName = null): string
+    {
+        $containerId = $this->getContainerId($composeFile, $service, $projectName);
+        if ($containerId === null) {
+            return 'unknown';
+        }
+
+        return $this->inspect($containerId, '{{.State.Status}}') ?? 'unknown';
+    }
+
+    /**
+     * Get the container's restart count. A climbing restart count is a strong
+     * signal that a container is crash-looping even while Docker still reports
+     * it as `running` between restarts. Returns 0 when unavailable.
+     */
+    public function getRestartCount(string $composeFile, string $service, ?string $projectName = null): int
+    {
+        $containerId = $this->getContainerId($composeFile, $service, $projectName);
+        if ($containerId === null) {
+            return 0;
+        }
+
+        $value = $this->inspect($containerId, '{{.RestartCount}}');
+        if ($value === null || !ctype_digit($value)) {
+            return 0;
+        }
+
+        return (int) $value;
+    }
+
+    /**
+     * Resolve the container ID backing a compose service, or null when none
+     * exists yet.
+     */
+    private function getContainerId(string $composeFile, string $service, ?string $projectName = null): ?string
+    {
+        $command = array_merge(['docker-compose'], ComposeFiles::fileArgs($composeFile));
 
         if ($projectName !== null) {
             $command[] = '-p';
@@ -74,22 +139,26 @@ class HealthChecker
         $process->run();
 
         $containerId = trim($process->getOutput());
-        if (empty($containerId)) {
-            return 'unknown';
+
+        // `ps -q` can return multiple IDs for scaled services; the first is enough.
+        if ($containerId !== '' && str_contains($containerId, "\n")) {
+            $containerId = trim(strtok($containerId, "\n") ?: '');
         }
 
-        // Check if container has healthcheck
-        $process = new Process([
-            'docker',
-            'inspect',
-            '--format',
-            '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}',
-            $containerId,
-        ]);
+        return $containerId === '' ? null : $containerId;
+    }
+
+    /**
+     * Run `docker inspect` with the given Go template, returning the trimmed
+     * output or null on failure.
+     */
+    private function inspect(string $containerId, string $format): ?string
+    {
+        $process = new Process(['docker', 'inspect', '--format', $format, $containerId]);
         $process->run();
 
         if (!$process->isSuccessful()) {
-            return 'unknown';
+            return null;
         }
 
         return trim($process->getOutput());

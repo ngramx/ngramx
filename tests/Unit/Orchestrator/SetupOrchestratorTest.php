@@ -343,7 +343,7 @@ class SetupOrchestratorTest extends TestCase
         $this->healthChecker->method('getHealthStatus')->willReturn('starting');
 
         $this->expectException(\Ngramx\Docker\Exception\ServiceNotHealthyException::class);
-        $this->expectExceptionMessageMatches('/did not become healthy/');
+        $this->expectExceptionMessageMatches('/did not become ready/');
 
         $orchestrator = $this->createOrchestrator();
         $orchestrator->setup($config);

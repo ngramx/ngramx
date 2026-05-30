@@ -149,6 +149,73 @@ class ConfigValidatorTest extends TestCase
         $this->validator->validate($config);
     }
 
+    public function test_it_validates_readiness_probe_fields(): void
+    {
+        $config = [
+            'version' => '1.0',
+            'docker' => [
+                'compose_file' => 'docker-compose.yml',
+                'primary_service' => 'app',
+                'app_url' => 'http://localhost:8080',
+                'wait_for' => [
+                    [
+                        'service' => 'app',
+                        'timeout' => 300,
+                        'healthcheck' => true,
+                        'ready_command' => 'php artisan --version',
+                        'ready_log' => 'is ready!',
+                    ],
+                ],
+            ],
+        ];
+
+        $this->validator->validate($config);
+        $this->assertTrue(true);
+    }
+
+    public function test_it_throws_for_non_boolean_healthcheck(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('healthcheck must be a boolean');
+
+        $this->validator->validate($this->waitForConfig(['healthcheck' => 'yes']));
+    }
+
+    public function test_it_throws_for_empty_ready_command(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('ready_command must be a non-empty string');
+
+        $this->validator->validate($this->waitForConfig(['ready_command' => '   ']));
+    }
+
+    public function test_it_throws_for_invalid_ready_log_regex(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('ready_log is not a valid regular expression');
+
+        $this->validator->validate($this->waitForConfig(['ready_log' => '(unterminated']));
+    }
+
+    /**
+     * @param array<string, mixed> $extra
+     * @return array<string, mixed>
+     */
+    private function waitForConfig(array $extra): array
+    {
+        return [
+            'version' => '1.0',
+            'docker' => [
+                'compose_file' => 'docker-compose.yml',
+                'primary_service' => 'app',
+                'app_url' => 'http://localhost:8080',
+                'wait_for' => [
+                    array_merge(['service' => 'app', 'timeout' => 60], $extra),
+                ],
+            ],
+        ];
+    }
+
     public function test_it_validates_command_definitions(): void
     {
         $config = [

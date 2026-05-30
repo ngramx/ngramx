@@ -30,6 +30,38 @@ class ConfigLoaderTest extends TestCase
         $this->assertCount(1, $config->commands);
     }
 
+    public function test_it_defaults_readiness_probe_fields_when_omitted(): void
+    {
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
+
+        $wait = $config->docker->waitFor[0];
+        $this->assertSame('app', $wait->service);
+        $this->assertSame(30, $wait->timeout);
+        $this->assertFalse($wait->healthcheck);
+        $this->assertNull($wait->readyCommand);
+        $this->assertNull($wait->readyLog);
+        $this->assertFalse($wait->hasExplicitProbe());
+    }
+
+    public function test_it_parses_readiness_probe_fields(): void
+    {
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx-wait-probes.yml');
+
+        $this->assertCount(2, $config->docker->waitFor);
+
+        $app = $config->docker->waitFor[0];
+        $this->assertSame('app', $app->service);
+        $this->assertSame(300, $app->timeout);
+        $this->assertTrue($app->healthcheck);
+        $this->assertSame('php artisan --version', $app->readyCommand);
+        $this->assertSame('is ready!', $app->readyLog);
+        $this->assertTrue($app->hasExplicitProbe());
+
+        $db = $config->docker->waitFor[1];
+        $this->assertSame('db', $db->service);
+        $this->assertFalse($db->hasExplicitProbe());
+    }
+
     public function test_it_throws_exception_for_missing_file(): void
     {
         $this->expectException(ConfigException::class);

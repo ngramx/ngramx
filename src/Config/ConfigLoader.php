@@ -134,9 +134,15 @@ class ConfigLoader
         $waitFor = [];
         if (isset($dockerConfig['wait_for']) && is_array($dockerConfig['wait_for'])) {
             foreach ($dockerConfig['wait_for'] as $waitConfig) {
+                $readyCommand = $waitConfig['ready_command'] ?? null;
+                $readyLog = $waitConfig['ready_log'] ?? null;
+
                 $waitFor[] = new ServiceWaitConfig(
                     service: $waitConfig['service'],
                     timeout: $waitConfig['timeout'],
+                    healthcheck: (bool) ($waitConfig['healthcheck'] ?? false),
+                    readyCommand: $readyCommand !== null ? (string) $readyCommand : null,
+                    readyLog: $readyLog !== null ? (string) $readyLog : null,
                 );
             }
         }

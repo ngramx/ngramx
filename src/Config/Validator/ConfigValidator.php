@@ -83,6 +83,25 @@ class ConfigValidator
                 if (!is_int($waitConfig['timeout']) || $waitConfig['timeout'] <= 0) {
                     throw new ConfigException("docker.wait_for[$index].timeout must be a positive integer");
                 }
+
+                if (isset($waitConfig['healthcheck']) && !is_bool($waitConfig['healthcheck'])) {
+                    throw new ConfigException("docker.wait_for[$index].healthcheck must be a boolean");
+                }
+
+                if (isset($waitConfig['ready_command'])) {
+                    if (!is_string($waitConfig['ready_command']) || trim($waitConfig['ready_command']) === '') {
+                        throw new ConfigException("docker.wait_for[$index].ready_command must be a non-empty string");
+                    }
+                }
+
+                if (isset($waitConfig['ready_log'])) {
+                    if (!is_string($waitConfig['ready_log']) || $waitConfig['ready_log'] === '') {
+                        throw new ConfigException("docker.wait_for[$index].ready_log must be a non-empty string");
+                    }
+                    if (@preg_match('~' . str_replace('~', '\~', $waitConfig['ready_log']) . '~', '') === false) {
+                        throw new ConfigException("docker.wait_for[$index].ready_log is not a valid regular expression");
+                    }
+                }
             }
         }
     }

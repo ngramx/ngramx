@@ -9,6 +9,14 @@ docker:
       timeout: 60
     - service: "redis"
       timeout: 30
+    # Wait for the app to be genuinely ready (not just "running") before
+    # post-up commands. Probes are tried in order: healthcheck, ready_command,
+    # ready_log. Remove the ones you don't need.
+    - service: "app"
+      timeout: 300
+      healthcheck: true                       # use the Docker healthcheck if defined
+      ready_command: "php artisan --version"  # must exit 0 inside the container
+      ready_log: "is ready!"                  # regex matched against container logs
 
 setup:
   pre_start:

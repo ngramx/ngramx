@@ -8,6 +8,13 @@ docker:
       timeout: 60
     - service: "redis"
       timeout: 30
+    # Real readiness probe for the app: tried in order healthcheck ->
+    # ready_command -> ready_log. Falls back to "running" if none are set.
+    - service: "app"
+      timeout: 300
+      healthcheck: true
+      ready_command: "php artisan --version"
+      ready_log: "is ready!"
 
 setup:
   pre_start:

@@ -53,6 +53,7 @@ class SetupOrchestrator
             $this->dockerCompose,
             $this->healthChecker,
             $this->formatter,
+            new \Ngramx\Docker\ContainerExecutor(),
         );
         $this->appUrlProbe = $appUrlProbe ?? new AppUrlProbe();
         $this->networkAttachmentChecker = $networkAttachmentChecker
