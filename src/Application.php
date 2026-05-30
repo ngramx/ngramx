@@ -99,18 +99,16 @@ class Application extends BaseApplication
     }
     protected function getDefaultCommands(): array
     {
-        $defaultCommands = [
+        // The `_complete` command is the engine that powers tab completion at runtime;
+        // the `completion` command dumps the static shell script that wires it up. Both
+        // work inside the PHAR as long as Symfony Console's `Resources/completion.*`
+        // templates are packaged (see the dedicated finder entry in box.json).
+        return [
             new \Symfony\Component\Console\Command\HelpCommand(),
             new \Symfony\Component\Console\Command\ListCommand(),
-            new \Symfony\Component\Console\Command\CompleteCommand(), // This is the _complete command for tab completion
+            new \Symfony\Component\Console\Command\CompleteCommand(),
+            new \Symfony\Component\Console\Command\DumpCompletionCommand(),
         ];
-
-        // Only add completion dump command when NOT running as PHAR (it breaks in PHAR)
-        if (!\Phar::running()) {
-            $defaultCommands[] = new \Symfony\Component\Console\Command\DumpCompletionCommand();
-        }
-
-        return $defaultCommands;
     }
 
     public function __construct()

@@ -1,41 +1,45 @@
 # Tab Completion Setup
 
-Due to PHAR packaging limitations, tab completion needs to be set up manually. It only takes a minute!
+`install.sh` sets up tab completion automatically for Bash and Zsh. If you
+installed the PHAR another way, or the automatic setup did not run, you can
+install completion manually using the commands below.
+
+Completion works directly from the installed PHAR — the Symfony Console
+completion templates are packaged into `ngramx.phar`, so there is no need to
+run anything from source.
 
 ## Bash Completion
 
 ```bash
-# Generate completion script from source (not PHAR)
-cd /home/rob/projects/ngramx
-./bin/ngramx completion bash | sudo tee /etc/bash_completion.d/ngramx
-
-# Reload your shell
+# System-wide (requires sudo)
+ngramx completion bash | sudo tee /etc/bash_completion.d/ngramx
 source ~/.bashrc
 ```
+
+```bash
+# Per-user (no sudo)
+mkdir -p ~/.config/ngramx
+ngramx completion bash > ~/.config/ngramx/completion.bash
+echo 'source ~/.config/ngramx/completion.bash' >> ~/.bashrc
+source ~/.bashrc
+```
+
+> Bash completion relies on the `bash-completion` package (it provides the
+> `_get_comp_words_by_ref` helper). It is preinstalled on most distributions;
+> install it via your package manager if completion does nothing.
 
 ## Zsh Completion
 
 ```bash
-# Generate completion script from source (not PHAR)
-cd /home/rob/projects/ngramx
-./bin/ngramx completion zsh | sudo tee /usr/share/zsh/vendor-completions/_ngramx
-
-# Reload your shell
+# System-wide (requires sudo) — pick a directory already on your $fpath
+ngramx completion zsh | sudo tee /usr/local/share/zsh/site-functions/_ngramx
 source ~/.zshrc
 ```
 
-## Alternative: User Directory (No Sudo)
-
-### Bash
 ```bash
-./bin/ngramx completion bash >> ~/.bash_completion
-source ~/.bashrc
-```
-
-### Zsh
-```bash
+# Per-user (no sudo)
 mkdir -p ~/.zsh/completion
-./bin/ngramx completion zsh > ~/.zsh/completion/_ngramx
+ngramx completion zsh > ~/.zsh/completion/_ngramx
 
 # Add to ~/.zshrc if not already there:
 echo 'fpath=(~/.zsh/completion $fpath)' >> ~/.zshrc
@@ -53,9 +57,10 @@ ngramx <TAB>
 # Should show: up, down, status, and your custom commands
 ```
 
-## Why Manual Setup?
+## How It Works
 
-Symfony Console's `completion` command tries to read files from its vendor directory at runtime, which doesn't work inside a PHAR. The workaround is to generate the completion script from the source version (not the PHAR) and install it manually.
-
-**Note:** You only need to do this once per machine!
-
+`ngramx completion bash|zsh` prints a small shell script that registers a
+completion function. At completion time that function calls the hidden
+`ngramx _complete` command, which inspects the current command line and returns
+matching commands, options, and argument values — including custom commands
+defined in your project's `ngramx.yml`.

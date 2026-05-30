@@ -19,6 +19,10 @@
         "Test"
       ],
       "in": "vendor"
+    },
+    {
+      "name": "completion.*",
+      "in": "vendor/symfony/console/Resources"
     }
   ],
   "compression": "GZ",

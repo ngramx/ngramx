@@ -77,7 +77,11 @@ The `install.sh` script:
 3. Uses Gigabyte brand colors for output
 4. Shows quick start guide
 
-**Note:** Tab completion setup is documented in COMPLETION.md for manual installation.
+**Note:** `install.sh` also installs Bash/Zsh tab completion automatically. The
+Symfony Console completion templates (`completion.bash`, `completion.zsh`,
+`completion.fish`) are packaged into the PHAR via a dedicated `finder` entry in
+`box.json`, so the `ngramx completion <shell>` command works from the PHAR.
+Manual setup is documented in COMPLETION.md.
 
 ## Build for Multiple PHP Versions
 

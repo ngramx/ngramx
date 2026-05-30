@@ -40,24 +40,72 @@ echo ""
 
 # Detect shell and install completion
 SHELL_NAME=$(basename "$SHELL")
+RELOAD_CMD=""
 
 case "$SHELL_NAME" in
     bash)
         echo -e "${TEAL}▸ Installing Bash completion${NC}"
-        # Skip completion due to PHAR issue - will document workaround
-        echo -e "${SMOKE}  Skipping auto-completion (install manually if needed)${NC}"
-        RELOAD_CMD=""
+        if [ -d /etc/bash_completion.d ]; then
+            if ngramx completion bash 2>/dev/null | sudo tee /etc/bash_completion.d/ngramx >/dev/null; then
+                echo -e "${SMOKE}  Installed to /etc/bash_completion.d/ngramx${NC}"
+                RELOAD_CMD="source ~/.bashrc"
+            else
+                echo -e "${SMOKE}  Could not install system-wide; see COMPLETION.md${NC}"
+            fi
+        else
+            # Fall back to a per-user completion file sourced from ~/.bashrc.
+            mkdir -p "$HOME/.config/ngramx"
+            if ngramx completion bash > "$HOME/.config/ngramx/completion.bash" 2>/dev/null; then
+                SOURCE_LINE='[ -f "$HOME/.config/ngramx/completion.bash" ] && source "$HOME/.config/ngramx/completion.bash"'
+                if ! grep -qF "$HOME/.config/ngramx/completion.bash" "$HOME/.bashrc" 2>/dev/null; then
+                    echo "$SOURCE_LINE" >> "$HOME/.bashrc"
+                fi
+                echo -e "${SMOKE}  Installed to ~/.config/ngramx/completion.bash${NC}"
+                RELOAD_CMD="source ~/.bashrc"
+            else
+                echo -e "${SMOKE}  Could not install completion; see COMPLETION.md${NC}"
+            fi
+        fi
         ;;
-        
+
     zsh)
         echo -e "${TEAL}▸ Installing Zsh completion${NC}"
-        # Skip completion due to PHAR issue - will document workaround
-        echo -e "${SMOKE}  Skipping auto-completion (install manually if needed)${NC}"
-        RELOAD_CMD=""
+        # Pick the first existing zsh completion directory on the system fpath.
+        ZSH_COMP_DIR=""
+        for dir in /usr/local/share/zsh/site-functions /usr/share/zsh/site-functions /usr/share/zsh/vendor-completions; do
+            if [ -d "$dir" ]; then
+                ZSH_COMP_DIR="$dir"
+                break
+            fi
+        done
+
+        if [ -n "$ZSH_COMP_DIR" ]; then
+            if ngramx completion zsh 2>/dev/null | sudo tee "$ZSH_COMP_DIR/_ngramx" >/dev/null; then
+                echo -e "${SMOKE}  Installed to $ZSH_COMP_DIR/_ngramx${NC}"
+                RELOAD_CMD="source ~/.zshrc"
+            else
+                echo -e "${SMOKE}  Could not install system-wide; see COMPLETION.md${NC}"
+            fi
+        else
+            # Fall back to a per-user completion directory added to fpath.
+            mkdir -p "$HOME/.zsh/completion"
+            if ngramx completion zsh > "$HOME/.zsh/completion/_ngramx" 2>/dev/null; then
+                if ! grep -qF 'fpath=(~/.zsh/completion $fpath)' "$HOME/.zshrc" 2>/dev/null; then
+                    {
+                        echo 'fpath=(~/.zsh/completion $fpath)'
+                        echo 'autoload -U compinit && compinit'
+                    } >> "$HOME/.zshrc"
+                fi
+                echo -e "${SMOKE}  Installed to ~/.zsh/completion/_ngramx${NC}"
+                RELOAD_CMD="source ~/.zshrc"
+            else
+                echo -e "${SMOKE}  Could not install completion; see COMPLETION.md${NC}"
+            fi
+        fi
         ;;
-        
+
     *)
-        RELOAD_CMD=""
+        echo -e "${SMOKE}  Shell '$SHELL_NAME' has no auto-completion installer; see COMPLETION.md${NC}"
         ;;
 esac
 
@@ -69,6 +117,12 @@ echo ""
 echo -e "${SMOKE}Verify installation:${NC}"
 echo -e "${TEAL}  ngramx --version${NC}"
 echo ""
+
+if [ -n "$RELOAD_CMD" ]; then
+    echo -e "${SMOKE}Enable tab completion in your current shell:${NC}"
+    echo -e "${TEAL}  $RELOAD_CMD${NC}"
+    echo ""
+fi
 echo -e "${SMOKE}Get started:${NC}"
 echo -e "${TEAL}  cd your-project/${NC}"
 echo -e "${TEAL}  ngramx up${NC}"
