@@ -77,3 +77,5 @@ When work on the ticket is complete, add `.cortex/tickets/[ticket-id]/completion
 - **Click to Test:** a deep-link into the running application at the exact route that demonstrates the change. Use the local development URL (inspect the project's Docker / Cortex setup to find it). If the project requires a bypass token (for example `?bypass=hello@example.com`), include it on the URL so reviewers can open the page directly. Some projects ship more than one app (for example a web app and a PWA); link to every surface the change touches.
 
 This record makes handover and review straightforward regardless of which AI agent or human picks up the review.
+
+IMPORTANT: Never create draft PRs. We want the automated code review to run on the PR without intervention.
