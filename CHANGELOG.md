@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.23.12](https://github.com/ngramx/ngramx/compare/v2.23.11...v2.23.12) (2026-05-30)
+
+
+### Bug Fixes
+
+* prime worktree vendor dirs in parallel to speed up review ([8f3d20a](https://github.com/ngramx/ngramx/commit/8f3d20a9da658ee673a7b17779b6e6f2cccc565d))
+
 ## [2.23.11](https://github.com/ngramx/ngramx/compare/v2.23.10...v2.23.11) (2026-05-30)
 
 
