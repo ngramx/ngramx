@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.23.5](https://github.com/ngramx/ngramx/compare/v2.23.4...v2.23.5) (2026-05-30)
+
+
+### Bug Fixes
+
+* **github-actions:** distribute linear-status-sync as a shared caller ([efe7057](https://github.com/ngramx/ngramx/commit/efe7057bcd0fa620dea4988dc94b42f187e9f9c1))
+
 ## [2.23.4](https://github.com/ngramx/ngramx/compare/v2.23.3...v2.23.4) (2026-05-30)
 
 
