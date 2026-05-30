@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.23.2](https://github.com/ngramx/ngramx/compare/v2.23.1...v2.23.2) (2026-05-30)
+
+
+### Bug Fixes
+
+* **output:** make warnings and errors inherit surrounding indentation ([2fd8862](https://github.com/ngramx/ngramx/commit/2fd88626bd7de4d8c900b95c97a7a319158160be))
+
 ## [2.23.1](https://github.com/ngramx/ngramx/compare/v2.23.0...v2.23.1) (2026-05-30)
 
 
