@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command;
+namespace Ngramx\Command;
 
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\LockFile;
-use Cortex\Docker\ContainerExecutor;
-use Cortex\Laravel\LaravelLogParser;
-use Cortex\Laravel\LaravelService;
-use Cortex\Output\OutputFormatter;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\LockFile;
+use Ngramx\Docker\ContainerExecutor;
+use Ngramx\Laravel\LaravelLogParser;
+use Ngramx\Laravel\LaravelService;
+use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;

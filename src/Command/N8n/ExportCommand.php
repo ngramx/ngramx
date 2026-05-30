@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command\N8n;
+namespace Ngramx\Command\N8n;
 
-use Cortex\Output\OutputFormatter;
 use GuzzleHttp\Exception\GuzzleException;
+use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;

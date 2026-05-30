@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Command;
+namespace Ngramx\Tests\Unit\Command;
 
-use Cortex\Command\LogsCommand;
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\LockFile;
-use Cortex\Config\LockFileData;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Config\Schema\DockerConfig;
-use Cortex\Config\Schema\N8nConfig;
-use Cortex\Config\Schema\SetupConfig;
-use Cortex\Docker\ContainerExecutor;
-use Cortex\Laravel\LaravelLogParser;
-use Cortex\Laravel\LaravelService;
+use Ngramx\Command\LogsCommand;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\LockFile;
+use Ngramx\Config\LockFileData;
+use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\N8nConfig;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\SetupConfig;
+use Ngramx\Docker\ContainerExecutor;
+use Ngramx\Laravel\LaravelLogParser;
+use Ngramx\Laravel\LaravelService;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\Process\Process;
@@ -257,7 +257,7 @@ LOG;
     {
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willThrowException(new \Cortex\Config\Exception\ConfigException('Config not found'));
+            ->willThrowException(new \Ngramx\Config\Exception\ConfigException('Config not found'));
 
         $command = $this->createCommand();
         $tester = new CommandTester($command);
@@ -307,18 +307,18 @@ LOG;
         );
     }
 
-    private function setupConfigLoader(CortexConfig $config): void
+    private function setupConfigLoader(NgramxConfig $config): void
     {
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
             ->willReturn($config);
     }
 
-    private function createMockConfig(): CortexConfig
+    private function createMockConfig(): NgramxConfig
     {
         $dockerConfig = new DockerConfig(
             composeFile: 'docker-compose.yml',
@@ -336,7 +336,7 @@ LOG;
             workflowsDir: './.n8n'
         );
 
-        return new CortexConfig(
+        return new NgramxConfig(
             version: '1.0',
             docker: $dockerConfig,
             setup: $setupConfig,

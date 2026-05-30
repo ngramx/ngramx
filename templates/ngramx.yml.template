@@ -30,14 +30,14 @@ commands:
   # ── Recommended lifecycle commands ──────────────────────────────
   #
   # These commands standardize your team's development workflow.
-  # Cortex will warn on every command if they are not defined.
+  # Ngramx will warn on every command if they are not defined.
   #
-  # `cortex rebuild` is a built-in command — it tears down containers,
+  # `ngramx rebuild` is a built-in command — it tears down containers,
   # rebuilds Docker images, brings everything back up, and runs `fresh`.
   # Just make sure `fresh` is defined below.
   #
-  # `cortex review <ticket>` checks out the branch and runs `fresh` by
-  # default. Use `cortex review <ticket> --quick` to run `clear` instead,
+  # `ngramx review <ticket>` checks out the branch and runs `fresh` by
+  # default. Use `ngramx review <ticket> --quick` to run `clear` instead,
   # which skips the database reset — only safe when the branch has no
   # schema or seed changes.
 

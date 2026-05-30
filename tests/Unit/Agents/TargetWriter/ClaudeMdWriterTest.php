@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Agents\TargetWriter;
 
-use Cortex\Agents\TargetWriter\ClaudeMdWriter;
+use Ngramx\Agents\TargetWriter\ClaudeMdWriter;
 use PHPUnit\Framework\TestCase;
 
 class ClaudeMdWriterTest extends TestCase
@@ -14,7 +14,7 @@ class ClaudeMdWriterTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->projectDir = sys_get_temp_dir() . '/cortex_claude_writer_' . uniqid();
+        $this->projectDir = sys_get_temp_dir() . '/ngramx_claude_writer_' . uniqid();
         mkdir($this->projectDir, 0755, true);
     }
 
@@ -34,8 +34,8 @@ class ClaudeMdWriterTest extends TestCase
         $content = file_get_contents($this->projectDir . '/CLAUDE.md');
         $this->assertIsString($content);
         assert(is_string($content));
-        $this->assertStringContainsString('<!-- CORTEX_CLAUDE_MANAGED_BEGIN -->', $content);
-        $this->assertStringContainsString('<!-- CORTEX_CLAUDE_MANAGED_END -->', $content);
+        $this->assertStringContainsString('<!-- NGRAMX_CLAUDE_MANAGED_BEGIN -->', $content);
+        $this->assertStringContainsString('<!-- NGRAMX_CLAUDE_MANAGED_END -->', $content);
         $this->assertStringContainsString('# Test content', $content);
     }
 
@@ -53,14 +53,14 @@ class ClaudeMdWriterTest extends TestCase
         file_put_contents($this->projectDir . '/CLAUDE.md', "# My Project\n\nUser notes here.");
 
         $writer = new ClaudeMdWriter();
-        $writer->write($this->projectDir, '# Cortex content');
+        $writer->write($this->projectDir, '# Ngramx content');
 
         $content = file_get_contents($this->projectDir . '/CLAUDE.md');
         $this->assertIsString($content);
         assert(is_string($content));
         $this->assertStringContainsString('# My Project', $content);
         $this->assertStringContainsString('User notes here.', $content);
-        $this->assertStringContainsString('# Cortex content', $content);
+        $this->assertStringContainsString('# Ngramx content', $content);
     }
 
     public function test_write_replaces_managed_section_on_update(): void

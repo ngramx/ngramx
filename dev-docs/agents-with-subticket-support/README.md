@@ -4,7 +4,7 @@ Snapshot of `templates/agents/` as of **2026-05-10**, before the parent-ticket /
 sub-issue / pre-created-parent-branch workflow was removed from the active
 agent instructions.
 
-This directory is **not** read by any Cortex CLI command. It is intentionally
+This directory is **not** read by any Ngramx CLI command. It is intentionally
 located outside `templates/` so it is excluded from the Phar build (`box.json`
 ships only `src/` and `templates/`). It exists purely as an archive in case the
 parent-branch / sub-issue workflow is revived later (e.g. once the auto-merge

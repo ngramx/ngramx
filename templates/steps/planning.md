@@ -46,7 +46,7 @@ Before this step:
 
 ### Plan Structure
 
-Update `.cortex/tickets/[ticket-id]/plan.md` with the detailed plan:
+Update `.ngramx/tickets/[ticket-id]/plan.md` with the detailed plan:
 
 ```markdown
 # Implementation Plan for CORE-123

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Laravel;
+namespace Ngramx\Tests\Unit\Laravel;
 
-use Cortex\Laravel\LaravelLogParser;
-use Cortex\Laravel\LogEntry;
+use Ngramx\Laravel\LaravelLogParser;
+use Ngramx\Laravel\LogEntry;
 use PHPUnit\Framework\TestCase;
 
 class LaravelLogParserTest extends TestCase

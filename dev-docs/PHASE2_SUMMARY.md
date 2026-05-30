@@ -2,7 +2,7 @@
 
 ## 🎉 Phase 2 Is Done!
 
-Phase 2 has been fully implemented. The `cortex up` command now **actually executes commands** instead of showing placeholder messages.
+Phase 2 has been fully implemented. The `ngramx up` command now **actually executes commands** instead of showing placeholder messages.
 
 ## 📦 What Was Delivered
 
@@ -35,14 +35,14 @@ Phase 2 has been fully implemented. The `cortex up` command now **actually execu
 ### Files Modified (3)
 - `src/Command/UpCommand.php` - Now fully functional with 4 phases
 - `src/Application.php` - Dependency injection for new components
-- `tests/fixtures/cortex.yml` - Better test configuration
+- `tests/fixtures/ngramx.yml` - Better test configuration
 
 ## 🚀 How To Test
 
 ### Quick Test (Recommended)
 ```bash
-cd /home/rob/projects/cortex-cli/tests/fixtures
-../../bin/cortex up
+cd /home/rob/projects/ngramx/tests/fixtures
+../../bin/ngramx up
 ```
 
 Expected output:
@@ -51,7 +51,7 @@ Expected output:
  Starting Development Environment
 ──────────────────────────────────────────────────
 
-  Loaded configuration from: /path/to/cortex.yml
+  Loaded configuration from: /path/to/ngramx.yml
 
 ▸ Pre-start commands
   Create temporary directory
@@ -74,7 +74,7 @@ Environment ready! (5.2s)
 
 ### Run Unit Tests
 ```bash
-cd /home/rob/projects/cortex-cli
+cd /home/rob/projects/ngramx
 composer install  # If not already installed with dev deps
 vendor/bin/phpunit tests/Unit/
 ```
@@ -113,7 +113,7 @@ Your Gigabyte brand colors are now fully integrated:
 | Status messages | Smoke | #D2DCE5 | 5455C |
 | Errors | Red | Default | - |
 
-## 🔄 The 4 Phases of `cortex up`
+## 🔄 The 4 Phases of `ngramx up`
 
 ### Phase 1: Pre-Start Commands
 **Runs:** On host machine  
@@ -221,7 +221,7 @@ setup:
       description: "Setup database"
 ```
 
-Running `cortex up` will:
+Running `ngramx up` will:
 1. ✅ Copy .env.example to .env (host)
 2. ✅ Start Docker (app, db, redis)
 3. ✅ Wait for MySQL to be healthy
@@ -240,8 +240,8 @@ Running `cortex up` will:
 ## ✅ Ready For Phase 3
 
 Phase 3 will add:
-- `cortex down` command
-- `cortex status` command  
+- `ngramx down` command
+- `ngramx status` command  
 - SetupOrchestrator (refactor UpCommand)
 - Better output streaming
 - Integration tests
@@ -262,5 +262,5 @@ Phase 2 is complete and ready to test. Everything works as designed:
 - Error handling respects configuration
 - Tests are written and organized
 
-**Next:** Test it yourself with `cd tests/fixtures && ../../bin/cortex up`!
+**Next:** Test it yourself with `cd tests/fixtures && ../../bin/ngramx up`!
 

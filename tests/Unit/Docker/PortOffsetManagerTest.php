@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Docker;
+namespace Ngramx\Tests\Unit\Docker;
 
-use Cortex\Docker\PortOffsetManager;
+use Ngramx\Docker\PortOffsetManager;
 use PHPUnit\Framework\TestCase;
 
 class PortOffsetManagerTest extends TestCase
@@ -15,7 +15,7 @@ class PortOffsetManagerTest extends TestCase
     protected function setUp(): void
     {
         $this->manager = new PortOffsetManager();
-        $this->tempDir = sys_get_temp_dir() . '/cortex-test-' . uniqid();
+        $this->tempDir = sys_get_temp_dir() . '/ngramx-test-' . uniqid();
         mkdir($this->tempDir);
     }
 

@@ -18,13 +18,13 @@ Transform the user's brief/prompt into formal Gherkin feature specifications tha
    * Note edge cases and error scenarios
 
 2. **Write Feature Files**
-   * Create `.feature` files in `.cortex/specs/`
+   * Create `.feature` files in `.ngramx/specs/`
    * Use Gherkin syntax (Given/When/Then)
    * Organize by product feature, not by ticket
    * Include scenarios for happy path, edge cases, and error handling
 
 3. **Update specs.md**
-   * Update `.cortex/tickets/[ticket-id]/specs.md` with:
+   * Update `.ngramx/tickets/[ticket-id]/specs.md` with:
      * List of feature files created or modified
      * Links to specific scenarios
      * Brief description of what each covers
@@ -32,7 +32,7 @@ Transform the user's brief/prompt into formal Gherkin feature specifications tha
 ### File Locations
 
 ```
-.cortex/
+.ngramx/
 ├── specs/
 │   ├── [feature-name].feature      # New or updated feature files
 │   └── shared/                     # Reusable step definitions

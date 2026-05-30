@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Config\Validator;
+namespace Ngramx\Config\Validator;
 
-use Cortex\Config\Schema\SecretsConfig;
+use Ngramx\Config\Schema\SecretsConfig;
 
 class SecretsValidator
 {

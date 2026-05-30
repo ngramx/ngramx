@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command;
+namespace Ngramx\Command;
 
-use Cortex\Output\OutputFormatter;
+use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;

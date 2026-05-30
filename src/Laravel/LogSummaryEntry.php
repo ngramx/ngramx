@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Laravel;
+namespace Ngramx\Laravel;
 
 readonly class LogSummaryEntry
 {

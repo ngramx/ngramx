@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Executor;
+namespace Ngramx\Tests\Unit\Executor;
 
-use Cortex\Config\Schema\CommandDefinition;
-use Cortex\Executor\HostCommandExecutor;
+use Ngramx\Config\Schema\CommandDefinition;
+use Ngramx\Executor\HostCommandExecutor;
 use PHPUnit\Framework\TestCase;
 
 class HostCommandExecutorTest extends TestCase

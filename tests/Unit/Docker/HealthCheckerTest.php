@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Docker;
+namespace Ngramx\Tests\Unit\Docker;
 
-use Cortex\Docker\HealthChecker;
+use Ngramx\Docker\HealthChecker;
 use PHPUnit\Framework\TestCase;
 
 class HealthCheckerTest extends TestCase

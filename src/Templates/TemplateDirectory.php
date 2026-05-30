@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Templates;
+namespace Ngramx\Templates;
 
 final class TemplateDirectory
 {

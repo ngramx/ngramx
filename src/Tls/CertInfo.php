@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tls;
+namespace Ngramx\Tls;
 
 /**
  * Provenance summary for a single TLS certificate, produced by
@@ -23,7 +23,7 @@ readonly class CertInfo
     /**
      * True when this certificate is browser-trustable: signed by mkcert's
      * local CA. mkcert installs that CA into the system + Firefox trust
-     * stores, so a mkcert-issued cert is the only kind that `cortex up`
+     * stores, so a mkcert-issued cert is the only kind that `ngramx up`
      * can safely declare "ready to open in a browser".
      */
     public function isBrowserTrusted(): bool

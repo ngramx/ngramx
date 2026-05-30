@@ -6,7 +6,7 @@
 **Before:** Generic bash output  
 **After:** Gigabyte brand colors (Purple, Teal, Smoke)
 
-The `install.sh` now matches the Cortex CLI aesthetic:
+The `install.sh` now matches the Ngramx CLI aesthetic:
 - Purple header/footer
 - Teal section markers (▸)
 - Smoke for regular text
@@ -22,7 +22,7 @@ The `install.sh` now matches the Cortex CLI aesthetic:
 
 ### 3. ✅ GitHub URLs Updated
 All documentation now uses correct GitHub URLs:
-- `https://github.com/gigabyte-software/cortex-cli`
+- `https://github.com/ngramx/ngramx`
 - Updated in: README.md, install.sh, box.json
 
 ## Rebuild Required
@@ -30,13 +30,13 @@ All documentation now uses correct GitHub URLs:
 You need to rebuild the PHAR with the updated configuration:
 
 ```bash
-cd /home/rob/projects/cortex-cli
+cd /home/rob/projects/ngramx
 
 # Make sure you're on the right path
 export PATH="$PATH:$HOME/.config/composer/vendor/bin"
 
 # Clean previous build
-rm -f cortex.phar
+rm -f ngramx.phar
 
 # Install production dependencies
 composer install --no-dev --optimize-autoloader
@@ -45,29 +45,29 @@ composer install --no-dev --optimize-autoloader
 box compile
 
 # Test the PHAR
-./cortex.phar --version
+./ngramx.phar --version
 ```
 
 ## Test the New Install Script
 
 ```bash
-cd /home/rob/projects/cortex-cli
+cd /home/rob/projects/ngramx
 
 # Remove the old installation
-sudo rm -f /usr/local/bin/cortex
+sudo rm -f /usr/local/bin/ngramx
 
-# Test install script (will use the newly built cortex.phar)
+# Test install script (will use the newly built ngramx.phar)
 ./install.sh
 ```
 
 Expected output:
 ```
 ──────────────────────────────────────────────────
- Installing Cortex CLI
+ Installing Ngramx CLI
 ──────────────────────────────────────────────────
 
-▸ Installing Cortex CLI
-  Installed to /usr/local/bin/cortex
+▸ Installing Ngramx CLI
+  Installed to /usr/local/bin/ngramx
 
 ▸ Installing Bash completion
   Skipping auto-completion (install manually if needed)
@@ -84,7 +84,7 @@ Once the PHAR is rebuilt and tested:
 ```bash
 # 1. Commit everything
 git add .
-git commit -m "feat: complete cortex CLI v1.0.0"
+git commit -m "feat: complete ngramx CLI v1.0.0"
 git push
 
 # 2. Create tag
@@ -93,23 +93,23 @@ git push origin v1.0.0
 
 # 3. Create release with files
 gh release create v1.0.0 \
-  cortex.phar \
+  ngramx.phar \
   install.sh \
-  --title "Cortex CLI v1.0.0" \
+  --title "Ngramx CLI v1.0.0" \
   --notes "Initial release - Docker development environment orchestration tool"
 ```
 
 Or use GitHub web UI:
-1. Go to https://github.com/gigabyte-software/cortex-cli/releases
+1. Go to https://github.com/ngramx/ngramx/releases
 2. Click "Create a new release"
 3. Tag: `v1.0.0`
-4. Upload: `cortex.phar` and `install.sh`
+4. Upload: `ngramx.phar` and `install.sh`
 5. Publish
 
 ## Users Can Now Install With
 
 ```bash
-curl -fsSL https://github.com/gigabyte-software/cortex-cli/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/ngramx/ngramx/releases/latest/download/install.sh | bash
 ```
 
 ## Optional: Set Up Tab Completion
@@ -118,8 +118,8 @@ Users who want tab completion can follow `COMPLETION.md`:
 
 ```bash
 # From source directory
-cd /path/to/cortex-cli
-./bin/cortex completion bash | sudo tee /etc/bash_completion.d/cortex
+cd /path/to/ngramx
+./bin/ngramx completion bash | sudo tee /etc/bash_completion.d/ngramx
 source ~/.bashrc
 ```
 
@@ -127,7 +127,7 @@ source ~/.bashrc
 
 ✅ Install script with Gigabyte colors  
 ✅ PHAR installs to /usr/local/bin  
-✅ All commands work (`cortex up`, `cortex test`, etc.)  
+✅ All commands work (`ngramx up`, `ngramx test`, etc.)  
 ✅ GitHub URLs updated  
 ✅ Documentation complete  
 
@@ -147,19 +147,19 @@ After rebuilding and reinstalling:
 
 ```bash
 # Test PHAR directly
-./cortex.phar --version
-./cortex.phar list
+./ngramx.phar --version
+./ngramx.phar list
 
 # Test installed version
-cortex --version
-cortex list
+ngramx --version
+ngramx list
 
 # Test in project
 cd tests/fixtures
-cortex up
-cortex test
-cortex status
-cortex down
+ngramx up
+ngramx test
+ngramx status
+ngramx down
 ```
 
 All should work perfectly!

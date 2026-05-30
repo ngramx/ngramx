@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Command\N8n;
+namespace Ngramx\Tests\Unit\Command\N8n;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;

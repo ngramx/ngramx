@@ -19,7 +19,7 @@
 ### Command Options
 
 ```bash
-cortex up [OPTIONS]
+ngramx up [OPTIONS]
 
 New Options:
   --namespace <id>       Custom container namespace prefix
@@ -35,7 +35,7 @@ Existing Options:
 
 #### 1. Default Mode (Unchanged)
 ```bash
-cortex up
+ngramx up
 ```
 - No namespace or port changes
 - Uses docker-compose.yml exactly as-is
@@ -43,7 +43,7 @@ cortex up
 
 #### 2. Auto Conflict Avoidance (Recommended for Orchestrators)
 ```bash
-cortex up --avoid-conflicts
+ngramx up --avoid-conflicts
 ```
 - Auto-generates namespace from directory path
 - Auto-scans and allocates available ports
@@ -51,7 +51,7 @@ cortex up --avoid-conflicts
 
 #### 3. Explicit Control
 ```bash
-cortex up --namespace agent-1 --port-offset 1000
+ngramx up --namespace agent-1 --port-offset 1000
 ```
 - Full control over naming and ports
 - Deterministic and predictable
@@ -63,7 +63,7 @@ cortex up --namespace agent-1 --port-offset 1000
 ### New Components (5 files)
 
 1. **LockFile** (`src/Config/LockFile.php`)
-   - Manages `.cortex.lock` file
+   - Manages `.ngramx.lock` file
    - Prevents duplicate instances per directory
    - Stores namespace and port offset
 
@@ -104,7 +104,7 @@ cortex up --namespace agent-1 --port-offset 1000
 
 1. **phpstan.neon** (New) - PHPStan configuration with PHPUnit support
 2. **.php-cs-fixer.php** (New) - Code style configuration
-3. **.gitignore** (Updated) - Added `.cortex.lock`
+3. **.gitignore** (Updated) - Added `.ngramx.lock`
 
 ---
 
@@ -164,7 +164,7 @@ Minimal state tracking:
 
 ```json
 {
-  "namespace": "cortex-agent-1-project",
+  "namespace": "ngramx-agent-1-project",
   "port_offset": 1000,
   "started_at": "2025-11-08T10:30:00+00:00"
 }
@@ -182,9 +182,9 @@ Minimal state tracking:
 ### Directory-based (Default)
 
 ```
-/workspace/agent-1/project/ → cortex-agent-1-project
-/home/user/myapp/          → cortex-user-myapp
-/projects/acme/backend/    → cortex-acme-backend
+/workspace/agent-1/project/ → ngramx-agent-1-project
+/home/user/myapp/          → ngramx-user-myapp
+/projects/acme/backend/    → ngramx-acme-backend
 ```
 
 ### Validation Rules
@@ -235,32 +235,32 @@ services:
 
 ```bash
 # Normal workflow (unchanged)
-cortex up
-cortex status
-cortex shell
-cortex down
+ngramx up
+ngramx status
+ngramx shell
+ngramx down
 ```
 
 ### For Coding Agent Orchestrators
 
 #### Simple (Recommended)
 ```bash
-cortex up --avoid-conflicts
+ngramx up --avoid-conflicts
 
-# Then read .cortex.lock for port information
-cat .cortex.lock | jq -r '.port_offset'
+# Then read .ngramx.lock for port information
+cat .ngramx.lock | jq -r '.port_offset'
 ```
 
 #### Explicit Control
 ```bash
 # Agent 1
-cortex up --namespace agent-1 --port-offset 1000
+ngramx up --namespace agent-1 --port-offset 1000
 
 # Agent 2
-cortex up --namespace agent-2 --port-offset 2000
+ngramx up --namespace agent-2 --port-offset 2000
 
 # Agent 3
-cortex up --namespace agent-3 --port-offset 3000
+ngramx up --namespace agent-3 --port-offset 3000
 ```
 
 #### With Environment Variables
@@ -268,7 +268,7 @@ cortex up --namespace agent-3 --port-offset 3000
 AGENT_ID="agent-${TASK_ID}"
 PORT_BASE=$((1000 * AGENT_NUM))
 
-cortex up --namespace "$AGENT_ID" --port-offset "$PORT_BASE"
+ngramx up --namespace "$AGENT_ID" --port-offset "$PORT_BASE"
 ```
 
 ---
@@ -341,7 +341,7 @@ cortex up --namespace "$AGENT_ID" --port-offset "$PORT_BASE"
 3. **Minimal lock file** - Only stores what can't be computed
 4. **All ports offset equally** - Simple and predictable
 5. **Lock file only when needed** - Not created in default mode
-6. **Auto-cleanup** - `cortex down` removes all generated files
+6. **Auto-cleanup** - `ngramx down` removes all generated files
 
 ---
 
@@ -358,17 +358,17 @@ cortex up --namespace "$AGENT_ID" --port-offset "$PORT_BASE"
 ### For Users
 1. Update to latest version
 2. Use `--avoid-conflicts` for multi-instance setups
-3. Check `.cortex.lock` for port information
+3. Check `.ngramx.lock` for port information
 
 ### For Orchestrators
-1. Integrate `cortex up --avoid-conflicts` into agent startup
-2. Read `.cortex.lock` to discover allocated ports
+1. Integrate `ngramx up --avoid-conflicts` into agent startup
+2. Read `.ngramx.lock` to discover allocated ports
 3. Use separate working directories per agent instance
 
 ### For Contributors
 1. All new code is documented and tested
 2. Follow existing patterns for future enhancements
-3. Run `./bin/cortex validate` before committing
+3. Run `./bin/ngramx validate` before committing
 
 ---
 

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Executor;
+namespace Ngramx\Executor;
 
-use Cortex\Config\Schema\CommandDefinition;
-use Cortex\Executor\Result\ExecutionResult;
+use Ngramx\Config\Schema\CommandDefinition;
+use Ngramx\Executor\Result\ExecutionResult;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 

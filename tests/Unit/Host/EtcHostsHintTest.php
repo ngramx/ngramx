@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Host;
+namespace Ngramx\Tests\Unit\Host;
 
-use Cortex\Host\EtcHostsHint;
+use Ngramx\Host\EtcHostsHint;
 use PHPUnit\Framework\TestCase;
 
 final class EtcHostsHintTest extends TestCase

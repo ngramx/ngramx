@@ -2,7 +2,7 @@
 
 ## Ticket folder
 
-Every ticket gets a `.cortex/tickets/[ticket-id]/` directory at the repo root containing:
+Every ticket gets a `.ngramx/tickets/[ticket-id]/` directory at the repo root containing:
 
 - `README.md` — ticket title, short summary, requirements, and running notes. Use this template:
 
@@ -27,11 +27,11 @@ Every ticket gets a `.cortex/tickets/[ticket-id]/` directory at the repo root co
 
 ## Completion record
 
-When work on the ticket is complete, add `.cortex/tickets/[ticket-id]/completion.md` containing at least:
+When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion.md` containing at least:
 
 - **GitHub PR:** URL of the pull request.
 - **Linear ticket:** URL of the Linear ticket (omit if not applicable).
-- **Click to Test:** a deep-link into the running application at the exact route that demonstrates the change. Use the local development URL (inspect the project's Docker / Cortex setup to find it). If the project requires a bypass token (for example `?bypass=hello@example.com`), include it on the URL so reviewers can open the page directly. Some projects ship more than one app (for example a web app and a PWA); link to every surface the change touches.
+- **Click to Test:** a deep-link into the running application at the exact route that demonstrates the change. Use the local development URL (inspect the project's Docker / Ngramx setup to find it). If the project requires a bypass token (for example `?bypass=hello@example.com`), include it on the URL so reviewers can open the page directly. Some projects ship more than one app (for example a web app and a PWA); link to every surface the change touches.
 
 ## Hard rules
 

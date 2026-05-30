@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Docker;
+namespace Ngramx\Tests\Unit\Docker;
 
-use Cortex\Docker\DockerCompose;
-use Cortex\Docker\NetworkAttachmentChecker;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\NetworkAttachmentChecker;
 use PHPUnit\Framework\TestCase;
 
 class NetworkAttachmentCheckerTest extends TestCase

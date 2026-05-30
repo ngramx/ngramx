@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Git;
+namespace Ngramx\Git;
 
 /**
  * Keeps nested worktrees from polluting the parent checkout.
  *
- * Worktrees created under .cortex/worktrees/ live inside the main working tree,
+ * Worktrees created under .ngramx/worktrees/ live inside the main working tree,
  * so without help git would report them as untracked and Cursor would index
  * them. We use .git/info/exclude (local-only, never committed) to hide them from
  * git, and a .cursorignore entry so the parent Cursor window stops indexing them.

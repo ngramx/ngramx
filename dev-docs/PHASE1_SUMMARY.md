@@ -15,7 +15,7 @@
 - ✅ `ServiceWaitConfig.php` - Service health wait configuration
 - ✅ `DockerConfig.php` - Docker-related configuration
 - ✅ `SetupConfig.php` - Setup phase configuration
-- ✅ `CortexConfig.php` - Root configuration object
+- ✅ `NgramxConfig.php` - Root configuration object
 
 All schema objects use PHP 8.2+ features:
 - `readonly` classes
@@ -32,7 +32,7 @@ All schema objects use PHP 8.2+ features:
 
 #### ConfigLoader ✅
 - Loads and parses YAML configuration files
-- Finds cortex.yml in current or parent directories (up to 10 levels)
+- Finds ngramx.yml in current or parent directories (up to 10 levels)
 - Resolves relative paths (compose_file) relative to config file location
 - Converts raw arrays to typed value objects
 - Integrates with ConfigValidator
@@ -65,7 +65,7 @@ All schema objects use PHP 8.2+ features:
 ### 5. Commands ✅
 
 #### UpCommand (Skeleton)
-- ✅ Finds and loads cortex.yml configuration
+- ✅ Finds and loads ngramx.yml configuration
 - ✅ Starts Docker Compose services
 - ✅ Placeholder sections for future phases:
   - Pre-start commands (Phase 2)
@@ -77,7 +77,7 @@ All schema objects use PHP 8.2+ features:
 
 ### 6. Application Entry Point ✅
 - ✅ `Application.php` - Symfony Console application wrapper
-- ✅ `bin/cortex` - Executable entry point
+- ✅ `bin/ngramx` - Executable entry point
 - ✅ PHAR-aware autoloading
 - ✅ Simple dependency injection for Phase 1
 
@@ -103,9 +103,9 @@ All schema objects use PHP 8.2+ features:
   - Missing command field
 
 #### Test Fixtures
-- ✅ `tests/fixtures/cortex.yml` - Full-featured test configuration
+- ✅ `tests/fixtures/ngramx.yml` - Full-featured test configuration
 - ✅ `tests/fixtures/docker-compose.test.yml` - Simple Docker setup for testing
-- ✅ `tests/fixtures/invalid-cortex.yml` - Invalid config for validation testing
+- ✅ `tests/fixtures/invalid-ngramx.yml` - Invalid config for validation testing
 
 ### 8. Documentation ✅
 - ✅ `README.md` - Complete project documentation with:
@@ -114,7 +114,7 @@ All schema objects use PHP 8.2+ features:
   - Configuration reference
   - Development status tracker
   - Contributing guidelines
-- ✅ `cortex.example.yml` - Full-featured example configuration
+- ✅ `ngramx.example.yml` - Full-featured example configuration
 - ✅ `PHASE1_SUMMARY.md` - This file
 
 ### 9. Manual Testing ✅
@@ -123,27 +123,27 @@ All manual tests passed:
 
 #### Test 1: Basic CLI
 ```bash
-./bin/cortex --version
-# Output: Cortex CLI 1.0.0 ✅
+./bin/ngramx --version
+# Output: Ngramx CLI 1.0.0 ✅
 ```
 
 #### Test 2: Command Listing
 ```bash
-./bin/cortex list
+./bin/ngramx list
 # Shows "up" command ✅
 ```
 
 #### Test 3: Full Up Command with Docker
 ```bash
-cd tests/fixtures && ../../bin/cortex up
+cd tests/fixtures && ../../bin/ngramx up
 # Started Docker services successfully ✅
 # Verified with docker-compose ps ✅
 ```
 
 #### Test 4: Error Handling - Missing Config
 ```bash
-cd /tmp && cortex up
-# Error: cortex.yml not found ✅
+cd /tmp && ngramx up
+# Error: ngramx.yml not found ✅
 ```
 
 #### Test 5: Error Handling - Invalid Config
@@ -165,9 +165,9 @@ cd /tmp && cortex up
 ## 📁 File Structure Created
 
 ```
-cortex-cli/
+ngramx/
 ├── bin/
-│   └── cortex                          ✅ Executable entry point
+│   └── ngramx                          ✅ Executable entry point
 ├── src/
 │   ├── Application.php                 ✅ Main application
 │   ├── Command/
@@ -178,7 +178,7 @@ cortex-cli/
 │   │   │   └── ConfigException.php    ✅ Config exception
 │   │   ├── Schema/
 │   │   │   ├── CommandDefinition.php  ✅ Command VO
-│   │   │   ├── CortexConfig.php       ✅ Root config VO
+│   │   │   ├── NgramxConfig.php       ✅ Root config VO
 │   │   │   ├── DockerConfig.php       ✅ Docker config VO
 │   │   │   ├── ServiceWaitConfig.php  ✅ Wait config VO
 │   │   │   └── SetupConfig.php        ✅ Setup config VO
@@ -194,13 +194,13 @@ cortex-cli/
 │   │       ├── ConfigLoaderTest.php   ✅ Loader tests
 │   │       └── ConfigValidatorTest.php ✅ Validator tests
 │   └── fixtures/
-│       ├── cortex.yml                 ✅ Test config
+│       ├── ngramx.yml                 ✅ Test config
 │       ├── docker-compose.test.yml    ✅ Test compose
-│       └── invalid-cortex.yml         ✅ Invalid config
+│       └── invalid-ngramx.yml         ✅ Invalid config
 ├── composer.json                       ✅ Dependencies
 ├── phpunit.xml                         ✅ Test config
 ├── README.md                           ✅ Documentation
-├── cortex.example.yml                  ✅ Example config
+├── ngramx.example.yml                  ✅ Example config
 └── .gitignore                          ✅ Git ignores
 ```
 
@@ -218,7 +218,7 @@ All Phase 1 requirements from the plan have been completed:
 ## 🚀 What Works Right Now
 
 The current implementation can:
-- ✅ Find and load `cortex.yml` from current or parent directories
+- ✅ Find and load `ngramx.yml` from current or parent directories
 - ✅ Validate configuration with clear error messages
 - ✅ Start Docker Compose services
 - ✅ Display beautiful, colorful output

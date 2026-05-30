@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Command\N8n;
+namespace Ngramx\Tests\Unit\Command\N8n;
 
-use Cortex\Command\N8n\NormaliseCommand;
-use Cortex\Config\ConfigLoader;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ConnectException;
+use Ngramx\Command\N8n\NormaliseCommand;
+use Ngramx\Config\ConfigLoader;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use Symfony\Component\Console\Application;
@@ -32,7 +32,7 @@ class NormaliseCommandTest extends TestCase
 
         $this->configLoader = $this->createMock(ConfigLoader::class);
         $this->httpClient = $this->createMock(Client::class);
-        $this->testDir = sys_get_temp_dir() . '/cortex_n8n_normalise_test_' . uniqid();
+        $this->testDir = sys_get_temp_dir() . '/ngramx_n8n_normalise_test_' . uniqid();
         mkdir($this->testDir, 0755, true);
         $this->envPath = $this->testDir . '/.env';
         $this->workflowPath = $this->testDir . '/workflow.json';
@@ -233,9 +233,9 @@ class NormaliseCommandTest extends TestCase
     {
         $command = $this->createCommand();
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         $response = $this->createMockResponseFromJson([
@@ -263,9 +263,9 @@ class NormaliseCommandTest extends TestCase
     {
         $command = $this->createCommand();
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         $response = $this->createMockResponseFromJson([
@@ -290,9 +290,9 @@ class NormaliseCommandTest extends TestCase
     {
         $command = $this->createCommand();
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         $response = $this->createMockResponseFromJson(['invalid' => 'data']);
@@ -311,9 +311,9 @@ class NormaliseCommandTest extends TestCase
     {
         $command = $this->createCommand();
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         $this->httpClient->expects($this->once())
@@ -589,9 +589,9 @@ class NormaliseCommandTest extends TestCase
     {
         $command = $this->createCommand();
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         $reflection = new \ReflectionClass($command);
@@ -608,7 +608,7 @@ class NormaliseCommandTest extends TestCase
         ]);
 
         $validation = ['missing' => [], 'duplicates' => []];
-        $formatter = $this->createMock(\Cortex\Output\OutputFormatter::class);
+        $formatter = $this->createMock(\Ngramx\Output\OutputFormatter::class);
         $formatter->expects($this->atLeastOnce())->method('info');
         $formatter->expects($this->atLeastOnce())->method('success');
 
@@ -655,7 +655,7 @@ class NormaliseCommandTest extends TestCase
 
     public function test_execute_successfully_normalises_workflow(): void
     {
-        if (@file_put_contents($this->envPath, "CORTEX_N8N_HOST=http://localhost\nCORTEX_N8N_PORT=5678\nCORTEX_N8N_API_KEY=test-key\n") === false) {
+        if (@file_put_contents($this->envPath, "NGRAMX_N8N_HOST=http://localhost\nNGRAMX_N8N_PORT=5678\nNGRAMX_N8N_API_KEY=test-key\n") === false) {
             $this->markTestSkipped('Cannot write .env file (sandbox restrictions)');
         }
 
@@ -700,7 +700,7 @@ class NormaliseCommandTest extends TestCase
 
     public function test_execute_outputs_to_stdout_when_no_output_option(): void
     {
-        if (@file_put_contents($this->envPath, "CORTEX_N8N_HOST=http://localhost\nCORTEX_N8N_PORT=5678\nCORTEX_N8N_API_KEY=test-key\n") === false) {
+        if (@file_put_contents($this->envPath, "NGRAMX_N8N_HOST=http://localhost\nNGRAMX_N8N_PORT=5678\nNGRAMX_N8N_API_KEY=test-key\n") === false) {
             $this->markTestSkipped('Cannot write .env file (sandbox restrictions)');
         }
 
@@ -741,7 +741,7 @@ class NormaliseCommandTest extends TestCase
 
     public function test_execute_handles_missing_credentials_in_strict_mode(): void
     {
-        if (@file_put_contents($this->envPath, "CORTEX_N8N_HOST=http://localhost\nCORTEX_N8N_PORT=5678\nCORTEX_N8N_API_KEY=test-key\n") === false) {
+        if (@file_put_contents($this->envPath, "NGRAMX_N8N_HOST=http://localhost\nNGRAMX_N8N_PORT=5678\nNGRAMX_N8N_API_KEY=test-key\n") === false) {
             $this->markTestSkipped('Cannot write .env file (sandbox restrictions)');
         }
 
@@ -780,7 +780,7 @@ class NormaliseCommandTest extends TestCase
 
     public function test_execute_handles_missing_credentials_in_no_strict_mode(): void
     {
-        if (@file_put_contents($this->envPath, "CORTEX_N8N_HOST=http://localhost\nCORTEX_N8N_PORT=5678\nCORTEX_N8N_API_KEY=test-key\n") === false) {
+        if (@file_put_contents($this->envPath, "NGRAMX_N8N_HOST=http://localhost\nNGRAMX_N8N_PORT=5678\nNGRAMX_N8N_API_KEY=test-key\n") === false) {
             $this->markTestSkipped('Cannot write .env file (sandbox restrictions)');
         }
 
@@ -831,7 +831,7 @@ class NormaliseCommandTest extends TestCase
 
     public function test_execute_uses_credential_map_when_provided(): void
     {
-        if (@file_put_contents($this->envPath, "CORTEX_N8N_HOST=http://localhost\nCORTEX_N8N_PORT=5678\nCORTEX_N8N_API_KEY=test-key\n") === false) {
+        if (@file_put_contents($this->envPath, "NGRAMX_N8N_HOST=http://localhost\nNGRAMX_N8N_PORT=5678\nNGRAMX_N8N_API_KEY=test-key\n") === false) {
             $this->markTestSkipped('Cannot write .env file (sandbox restrictions)');
         }
 
@@ -879,7 +879,7 @@ class NormaliseCommandTest extends TestCase
 
     public function test_execute_no_patch_mode_only_validates(): void
     {
-        if (@file_put_contents($this->envPath, "CORTEX_N8N_HOST=http://localhost\nCORTEX_N8N_PORT=5678\nCORTEX_N8N_API_KEY=test-key\n") === false) {
+        if (@file_put_contents($this->envPath, "NGRAMX_N8N_HOST=http://localhost\nNGRAMX_N8N_PORT=5678\nNGRAMX_N8N_API_KEY=test-key\n") === false) {
             $this->markTestSkipped('Cannot write .env file (sandbox restrictions)');
         }
 
@@ -921,7 +921,7 @@ class NormaliseCommandTest extends TestCase
 
     public function test_execute_dry_run_mode_shows_report(): void
     {
-        if (@file_put_contents($this->envPath, "CORTEX_N8N_HOST=http://localhost\nCORTEX_N8N_PORT=5678\nCORTEX_N8N_API_KEY=test-key\n") === false) {
+        if (@file_put_contents($this->envPath, "NGRAMX_N8N_HOST=http://localhost\nNGRAMX_N8N_PORT=5678\nNGRAMX_N8N_API_KEY=test-key\n") === false) {
             $this->markTestSkipped('Cannot write .env file (sandbox restrictions)');
         }
 
@@ -961,7 +961,7 @@ class NormaliseCommandTest extends TestCase
 
     public function test_execute_json_report_format(): void
     {
-        if (@file_put_contents($this->envPath, "CORTEX_N8N_HOST=http://localhost\nCORTEX_N8N_PORT=5678\nCORTEX_N8N_API_KEY=test-key\n") === false) {
+        if (@file_put_contents($this->envPath, "NGRAMX_N8N_HOST=http://localhost\nNGRAMX_N8N_PORT=5678\nNGRAMX_N8N_API_KEY=test-key\n") === false) {
             $this->markTestSkipped('Cannot write .env file (sandbox restrictions)');
         }
 

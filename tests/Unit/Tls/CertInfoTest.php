@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Tls;
+namespace Ngramx\Tests\Unit\Tls;
 
-use Cortex\Tls\CertInfo;
+use Ngramx\Tls\CertInfo;
 use PHPUnit\Framework\TestCase;
 
 class CertInfoTest extends TestCase

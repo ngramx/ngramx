@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Config;
+namespace Ngramx\Config;
 
 /**
- * Manages the .cortex.lock file for tracking active instances
+ * Manages the .ngramx.lock file for tracking active instances
  */
 class LockFile
 {
-    private const LOCK_FILE = '.cortex.lock';
+    private const LOCK_FILE = '.ngramx.lock';
 
     public function __construct(
         private readonly string $workingDirectory = ''

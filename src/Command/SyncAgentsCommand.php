@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command;
+namespace Ngramx\Command;
 
-use Cortex\Agents\AgentsMdSynchronizer;
-use Cortex\Agents\AgentsSyncOrchestrator;
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\Validator\ConfigValidator;
-use Cortex\Output\OutputFormatter;
+use Ngramx\Agents\AgentsMdSynchronizer;
+use Ngramx\Agents\AgentsSyncOrchestrator;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\Validator\ConfigValidator;
+use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -20,7 +20,7 @@ class SyncAgentsCommand extends Command
     {
         $this
             ->setName('sync-agents')
-            ->setDescription('Update Cortex-managed agent instructions for all configured targets');
+            ->setDescription('Update Ngramx-managed agent instructions for all configured targets');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -33,7 +33,7 @@ class SyncAgentsCommand extends Command
             $projectRoot = dirname($configPath);
             $config = $configLoader->load($configPath);
         } catch (ConfigException) {
-            $formatter->error('No cortex.yml found in this directory or parent directories.');
+            $formatter->error('No ngramx.yml found in this directory or parent directories.');
 
             return Command::FAILURE;
         }
@@ -41,8 +41,8 @@ class SyncAgentsCommand extends Command
         $sync = new AgentsMdSynchronizer();
         if ($sync->hasMalformedManagedMarkers($projectRoot)) {
             $formatter->warning(
-                'AGENTS.md contains malformed CORTEX_AGENTS_MANAGED markers (e.g. END before BEGIN, '
-                . 'or a BEGIN with no matching END). Cortex will not modify the file until the '
+                'AGENTS.md contains malformed NGRAMX_AGENTS_MANAGED markers (e.g. END before BEGIN, '
+                . 'or a BEGIN with no matching END). Ngramx will not modify the file until the '
                 . 'markers are fixed or the managed block is removed.'
             );
 

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Config;
+namespace Ngramx\Config;
 
-use Cortex\Config\Schema\CortexConfig;
+use Ngramx\Config\Schema\NgramxConfig;
 
 class ConfigWarningChecker
 {
@@ -13,18 +13,18 @@ class ConfigWarningChecker
      *
      * @return list<string>
      */
-    public function check(CortexConfig $config): array
+    public function check(NgramxConfig $config): array
     {
         $warnings = [];
 
         foreach (RecommendedCommands::COMMANDS as $name => $meta) {
             if (!isset($config->commands[$name])) {
-                $warnings[] = "Recommended command '$name' is not defined in cortex.yml — {$meta['description']}";
+                $warnings[] = "Recommended command '$name' is not defined in ngramx.yml — {$meta['description']}";
                 continue;
             }
 
             if (trim($config->commands[$name]->command) === '') {
-                $warnings[] = "Recommended command '$name' has an empty command string in cortex.yml — define it to use this workflow";
+                $warnings[] = "Recommended command '$name' has an empty command string in ngramx.yml — define it to use this workflow";
             }
         }
 

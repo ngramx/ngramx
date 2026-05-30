@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Tls;
+namespace Ngramx\Tests\Unit\Tls;
 
-use Cortex\Tls\CertInfo;
-use Cortex\Tls\CertInspector;
+use Ngramx\Tls\CertInfo;
+use Ngramx\Tls\CertInspector;
 use PHPUnit\Framework\TestCase;
 
 class CertInspectorTest extends TestCase
@@ -50,7 +50,7 @@ class CertInspectorTest extends TestCase
 
     public function test_inspect_for_app_url_returns_null_when_cert_missing(): void
     {
-        $tmp = sys_get_temp_dir() . '/cortex-cert-test-' . uniqid();
+        $tmp = sys_get_temp_dir() . '/ngramx-cert-test-' . uniqid();
         mkdir($tmp);
 
         try {
@@ -68,7 +68,7 @@ class CertInspectorTest extends TestCase
 
     public function test_inspect_for_app_url_returns_info_when_cert_present(): void
     {
-        $tmp = sys_get_temp_dir() . '/cortex-cert-test-' . uniqid();
+        $tmp = sys_get_temp_dir() . '/ngramx-cert-test-' . uniqid();
         $sslDir = $tmp . '/docker/nginx/ssl';
         mkdir($sslDir, 0700, true);
 

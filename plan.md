@@ -1,8 +1,8 @@
-# Cortex CLI - Development Plan
+# Ngramx CLI - Development Plan
 
 ## 📋 Project Overview
 
-A PHP-based CLI tool that reads a `cortex.yml` configuration file and orchestrates Docker-based development environments. The tool will be compiled into a PHAR for easy distribution.
+A PHP-based CLI tool that reads a `ngramx.yml` configuration file and orchestrates Docker-based development environments. The tool will be compiled into a PHAR for easy distribution.
 
 **Architecture:** Layered Architecture (Approach 1)  
 **PHP Version:** 8.2+  
@@ -13,30 +13,30 @@ A PHP-based CLI tool that reads a `cortex.yml` configuration file and orchestrat
 ## 🎯 Core Commands
 
 ### Primary Commands
-- `cortex up` - Main setup command (pre-start → docker up → wait for health → initialize)
-- `cortex down` - Tear down the Docker environment
-- `cortex status` - Check health status of services
-- `cortex <custom>` - Run custom commands defined in `cortex.yml` (e.g., `cortex test`, `cortex fresh_db`)
+- `ngramx up` - Main setup command (pre-start → docker up → wait for health → initialize)
+- `ngramx down` - Tear down the Docker environment
+- `ngramx status` - Check health status of services
+- `ngramx <custom>` - Run custom commands defined in `ngramx.yml` (e.g., `ngramx test`, `ngramx fresh_db`)
 
 ---
 
 ## 📁 Directory Structure
 
 ```
-cortex-cli/
+ngramx/
 ├── bin/
-│   └── cortex                          # Entry point executable
+│   └── ngramx                          # Entry point executable
 ├── src/
 │   ├── Command/                        # Symfony Console commands
-│   │   ├── UpCommand.php              # cortex up
-│   │   ├── DownCommand.php            # cortex down
-│   │   ├── StatusCommand.php          # cortex status
-│   │   └── RunCommand.php             # cortex <custom>
+│   │   ├── UpCommand.php              # ngramx up
+│   │   ├── DownCommand.php            # ngramx down
+│   │   ├── StatusCommand.php          # ngramx status
+│   │   └── RunCommand.php             # ngramx <custom>
 │   │
 │   ├── Config/                         # Configuration layer
-│   │   ├── ConfigLoader.php           # Loads and validates cortex.yml
+│   │   ├── ConfigLoader.php           # Loads and validates ngramx.yml
 │   │   ├── Schema/                    # Value objects for config
-│   │   │   ├── CortexConfig.php      # Root config object
+│   │   │   ├── NgramxConfig.php      # Root config object
 │   │   │   ├── DockerConfig.php      # docker: section
 │   │   │   ├── SetupConfig.php       # setup: section
 │   │   │   ├── CommandDefinition.php  # Individual command definition
@@ -83,7 +83,7 @@ cortex-cli/
 │   ├── Integration/
 │   │   └── Command/
 │   └── fixtures/
-│       ├── cortex.yml                 # Test config file
+│       ├── ngramx.yml                 # Test config file
 │       └── docker-compose.test.yml    # Test docker compose
 │
 ├── box.json                            # PHAR build configuration
@@ -102,10 +102,10 @@ cortex-cli/
 ### 1. Configuration Layer (`src/Config/`)
 
 #### `ConfigLoader.php`
-- **Responsibility:** Load and parse `cortex.yml` from project root
+- **Responsibility:** Load and parse `ngramx.yml` from project root
 - **Methods:**
-  - `load(string $path = 'cortex.yml'): CortexConfig`
-  - `findConfigFile(): string` - Search for cortex.yml in current/parent dirs
+  - `load(string $path = 'ngramx.yml'): NgramxConfig`
+  - `findConfigFile(): string` - Search for ngramx.yml in current/parent dirs
 - **Dependencies:** symfony/yaml
 
 #### `ConfigValidator.php`
@@ -123,9 +123,9 @@ cortex-cli/
 #### Schema Value Objects
 All immutable DTOs with typed properties (PHP 8.2+ features):
 
-**`CortexConfig.php`**
+**`NgramxConfig.php`**
 ```php
-readonly class CortexConfig {
+readonly class NgramxConfig {
     public function __construct(
         public string $version,
         public DockerConfig $docker,
@@ -239,7 +239,7 @@ readonly class ServiceWaitConfig {
 - **Dependencies:** `ContainerExecutor` (Docker layer)
 - **Use Cases:**
   - Initialize commands (composer install, migrations, etc.)
-  - Custom commands from cortex.yml
+  - Custom commands from ngramx.yml
 
 #### `RetryStrategy.php`
 - **Responsibility:** Implement retry logic with exponential backoff
@@ -273,9 +273,9 @@ readonly class ExecutionResult {
 ### 4. Orchestrator Layer (`src/Orchestrator/`)
 
 #### `SetupOrchestrator.php`
-- **Responsibility:** Coordinate the entire `cortex up` flow
+- **Responsibility:** Coordinate the entire `ngramx up` flow
 - **Methods:**
-  - `setup(CortexConfig $config): void` - Main orchestration method
+  - `setup(NgramxConfig $config): void` - Main orchestration method
   - `runPreStartCommands(array $commands): void`
   - `startDockerServices(DockerConfig $docker): void`
   - `waitForServices(array $waitFor): void`
@@ -294,10 +294,10 @@ readonly class ExecutionResult {
   - Exit with appropriate code
 
 #### `CommandOrchestrator.php`
-- **Responsibility:** Execute custom commands from `cortex.yml`
+- **Responsibility:** Execute custom commands from `ngramx.yml`
 - **Methods:**
-  - `run(string $commandName, CortexConfig $config): void`
-  - `listAvailableCommands(CortexConfig $config): array`
+  - `run(string $commandName, NgramxConfig $config): void`
+  - `listAvailableCommands(NgramxConfig $config): array`
 - **Features:**
   - Look up command by name
   - Execute in primary container
@@ -357,29 +357,29 @@ readonly class ExecutionResult {
 All extend `Symfony\Component\Console\Command\Command`
 
 #### `UpCommand.php`
-- **Command:** `cortex up`
+- **Command:** `ngramx up`
 - **Description:** "Set up the development environment"
 - **Options:**
   - `--no-wait` - Skip health checks
   - `--skip-init` - Skip initialize commands
 - **Execution:**
-  1. Find cortex.yml
+  1. Find ngramx.yml
   2. Load and validate config
   3. Call SetupOrchestrator
   4. Handle errors gracefully
 
 #### `DownCommand.php`
-- **Command:** `cortex down`
+- **Command:** `ngramx down`
 - **Description:** "Tear down the development environment"
 - **Options:**
   - `--volumes` - Remove volumes too
 - **Execution:**
-  1. Find cortex.yml (for compose file path)
+  1. Find ngramx.yml (for compose file path)
   2. Call DockerCompose::down()
   3. Confirm success
 
 #### `StatusCommand.php`
-- **Command:** `cortex status`
+- **Command:** `ngramx status`
 - **Description:** "Check the health status of services"
 - **Execution:**
   1. Load config
@@ -388,8 +388,8 @@ All extend `Symfony\Component\Console\Command\Command`
   4. Display formatted status table
 
 #### `RunCommand.php`
-- **Command:** `cortex <custom>`
-- **Description:** "Run a custom command defined in cortex.yml"
+- **Command:** `ngramx <custom>`
+- **Description:** "Run a custom command defined in ngramx.yml"
 - **Arguments:**
   - `command-name` - Name of the command (e.g., "test", "fresh_db")
 - **Options:**
@@ -431,8 +431,8 @@ All extend `Symfony\Component\Console\Command\Command`
 ### `box.json`
 ```json
 {
-  "main": "bin/cortex",
-  "output": "cortex.phar",
+  "main": "bin/ngramx",
+  "output": "ngramx.phar",
   "directories": ["src"],
   "files": [
     "composer.json"
@@ -455,8 +455,8 @@ All extend `Symfony\Component\Console\Command\Command`
 ### Build Process
 1. Install dependencies: `composer install --no-dev --optimize-autoloader`
 2. Build PHAR: `box compile`
-3. Make executable: `chmod +x cortex.phar`
-4. Test: `./cortex.phar up`
+3. Make executable: `chmod +x ngramx.phar`
+4. Test: `./ngramx.phar up`
 
 ---
 
@@ -494,11 +494,11 @@ All extend `Symfony\Component\Console\Command\Command`
 - Use test fixtures with minimal Docker setup
 - Test actual command execution in container
 - Test health checking with real services
-- Test full `cortex up` flow end-to-end
+- Test full `ngramx up` flow end-to-end
 
 ### Test Fixtures
 - Minimal `docker-compose.test.yml` with simple services
-- Various `cortex.yml` variants for different scenarios
+- Various `ngramx.yml` variants for different scenarios
 - Mock commands that succeed/fail for testing error handling
 
 ---
@@ -559,7 +559,7 @@ All extend `Symfony\Component\Console\Command\Command`
 
 ### Exception Hierarchy
 ```
-CortexException (base)
+NgramxException (base)
 ├── ConfigException (invalid config)
 ├── DockerException (docker errors)
 │   ├── ServiceNotHealthyException
@@ -574,7 +574,7 @@ CortexException (base)
 - Show clear, actionable error messages
 - Suggest fixes where possible:
   - "Service 'db' not healthy. Check `docker-compose logs db`"
-  - "Command timed out. Try increasing timeout in cortex.yml"
+  - "Command timed out. Try increasing timeout in ngramx.yml"
 
 ---
 
@@ -604,7 +604,7 @@ CortexException (base)
 
 ## 📝 Configuration Examples
 
-### Minimal cortex.yml
+### Minimal ngramx.yml
 ```yaml
 version: "1.0"
 docker:
@@ -616,7 +616,7 @@ setup:
       description: "Install dependencies"
 ```
 
-### Full-Featured cortex.yml
+### Full-Featured ngramx.yml
 ```yaml
 version: "1.0"
 
@@ -661,7 +661,7 @@ commands:
 
 ```bash
 # Initial setup
-$ cortex up
+$ ngramx up
 ┌─────────────────────────────────────┐
 │  🚀 Starting Development Environment │
 └─────────────────────────────────────┘
@@ -672,13 +672,13 @@ $ cortex up
 ✅ Environment ready!
 
 # Run tests
-$ cortex test
+$ ngramx test
 🧪 Running test suite...
 [test output]
 ✅ Tests passed!
 
 # Check status
-$ cortex status
+$ ngramx status
 📊 Service Status
 ┌─────────┬──────────┬────────┐
 │ Service │ Status   │ Health │
@@ -689,7 +689,7 @@ $ cortex status
 └─────────┴──────────┴────────┘
 
 # Tear down
-$ cortex down
+$ ngramx down
 🛑 Stopping services...
 ✅ Environment stopped
 ```
@@ -714,13 +714,13 @@ $ cortex down
    - `-vv`: debug mode with full traces
 
 4. **Service Groups**
-   - Start subset of services: `cortex up --only=api`
+   - Start subset of services: `ngramx up --only=api`
 
 5. **Config Profiles**
-   - Multiple environments: `cortex up --profile=minimal`
+   - Multiple environments: `ngramx up --profile=minimal`
 
 6. **Watch Mode**
-   - `cortex watch` - Re-run commands on file changes
+   - `ngramx watch` - Re-run commands on file changes
 
 7. **Plugins**
    - Allow extending with custom PHP classes
@@ -777,7 +777,7 @@ A feature is complete when:
 ### README.md
 - Installation instructions
 - Quick start guide
-- cortex.yml specification
+- ngramx.yml specification
 - Command reference
 - Examples
 - Building PHAR instructions
@@ -792,7 +792,7 @@ A feature is complete when:
 ## 🏁 Success Criteria
 
 The MVP is successful when:
-1. ✅ Can parse complex cortex.yml files
+1. ✅ Can parse complex ngramx.yml files
 2. ✅ Executes pre-start commands on host
 3. ✅ Starts Docker Compose services
 4. ✅ Waits for service health properly
@@ -808,7 +808,7 @@ The MVP is successful when:
 
 ## 🎉 Ready to Build!
 
-This plan provides a clear roadmap for building Cortex CLI with:
+This plan provides a clear roadmap for building Ngramx CLI with:
 - **Modular architecture** that scales
 - **Clear responsibilities** for each component
 - **User-friendly output** that's a joy to use

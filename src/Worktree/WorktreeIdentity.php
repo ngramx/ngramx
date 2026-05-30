@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Worktree;
+namespace Ngramx\Worktree;
 
 /**
  * Pure helpers for deriving the identity of a per-ticket worktree: its slug,
@@ -51,11 +51,11 @@ class WorktreeIdentity
 
     /**
      * Docker Compose project name / namespace for the worktree env. Prefixed so
-     * containers are clearly Cortex-managed and truncated to Docker's 63 char limit.
+     * containers are clearly Ngramx-managed and truncated to Docker's 63 char limit.
      */
     public static function namespaceFor(string $folderName): string
     {
-        $namespace = 'cortex-' . self::sanitizeSegment($folderName);
+        $namespace = 'ngramx-' . self::sanitizeSegment($folderName);
 
         if (strlen($namespace) > self::MAX_NAMESPACE_LENGTH) {
             $namespace = rtrim(substr($namespace, 0, self::MAX_NAMESPACE_LENGTH), '-');

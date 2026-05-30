@@ -1,14 +1,14 @@
-# 🎉 Cortex CLI - Project Complete!
+# 🎉 Ngramx CLI - Project Complete!
 
 ## Overview
 
-**Cortex CLI** is a complete, production-ready PHP CLI tool for orchestrating Docker-based development environments.
+**Ngramx CLI** is a complete, production-ready PHP CLI tool for orchestrating Docker-based development environments.
 
 **Status:** ✅ All 5 phases complete and ready for v1.0 release
 
 ## What It Does
 
-Automates your Docker development environment setup with a simple `cortex.yml` configuration file:
+Automates your Docker development environment setup with a simple `ngramx.yml` configuration file:
 
 ```yaml
 version: "1.0"
@@ -39,9 +39,9 @@ commands:
 
 **Usage:**
 ```bash
-cortex up      # Start everything
-cortex test    # Run your custom commands
-cortex down    # Stop everything
+ngramx up      # Start everything
+ngramx test    # Run your custom commands
+ngramx down    # Stop everything
 ```
 
 ## Features Implemented
@@ -59,7 +59,7 @@ cortex down    # Stop everything
 - ✅ **Beautiful output** - Gigabyte brand colors (Teal, Purple, Smoke)
 - ✅ **One-line install** - `curl -L ... | bash`
 - ✅ **Tab completion** - Automatic bash/zsh completion
-- ✅ **Dynamic commands** - `cortex test` not `cortex run test`
+- ✅ **Dynamic commands** - `ngramx test` not `ngramx run test`
 - ✅ **Helpful errors** - Clear, actionable error messages
 - ✅ **PHAR distribution** - Single 2-3MB file
 
@@ -104,7 +104,7 @@ cortex down    # Stop everything
 ### Phase 4: Custom Commands ✅
 - CommandOrchestrator
 - Dynamic command registration
-- Direct command access (`cortex test`)
+- Direct command access (`ngramx test`)
 - Tab completion for custom commands
 - Removed `run` command (no longer needed)
 
@@ -139,9 +139,9 @@ cortex down    # Stop everything
 ## File Structure (Final)
 
 ```
-cortex-cli/
+ngramx/
 ├── bin/
-│   └── cortex                              # Entry point
+│   └── ngramx                              # Entry point
 ├── src/
 │   ├── Command/                            # 5 commands
 │   │   ├── UpCommand.php                  # Start environment
@@ -191,9 +191,9 @@ cortex-cli/
 ```bash
 # Clone and develop
 git clone <repo>
-cd cortex-cli
+cd ngramx
 composer install
-./bin/cortex --version
+./bin/ngramx --version
 ```
 
 ### As End User
@@ -204,9 +204,9 @@ curl -L https://your-site.com/install.sh | bash
 
 # Use
 cd your-project/
-cortex up
-cortex test
-cortex down
+ngramx up
+ngramx test
+ngramx down
 ```
 
 ### Build PHAR
@@ -214,7 +214,7 @@ cortex down
 ```bash
 composer install --no-dev --optimize-autoloader
 box compile
-# Creates cortex.phar (~2-3MB)
+# Creates ngramx.phar (~2-3MB)
 ```
 
 ## Testing
@@ -227,10 +227,10 @@ vendor/bin/phpunit tests/Unit/
 ### Manual Testing
 ```bash
 cd tests/fixtures
-../../bin/cortex up
-../../bin/cortex status
-../../bin/cortex test
-../../bin/cortex down
+../../bin/ngramx up
+../../bin/ngramx status
+../../bin/ngramx test
+../../bin/ngramx down
 ```
 
 ### Test Coverage
@@ -243,7 +243,7 @@ cd tests/fixtures
 
 ### User Documentation
 - README.md - Complete user guide
-- cortex.example.yml - Example configuration
+- ngramx.example.yml - Example configuration
 - BUILD.md - Build instructions
 
 ### Developer Documentation
@@ -344,11 +344,11 @@ This project demonstrates:
 - **Install:** `curl -L https://your-site.com/install.sh | bash`
 - **Docs:** README.md
 - **Build:** BUILD.md
-- **Test:** `./bin/cortex up` in tests/fixtures/
+- **Test:** `./bin/ngramx up` in tests/fixtures/
 
 **Version:** 1.0.0  
 **License:** MIT  
 **Author:** Your Team
 
-🎉 **Congratulations on completing Cortex CLI!**
+🎉 **Congratulations on completing Ngramx CLI!**
 

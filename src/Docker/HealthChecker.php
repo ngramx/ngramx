@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Docker;
+namespace Ngramx\Docker;
 
-use Cortex\Docker\Exception\ServiceNotHealthyException;
+use Ngramx\Docker\Exception\ServiceNotHealthyException;
 use Symfony\Component\Process\Process;
 
 class HealthChecker

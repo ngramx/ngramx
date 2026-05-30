@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Command\N8n;
+namespace Ngramx\Tests\Unit\Command\N8n;
 
-use Cortex\Command\N8n\ImportCommand;
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Config\Schema\DockerConfig;
-use Cortex\Config\Schema\N8nConfig;
-use Cortex\Config\Schema\SetupConfig;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
+use Ngramx\Command\N8n\ImportCommand;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\N8nConfig;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\SetupConfig;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use Symfony\Component\Console\Application;
@@ -34,7 +34,7 @@ class ImportCommandTest extends TestCase
 
         $this->configLoader = $this->createMock(ConfigLoader::class);
         $this->httpClient = $this->createMock(Client::class);
-        $this->testDir = sys_get_temp_dir() . '/cortex_n8n_test_' . uniqid();
+        $this->testDir = sys_get_temp_dir() . '/ngramx_n8n_test_' . uniqid();
         mkdir($this->testDir, 0755, true);
         $this->envPath = $this->testDir . '/.env';
         $this->workflowsDir = $this->testDir . '/.n8n';
@@ -177,9 +177,9 @@ class ImportCommandTest extends TestCase
     public function test_performImport_successfully_imports_workflows(): void
     {
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         mkdir($this->workflowsDir, 0755, true);
@@ -205,7 +205,7 @@ class ImportCommandTest extends TestCase
                 throw new \RuntimeException('Unexpected request: ' . $method . ' ' . $uri);
             });
 
-        $formatter = $this->createMock(\Cortex\Output\OutputFormatter::class);
+        $formatter = $this->createMock(\Ngramx\Output\OutputFormatter::class);
         $formatter->expects($this->exactly(2))
             ->method('info')
             ->with($this->stringContains('Imported workflow'));
@@ -219,9 +219,9 @@ class ImportCommandTest extends TestCase
     public function test_performImport_skips_existing_workflows_without_force(): void
     {
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         mkdir($this->workflowsDir, 0755, true);
@@ -237,7 +237,7 @@ class ImportCommandTest extends TestCase
             ->method('request')
             ->willReturn($workflowsResponse);
 
-        $formatter = $this->createMock(\Cortex\Output\OutputFormatter::class);
+        $formatter = $this->createMock(\Ngramx\Output\OutputFormatter::class);
         $formatter->expects($this->once())
             ->method('info')
             ->with($this->stringContains('already exists'));
@@ -251,9 +251,9 @@ class ImportCommandTest extends TestCase
     public function test_performImport_updates_existing_workflows_with_force(): void
     {
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         mkdir($this->workflowsDir, 0755, true);
@@ -280,7 +280,7 @@ class ImportCommandTest extends TestCase
                 throw new \RuntimeException('Unexpected request: ' . $method . ' ' . $uri);
             });
 
-        $formatter = $this->createMock(\Cortex\Output\OutputFormatter::class);
+        $formatter = $this->createMock(\Ngramx\Output\OutputFormatter::class);
         $formatter->expects($this->once())
             ->method('info')
             ->with($this->stringContains('Updated workflow'));
@@ -294,9 +294,9 @@ class ImportCommandTest extends TestCase
     public function test_performImport_handles_invalid_json_files(): void
     {
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         mkdir($this->workflowsDir, 0755, true);
@@ -308,7 +308,7 @@ class ImportCommandTest extends TestCase
             ->method('request')
             ->willReturn($workflowsResponse);
 
-        $formatter = $this->createMock(\Cortex\Output\OutputFormatter::class);
+        $formatter = $this->createMock(\Ngramx\Output\OutputFormatter::class);
         $formatter->expects($this->once())
             ->method('warning')
             ->with($this->stringContains('Invalid JSON'));
@@ -322,9 +322,9 @@ class ImportCommandTest extends TestCase
     public function test_performImport_handles_file_read_errors(): void
     {
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         mkdir($this->workflowsDir, 0755, true);
@@ -337,7 +337,7 @@ class ImportCommandTest extends TestCase
             ->method('request')
             ->willReturn($workflowsResponse);
 
-        $formatter = $this->createMock(\Cortex\Output\OutputFormatter::class);
+        $formatter = $this->createMock(\Ngramx\Output\OutputFormatter::class);
         $formatter->expects($this->once())
             ->method('warning')
             ->with($this->stringContains('Failed to read file'));
@@ -351,9 +351,9 @@ class ImportCommandTest extends TestCase
     public function test_performImport_handles_empty_workflows_directory(): void
     {
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         mkdir($this->workflowsDir, 0755, true);
@@ -364,7 +364,7 @@ class ImportCommandTest extends TestCase
             ->method('request')
             ->willReturn($workflowsResponse);
 
-        $formatter = $this->createMock(\Cortex\Output\OutputFormatter::class);
+        $formatter = $this->createMock(\Ngramx\Output\OutputFormatter::class);
         $formatter->expects($this->once())
             ->method('info')
             ->with($this->stringContains('No workflow files found'));
@@ -378,9 +378,9 @@ class ImportCommandTest extends TestCase
     public function test_performImport_handles_http_exception(): void
     {
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         mkdir($this->workflowsDir, 0755, true);
@@ -399,7 +399,7 @@ class ImportCommandTest extends TestCase
                 throw new \RuntimeException('Unexpected request: ' . $method . ' ' . $uri);
             });
 
-        $formatter = $this->createMock(\Cortex\Output\OutputFormatter::class);
+        $formatter = $this->createMock(\Ngramx\Output\OutputFormatter::class);
         $command = $this->createCommand();
 
         $this->expectException(\RuntimeException::class);
@@ -411,9 +411,9 @@ class ImportCommandTest extends TestCase
     public function test_performImport_continues_when_fetching_existing_workflows_fails(): void
     {
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         mkdir($this->workflowsDir, 0755, true);
@@ -431,7 +431,7 @@ class ImportCommandTest extends TestCase
                 throw new \RuntimeException('Unexpected request');
             });
 
-        $formatter = $this->createMock(\Cortex\Output\OutputFormatter::class);
+        $formatter = $this->createMock(\Ngramx\Output\OutputFormatter::class);
         $formatter->expects($this->once())
             ->method('info')
             ->with($this->stringContains('Imported workflow'));
@@ -446,14 +446,14 @@ class ImportCommandTest extends TestCase
 
     public function test_execute_successfully_imports_workflows(): void
     {
-        if (@file_put_contents($this->envPath, "CORTEX_N8N_HOST=http://localhost\nCORTEX_N8N_PORT=5678\nCORTEX_N8N_API_KEY=test-key") === false) {
+        if (@file_put_contents($this->envPath, "NGRAMX_N8N_HOST=http://localhost\nNGRAMX_N8N_PORT=5678\nNGRAMX_N8N_API_KEY=test-key") === false) {
             $this->markTestSkipped('Cannot write .env file (sandbox restrictions)');
         }
 
         $config = $this->createMockConfig();
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
         $this->configLoader->expects($this->once())
             ->method('load')
             ->willReturn($config);
@@ -493,7 +493,7 @@ class ImportCommandTest extends TestCase
 
     public function test_execute_handles_missing_workflows_directory(): void
     {
-        if (@file_put_contents($this->envPath, "CORTEX_N8N_HOST=http://localhost\nCORTEX_N8N_PORT=5678\nCORTEX_N8N_API_KEY=test-key") === false) {
+        if (@file_put_contents($this->envPath, "NGRAMX_N8N_HOST=http://localhost\nNGRAMX_N8N_PORT=5678\nNGRAMX_N8N_API_KEY=test-key") === false) {
             $this->markTestSkipped('Cannot write .env file (sandbox restrictions)');
         }
 
@@ -503,7 +503,7 @@ class ImportCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
         $this->configLoader->expects($this->once())
             ->method('load')
             ->willReturn($config);
@@ -527,7 +527,7 @@ class ImportCommandTest extends TestCase
 
     public function test_execute_handles_config_exception(): void
     {
-        if (@file_put_contents($this->envPath, "CORTEX_N8N_HOST=http://localhost\nCORTEX_N8N_PORT=5678\nCORTEX_N8N_API_KEY=test-key") === false) {
+        if (@file_put_contents($this->envPath, "NGRAMX_N8N_HOST=http://localhost\nNGRAMX_N8N_PORT=5678\nNGRAMX_N8N_API_KEY=test-key") === false) {
             $this->markTestSkipped('Cannot write .env file (sandbox restrictions)');
         }
 
@@ -548,7 +548,7 @@ class ImportCommandTest extends TestCase
             $this->assertSame(1, $exitCode);
             $display = $tester->getDisplay();
             $this->assertTrue(
-                str_contains($display, 'Config not found') || str_contains($display, 'CORTEX_N8N_HOST is required'),
+                str_contains($display, 'Config not found') || str_contains($display, 'NGRAMX_N8N_HOST is required'),
                 'Should show error: ' . $display
             );
         } finally {
@@ -558,14 +558,14 @@ class ImportCommandTest extends TestCase
 
     public function test_execute_handles_http_exception(): void
     {
-        if (@file_put_contents($this->envPath, "CORTEX_N8N_HOST=http://localhost\nCORTEX_N8N_PORT=5678\nCORTEX_N8N_API_KEY=test-key") === false) {
+        if (@file_put_contents($this->envPath, "NGRAMX_N8N_HOST=http://localhost\nNGRAMX_N8N_PORT=5678\nNGRAMX_N8N_API_KEY=test-key") === false) {
             $this->markTestSkipped('Cannot write .env file (sandbox restrictions)');
         }
 
         $config = $this->createMockConfig();
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
         $this->configLoader->expects($this->once())
             ->method('load')
             ->willReturn($config);
@@ -613,12 +613,12 @@ class ImportCommandTest extends TestCase
         return new CommandTester($command);
     }
 
-    private function createMockConfig(): CortexConfig
+    private function createMockConfig(): NgramxConfig
     {
         return $this->createMockConfigWithDir($this->workflowsDir);
     }
 
-    private function createMockConfigWithDir(string $workflowsDir): CortexConfig
+    private function createMockConfigWithDir(string $workflowsDir): NgramxConfig
     {
         $dockerConfig = new DockerConfig(
             composeFile: 'docker-compose.yml',
@@ -636,7 +636,7 @@ class ImportCommandTest extends TestCase
             workflowsDir: $workflowsDir
         );
 
-        return new CortexConfig(
+        return new NgramxConfig(
             version: '1.0',
             docker: $dockerConfig,
             setup: $setupConfig,
@@ -881,9 +881,9 @@ class ImportCommandTest extends TestCase
     public function test_performImport_handles_workflow_with_non_array_data(): void
     {
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         mkdir($this->workflowsDir, 0755, true);
@@ -896,7 +896,7 @@ class ImportCommandTest extends TestCase
             ->method('request')
             ->willReturn($workflowsResponse);
 
-        $formatter = $this->createMock(\Cortex\Output\OutputFormatter::class);
+        $formatter = $this->createMock(\Ngramx\Output\OutputFormatter::class);
         $formatter->expects($this->once())
             ->method('warning')
             ->with($this->stringContains('Invalid JSON'));

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Docker;
+namespace Ngramx\Tests\Unit\Docker;
 
-use Cortex\Docker\NamespaceResolver;
+use Ngramx\Docker\NamespaceResolver;
 use PHPUnit\Framework\TestCase;
 
 class NamespaceResolverTest extends TestCase
@@ -20,35 +20,35 @@ class NamespaceResolverTest extends TestCase
     {
         $namespace = $this->resolver->deriveFromDirectory('/workspace/agent-1/project');
 
-        $this->assertEquals('cortex-agent-1-project', $namespace);
+        $this->assertEquals('ngramx-agent-1-project', $namespace);
     }
 
     public function test_it_takes_last_two_segments(): void
     {
         $namespace = $this->resolver->deriveFromDirectory('/very/long/path/to/user/myapp');
 
-        $this->assertEquals('cortex-user-myapp', $namespace);
+        $this->assertEquals('ngramx-user-myapp', $namespace);
     }
 
     public function test_it_sanitizes_special_characters(): void
     {
         $namespace = $this->resolver->deriveFromDirectory('/workspace/agent_1/my.project');
 
-        $this->assertEquals('cortex-agent-1-my-project', $namespace);
+        $this->assertEquals('ngramx-agent-1-my-project', $namespace);
     }
 
     public function test_it_handles_trailing_slash(): void
     {
         $namespace = $this->resolver->deriveFromDirectory('/workspace/agent-1/project/');
 
-        $this->assertEquals('cortex-agent-1-project', $namespace);
+        $this->assertEquals('ngramx-agent-1-project', $namespace);
     }
 
     public function test_it_converts_to_lowercase(): void
     {
         $namespace = $this->resolver->deriveFromDirectory('/workspace/Agent-1/MyProject');
 
-        $this->assertEquals('cortex-agent-1-myproject', $namespace);
+        $this->assertEquals('ngramx-agent-1-myproject', $namespace);
     }
 
     public function test_it_validates_valid_namespace(): void

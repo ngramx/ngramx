@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Command;
+namespace Ngramx\Tests\Unit\Command;
 
-use Cortex\Command\ReviewCommand;
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\LockFile;
-use Cortex\Config\Schema\CommandDefinition;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Config\Schema\DockerConfig;
-use Cortex\Config\Schema\N8nConfig;
-use Cortex\Config\Schema\SetupConfig;
-use Cortex\Docker\DockerCompose;
-use Cortex\Git\GitRepositoryService;
-use Cortex\Laravel\LaravelService;
-use Cortex\Orchestrator\CommandOrchestrator;
+use Ngramx\Command\ReviewCommand;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\LockFile;
+use Ngramx\Config\Schema\CommandDefinition;
+use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\N8nConfig;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\SetupConfig;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Git\GitRepositoryService;
+use Ngramx\Laravel\LaravelService;
+use Ngramx\Orchestrator\CommandOrchestrator;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
@@ -38,7 +38,7 @@ class ReviewCommandTest extends TestCase
         $this->laravelService = $this->createMock(LaravelService::class);
         $this->commandOrchestrator = $this->createMock(CommandOrchestrator::class);
 
-        $this->tmpDir = sys_get_temp_dir() . '/cortex-review-test-' . uniqid();
+        $this->tmpDir = sys_get_temp_dir() . '/ngramx-review-test-' . uniqid();
         mkdir($this->tmpDir, 0755, true);
 
         $this->dockerCompose->expects($this->any())->method('isRunning')->willReturn(true);
@@ -212,7 +212,7 @@ class ReviewCommandTest extends TestCase
 
     public function test_it_displays_completion_urls_when_file_exists(): void
     {
-        $ticketDir = $this->tmpDir . '/.cortex/tickets/GIG-123';
+        $ticketDir = $this->tmpDir . '/.ngramx/tickets/GIG-123';
         mkdir($ticketDir, 0755, true);
         file_put_contents($ticketDir . '/COMPLETION.md', implode("\n", [
             '# Completion',
@@ -225,7 +225,7 @@ class ReviewCommandTest extends TestCase
         $config = $this->createMockConfig([
             'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
         ]);
-        $this->setupConfigLoader($config, $this->tmpDir . '/cortex.yml');
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
 
         $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
 
@@ -241,7 +241,7 @@ class ReviewCommandTest extends TestCase
 
     public function test_it_finds_completion_file_case_insensitively(): void
     {
-        $ticketDir = $this->tmpDir . '/.cortex/tickets/GIG-456';
+        $ticketDir = $this->tmpDir . '/.ngramx/tickets/GIG-456';
         mkdir($ticketDir, 0755, true);
         file_put_contents($ticketDir . '/completion.md', implode("\n", [
             '- Linear: https://linear.app/team/GIG-456',
@@ -256,7 +256,7 @@ class ReviewCommandTest extends TestCase
         $config = $this->createMockConfig([
             'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
         ]);
-        $this->setupConfigLoader($config, $this->tmpDir . '/cortex.yml');
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
 
         $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
 
@@ -269,7 +269,7 @@ class ReviewCommandTest extends TestCase
 
     public function test_it_finds_ticket_folder_case_insensitively(): void
     {
-        $ticketDir = $this->tmpDir . '/.cortex/tickets/gig-789';
+        $ticketDir = $this->tmpDir . '/.ngramx/tickets/gig-789';
         mkdir($ticketDir, 0755, true);
         file_put_contents($ticketDir . '/COMPLETION.md', implode("\n", [
             '- Linear: https://linear.app/team/GIG-789',
@@ -284,7 +284,7 @@ class ReviewCommandTest extends TestCase
         $config = $this->createMockConfig([
             'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
         ]);
-        $this->setupConfigLoader($config, $this->tmpDir . '/cortex.yml');
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
 
         $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
 
@@ -297,7 +297,7 @@ class ReviewCommandTest extends TestCase
 
     public function test_it_finds_ticket_folder_by_partial_match(): void
     {
-        $ticketDir = $this->tmpDir . '/.cortex/tickets/gig-1603';
+        $ticketDir = $this->tmpDir . '/.ngramx/tickets/gig-1603';
         mkdir($ticketDir, 0755, true);
         file_put_contents($ticketDir . '/completion.md', implode("\n", [
             '- GitHub PR: https://github.com/org/repo/pull/54',
@@ -313,7 +313,7 @@ class ReviewCommandTest extends TestCase
         $config = $this->createMockConfig([
             'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
         ]);
-        $this->setupConfigLoader($config, $this->tmpDir . '/cortex.yml');
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
 
         $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
 
@@ -328,7 +328,7 @@ class ReviewCommandTest extends TestCase
 
     public function test_it_finds_completion_file_without_at_prefix(): void
     {
-        $ticketDir = $this->tmpDir . '/.cortex/tickets/GIG-123';
+        $ticketDir = $this->tmpDir . '/.ngramx/tickets/GIG-123';
         mkdir($ticketDir, 0755, true);
         file_put_contents($ticketDir . '/completion.md', implode("\n", [
             '- PR: https://github.com/org/repo/pull/99',
@@ -337,7 +337,7 @@ class ReviewCommandTest extends TestCase
         $config = $this->createMockConfig([
             'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
         ]);
-        $this->setupConfigLoader($config, $this->tmpDir . '/cortex.yml');
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
 
         $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
 
@@ -353,7 +353,7 @@ class ReviewCommandTest extends TestCase
         $config = $this->createMockConfig([
             'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
         ]);
-        $this->setupConfigLoader($config, $this->tmpDir . '/cortex.yml');
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
 
         $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
 
@@ -366,14 +366,14 @@ class ReviewCommandTest extends TestCase
 
     public function test_it_gracefully_skips_when_no_completion_file(): void
     {
-        $ticketDir = $this->tmpDir . '/.cortex/tickets/GIG-123';
+        $ticketDir = $this->tmpDir . '/.ngramx/tickets/GIG-123';
         mkdir($ticketDir, 0755, true);
         file_put_contents($ticketDir . '/README.md', '# GIG-123');
 
         $config = $this->createMockConfig([
             'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
         ]);
-        $this->setupConfigLoader($config, $this->tmpDir . '/cortex.yml');
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
 
         $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
 
@@ -396,7 +396,7 @@ class ReviewCommandTest extends TestCase
         );
     }
 
-    private function setupConfigLoader(CortexConfig $config, string $configPath = '/path/to/cortex.yml'): void
+    private function setupConfigLoader(NgramxConfig $config, string $configPath = '/path/to/ngramx.yml'): void
     {
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
@@ -410,9 +410,9 @@ class ReviewCommandTest extends TestCase
     /**
      * @param array<string, CommandDefinition> $commands
      */
-    private function createMockConfig(array $commands): CortexConfig
+    private function createMockConfig(array $commands): NgramxConfig
     {
-        return new CortexConfig(
+        return new NgramxConfig(
             version: '1.0',
             docker: new DockerConfig(
                 composeFile: 'docker-compose.yml',

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Config\Validator;
+namespace Ngramx\Config\Validator;
 
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\Schema\AgentsConfig;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\Schema\AgentsConfig;
 
 class ConfigValidator
 {

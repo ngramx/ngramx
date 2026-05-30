@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Output;
+namespace Ngramx\Tests\Unit\Output;
 
-use Cortex\Output\ParallelCommandPanel;
+use Ngramx\Output\ParallelCommandPanel;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Formatter\OutputFormatter as ConsoleFormatter;
 use Symfony\Component\Console\Output\ConsoleSectionOutput;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Executor\Result;
+namespace Ngramx\Executor\Result;
 
 use Symfony\Component\Process\Process;
 

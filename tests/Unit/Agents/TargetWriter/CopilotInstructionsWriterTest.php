@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Agents\TargetWriter;
 
-use Cortex\Agents\TargetWriter\CopilotInstructionsWriter;
+use Ngramx\Agents\TargetWriter\CopilotInstructionsWriter;
 use PHPUnit\Framework\TestCase;
 
 class CopilotInstructionsWriterTest extends TestCase
@@ -14,7 +14,7 @@ class CopilotInstructionsWriterTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->projectDir = sys_get_temp_dir() . '/cortex_copilot_writer_' . uniqid();
+        $this->projectDir = sys_get_temp_dir() . '/ngramx_copilot_writer_' . uniqid();
         mkdir($this->projectDir, 0755, true);
     }
 
@@ -34,8 +34,8 @@ class CopilotInstructionsWriterTest extends TestCase
         $content = file_get_contents($this->projectDir . '/.github/copilot-instructions.md');
         $this->assertIsString($content);
         assert(is_string($content));
-        $this->assertStringContainsString('<!-- CORTEX_COPILOT_MANAGED_BEGIN -->', $content);
-        $this->assertStringContainsString('<!-- CORTEX_COPILOT_MANAGED_END -->', $content);
+        $this->assertStringContainsString('<!-- NGRAMX_COPILOT_MANAGED_BEGIN -->', $content);
+        $this->assertStringContainsString('<!-- NGRAMX_COPILOT_MANAGED_END -->', $content);
         $this->assertStringContainsString('# Test content', $content);
     }
 

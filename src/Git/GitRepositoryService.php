@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Git;
+namespace Ngramx\Git;
 
 use RuntimeException;
 use Symfony\Component\Console\Helper\QuestionHelper;
@@ -75,7 +75,7 @@ class GitRepositoryService
      * Checkout the specified branch, fast-forwarding from origin if it already exists locally.
      *
      * If the local branch exists, it is checked out and fast-forward merged from origin/<branch>
-     * so a re-run of `cortex review` picks up new commits pushed since the last checkout. If the
+     * so a re-run of `ngramx review` picks up new commits pushed since the last checkout. If the
      * local branch has diverged (local-only commits), the fast-forward fails and this returns
      * false so the caller can surface an error rather than silently serve stale code.
      */

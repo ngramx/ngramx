@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Executor;
+namespace Ngramx\Executor;
 
-use Cortex\Config\Schema\CommandDefinition;
-use Cortex\Docker\ContainerExecutor;
-use Cortex\Executor\Result\ExecutionResult;
+use Ngramx\Config\Schema\CommandDefinition;
+use Ngramx\Docker\ContainerExecutor;
+use Ngramx\Executor\Result\ExecutionResult;
 
 class ContainerCommandExecutor
 {

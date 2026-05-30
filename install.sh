@@ -12,25 +12,25 @@ NC='\033[0m' # No Color
 
 echo ""
 echo -e "${PURPLE}──────────────────────────────────────────────────${NC}"
-echo -e "${PURPLE} Installing Cortex CLI${NC}"
+echo -e "${PURPLE} Installing Ngramx CLI${NC}"
 echo -e "${PURPLE}──────────────────────────────────────────────────${NC}"
 echo ""
 
-# Check if cortex.phar exists
-if [ ! -f "cortex.phar" ]; then
-    echo -e "${RED}Error: cortex.phar not found in current directory${NC}"
+# Check if ngramx.phar exists
+if [ ! -f "ngramx.phar" ]; then
+    echo -e "${RED}Error: ngramx.phar not found in current directory${NC}"
     echo ""
     echo "Download it first:"
-    echo "  curl -L https://github.com/gigabyte-software/cortex-cli/releases/latest/download/cortex.phar -o cortex.phar"
+    echo "  curl -L https://github.com/ngramx/ngramx/releases/latest/download/ngramx.phar -o ngramx.phar"
     echo ""
     exit 1
 fi
 
 # Install PHAR to /usr/local/bin
-echo -e "${TEAL}▸ Installing Cortex CLI${NC}"
-if sudo cp cortex.phar /usr/local/bin/cortex; then
-    sudo chmod +x /usr/local/bin/cortex
-    echo -e "${SMOKE}  Installed to /usr/local/bin/cortex${NC}"
+echo -e "${TEAL}▸ Installing Ngramx CLI${NC}"
+if sudo cp ngramx.phar /usr/local/bin/ngramx; then
+    sudo chmod +x /usr/local/bin/ngramx
+    echo -e "${SMOKE}  Installed to /usr/local/bin/ngramx${NC}"
 else
     echo -e "${RED}  Failed to install. Try running with sudo${NC}"
     exit 1
@@ -67,12 +67,12 @@ echo -e "${PURPLE} Installation Complete${NC}"
 echo -e "${PURPLE}──────────────────────────────────────────────────${NC}"
 echo ""
 echo -e "${SMOKE}Verify installation:${NC}"
-echo -e "${TEAL}  cortex --version${NC}"
+echo -e "${TEAL}  ngramx --version${NC}"
 echo ""
 echo -e "${SMOKE}Get started:${NC}"
 echo -e "${TEAL}  cd your-project/${NC}"
-echo -e "${TEAL}  cortex up${NC}"
+echo -e "${TEAL}  ngramx up${NC}"
 echo ""
-echo -e "${SMOKE}Documentation: ${TEAL}https://github.com/gigabyte-software/cortex-cli${NC}"
+echo -e "${SMOKE}Documentation: ${TEAL}https://github.com/ngramx/ngramx${NC}"
 echo ""
 

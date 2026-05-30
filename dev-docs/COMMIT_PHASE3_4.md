@@ -12,18 +12,18 @@ Major update implementing real-time streaming, orchestrators, and custom command
 - Better user experience for long-running commands
 
 ### 🎭 SetupOrchestrator
-- Refactored `cortex up` logic into dedicated orchestrator
+- Refactored `ngramx up` logic into dedicated orchestrator
 - Cleaner architecture and separation of concerns
 - UpCommand reduced from 163 to 70 lines
 
 ### 🎮 CommandOrchestrator
 - New orchestrator for custom commands
-- Executes user-defined commands from cortex.yml
+- Executes user-defined commands from ngramx.yml
 - Real-time streaming support
 
-### 🚀 cortex run Command
-- Execute custom commands: `cortex run test`
-- List available commands: `cortex run --list`
+### 🚀 ngramx run Command
+- Execute custom commands: `ngramx run test`
+- List available commands: `ngramx run --list`
 - Beautiful formatted output
 
 ## Changes
@@ -39,7 +39,7 @@ Major update implementing real-time streaming, orchestrators, and custom command
 - `src/Executor/HostCommandExecutor.php` - Added streaming callbacks
 - `src/Executor/ContainerCommandExecutor.php` - Added streaming callbacks  
 - `src/Docker/ContainerExecutor.php` - Added streaming callbacks
-- `tests/fixtures/cortex.yml` - Added example custom commands
+- `tests/fixtures/ngramx.yml` - Added example custom commands
 
 ### Documentation (4)
 - `PHASE3_4_COMPLETE.md` - Implementation details
@@ -66,11 +66,11 @@ commands:
 
 ```bash
 # List available commands
-cortex run --list
+ngramx run --list
 
 # Run a command
-cortex run test
-cortex run migrate
+ngramx run test
+ngramx run migrate
 ```
 
 ## Technical Details
@@ -104,7 +104,7 @@ $executor->execute($cmd, $outputCallback);
 Run comprehensive tests:
 
 ```bash
-cd /home/rob/projects/cortex-cli
+cd /home/rob/projects/ngramx
 ./test-complete.sh
 ```
 
@@ -112,11 +112,11 @@ Manual testing:
 
 ```bash
 cd tests/fixtures
-../../bin/cortex up          # Test streaming + orchestrator
-../../bin/cortex run --list  # Test command listing
-../../bin/cortex run hello   # Test custom command
-../../bin/cortex status      # Test status
-../../bin/cortex down        # Test cleanup
+../../bin/ngramx up          # Test streaming + orchestrator
+../../bin/ngramx run --list  # Test command listing
+../../bin/ngramx run hello   # Test custom command
+../../bin/ngramx status      # Test status
+../../bin/ngramx down        # Test cleanup
 ```
 
 ## Breaking Changes
@@ -144,10 +144,10 @@ feat: implement orchestrators and custom commands (Phase 3 & 4)
 
 Major Features:
 - Add real-time output streaming for all command execution
-- Add SetupOrchestrator to coordinate cortex up flow
+- Add SetupOrchestrator to coordinate ngramx up flow
 - Add CommandOrchestrator for custom commands
-- Add cortex run command to execute custom commands
-- Add cortex run --list to show available commands
+- Add ngramx run command to execute custom commands
+- Add ngramx run --list to show available commands
 
 Technical:
 - Refactor UpCommand to use SetupOrchestrator (70 lines vs 163)

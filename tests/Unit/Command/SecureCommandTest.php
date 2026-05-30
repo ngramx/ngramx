@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Command;
+namespace Ngramx\Tests\Unit\Command;
 
-use Cortex\Command\SecureCommand;
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Config\Schema\DockerConfig;
-use Cortex\Config\Schema\N8nConfig;
-use Cortex\Config\Schema\SetupConfig;
+use Ngramx\Command\SecureCommand;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\N8nConfig;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\SetupConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
@@ -35,7 +35,7 @@ class SecureCommandTest extends TestCase
     {
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willThrowException(new ConfigException('cortex.yml not found'));
+            ->willThrowException(new ConfigException('ngramx.yml not found'));
 
         $command = new SecureCommand($this->configLoader);
         $tester = new CommandTester($command);
@@ -93,7 +93,7 @@ class SecureCommandTest extends TestCase
         $this->assertSame('custom/ssl/path', $dockerConfig->sslPath);
     }
 
-    private function createMockConfig(string $appUrl): CortexConfig
+    private function createMockConfig(string $appUrl): NgramxConfig
     {
         $dockerConfig = new DockerConfig(
             composeFile: 'docker-compose.yml',
@@ -111,7 +111,7 @@ class SecureCommandTest extends TestCase
             workflowsDir: './.n8n',
         );
 
-        return new CortexConfig(
+        return new NgramxConfig(
             version: '1.0',
             docker: $dockerConfig,
             setup: $setupConfig,

@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Command;
+namespace Ngramx\Tests\Unit\Command;
 
-use Cortex\Command\StatusCommand;
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\LockFile;
-use Cortex\Config\LockFileData;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Config\Schema\DockerConfig;
-use Cortex\Config\Schema\N8nConfig;
-use Cortex\Config\Schema\SetupConfig;
-use Cortex\Docker\DockerCompose;
-use Cortex\Docker\HealthChecker;
+use Ngramx\Command\StatusCommand;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\LockFile;
+use Ngramx\Config\LockFileData;
+use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\N8nConfig;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\SetupConfig;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\HealthChecker;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
@@ -46,7 +46,7 @@ class StatusCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -74,14 +74,14 @@ class StatusCommandTest extends TestCase
         $config = $this->createMockConfig();
 
         $lockData = new LockFileData(
-            namespace: 'cortex-agent-1-project',
+            namespace: 'ngramx-agent-1-project',
             portOffset: 1000,
             startedAt: '2025-11-08T10:30:00+00:00'
         );
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -97,19 +97,19 @@ class StatusCommandTest extends TestCase
 
         $this->dockerCompose->expects($this->once())
             ->method('isRunning')
-            ->with('docker-compose.yml', 'cortex-agent-1-project')
+            ->with('docker-compose.yml', 'ngramx-agent-1-project')
             ->willReturn(true);
 
         $this->dockerCompose->expects($this->once())
             ->method('ps')
-            ->with('docker-compose.yml', 'cortex-agent-1-project')
+            ->with('docker-compose.yml', 'ngramx-agent-1-project')
             ->willReturn([
                 'app' => ['Service' => 'app', 'State' => 'running'],
             ]);
 
         $this->healthChecker->expects($this->once())
             ->method('getHealthStatus')
-            ->with('docker-compose.yml', 'app', 'cortex-agent-1-project')
+            ->with('docker-compose.yml', 'app', 'ngramx-agent-1-project')
             ->willReturn('healthy');
 
         $command = $this->createCommand();
@@ -118,7 +118,7 @@ class StatusCommandTest extends TestCase
 
         $this->assertSame(0, $exitCode);
         $display = $tester->getDisplay();
-        $this->assertStringContainsString('cortex-agent-1-project', $display);
+        $this->assertStringContainsString('ngramx-agent-1-project', $display);
         $this->assertStringContainsString('+1000', $display);
         $this->assertStringContainsString('2025-11-08', $display);
     }
@@ -129,7 +129,7 @@ class StatusCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -180,7 +180,7 @@ class StatusCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -212,7 +212,7 @@ class StatusCommandTest extends TestCase
         );
     }
 
-    private function createMockConfig(): CortexConfig
+    private function createMockConfig(): NgramxConfig
     {
         $dockerConfig = new DockerConfig(
             composeFile: 'docker-compose.yml',
@@ -230,7 +230,7 @@ class StatusCommandTest extends TestCase
             workflowsDir: './.n8n'
         );
 
-        return new CortexConfig(
+        return new NgramxConfig(
             version: '1.0',
             docker: $dockerConfig,
             setup: $setupConfig,

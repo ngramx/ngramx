@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Agents;
+namespace Ngramx\Agents;
 
 final class AgentsMdSynchronizer
 {
-    public const MARKER_BEGIN = '<!-- CORTEX_AGENTS_MANAGED_BEGIN -->';
+    public const MARKER_BEGIN = '<!-- NGRAMX_AGENTS_MANAGED_BEGIN -->';
 
-    public const MARKER_END = '<!-- CORTEX_AGENTS_MANAGED_END -->';
+    public const MARKER_END = '<!-- NGRAMX_AGENTS_MANAGED_END -->';
 
     public function __construct(
         private readonly AgentsManagedBodyProvider $bodyProvider = new AgentsManagedBodyProvider(),
@@ -64,7 +64,7 @@ final class AgentsMdSynchronizer
         }
 
         $intro = "# Agent instructions\n\n"
-            . "Add project-specific notes for AI assistants above the Cortex-managed section.\n\n";
+            . "Add project-specific notes for AI assistants above the Ngramx-managed section.\n\n";
 
         return $this->writeAtomic($path, $intro . $managedSection);
     }
@@ -119,7 +119,7 @@ final class AgentsMdSynchronizer
 
     private function shouldSkipForEnv(): bool
     {
-        $v = getenv('CORTEX_SKIP_AGENTS_SYNC');
+        $v = getenv('NGRAMX_SKIP_AGENTS_SYNC');
 
         return $v !== false && $v !== '' && !in_array(strtolower(trim($v)), ['0', 'false', 'no'], true);
     }
@@ -128,9 +128,9 @@ final class AgentsMdSynchronizer
     {
         $header = <<<'MD'
 ---
-### Cortex-managed agent rules
+### Ngramx-managed agent rules
 
-Cortex CLI replaces everything between the HTML comment markers below. Add project-specific instructions **above** `CORTEX_AGENTS_MANAGED_BEGIN`. Do not edit between the markers.
+Ngramx CLI replaces everything between the HTML comment markers below. Add project-specific instructions **above** `NGRAMX_AGENTS_MANAGED_BEGIN`. Do not edit between the markers.
 
 ---
 MD;

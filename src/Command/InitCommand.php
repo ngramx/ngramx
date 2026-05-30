@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command;
+namespace Ngramx\Command;
 
-use Cortex\Agents\AgentsSyncOrchestrator;
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\Schema\AgentsConfig;
-use Cortex\Config\Validator\ConfigValidator;
-use Cortex\Output\OutputFormatter;
-use Cortex\Templates\TemplateDirectory;
+use Ngramx\Agents\AgentsSyncOrchestrator;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\Schema\AgentsConfig;
+use Ngramx\Config\Validator\ConfigValidator;
+use Ngramx\Output\OutputFormatter;
+use Ngramx\Templates\TemplateDirectory;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -22,9 +22,9 @@ class InitCommand extends Command
     {
         $this
             ->setName('init')
-            ->setDescription('Initialize Cortex configuration and directory structure')
+            ->setDescription('Initialize Ngramx configuration and directory structure')
             ->addOption('force', 'f', InputOption::VALUE_NONE, 'Overwrite existing files')
-            ->addOption('skip-yaml', null, InputOption::VALUE_NONE, 'Skip creating cortex.yml')
+            ->addOption('skip-yaml', null, InputOption::VALUE_NONE, 'Skip creating ngramx.yml')
             ->addOption('skip-claude', null, InputOption::VALUE_NONE, 'Skip creating/updating ~/.claude files');
     }
 
@@ -43,13 +43,13 @@ class InitCommand extends Command
             $skipYaml = $input->getOption('skip-yaml');
             $skipClaude = $input->getOption('skip-claude');
 
-            $formatter->welcome('Initializing Cortex');
+            $formatter->welcome('Initializing Ngramx');
             $formatter->section('Setting up directory structure');
 
-            $this->createCortexDirectory($cwd, $formatter);
+            $this->createNgramxDirectory($cwd, $formatter);
 
             if (!$skipYaml) {
-                $this->createCortexYml($cwd, $formatter, $force);
+                $this->createNgramxYml($cwd, $formatter, $force);
             }
 
             if (!$skipClaude) {
@@ -74,7 +74,7 @@ class InitCommand extends Command
     {
         try {
             $configLoader = new ConfigLoader(new ConfigValidator());
-            $config = $configLoader->load($projectRoot . '/cortex.yml');
+            $config = $configLoader->load($projectRoot . '/ngramx.yml');
             $agentsConfig = $config->agents;
         } catch (ConfigException) {
             $agentsConfig = new AgentsConfig();
@@ -111,17 +111,17 @@ class InitCommand extends Command
         return $home;
     }
 
-    private function createCortexDirectory(string $cwd, OutputFormatter $formatter): void
+    private function createNgramxDirectory(string $cwd, OutputFormatter $formatter): void
     {
-        $cortexDir = $cwd . '/.cortex';
+        $ngramxDir = $cwd . '/.ngramx';
 
-        if (!is_dir($cortexDir)) {
-            if (!mkdir($cortexDir, 0755, true)) {
-                throw new \RuntimeException("Failed to create directory: $cortexDir");
+        if (!is_dir($ngramxDir)) {
+            if (!mkdir($ngramxDir, 0755, true)) {
+                throw new \RuntimeException("Failed to create directory: $ngramxDir");
             }
-            $formatter->info('✓ Created .cortex/ directory');
+            $formatter->info('✓ Created .ngramx/ directory');
         } else {
-            $formatter->info('✓ .cortex/ directory already exists');
+            $formatter->info('✓ .ngramx/ directory already exists');
         }
 
         $subdirectories = [
@@ -131,20 +131,20 @@ class InitCommand extends Command
         ];
 
         foreach ($subdirectories as $subdir) {
-            $path = $cortexDir . '/' . $subdir;
+            $path = $ngramxDir . '/' . $subdir;
             if (!is_dir($path)) {
                 if (!mkdir($path, 0755, true)) {
                     throw new \RuntimeException("Failed to create directory: $path");
                 }
-                $formatter->info("✓ Created .cortex/$subdir/ directory");
+                $formatter->info("✓ Created .ngramx/$subdir/ directory");
             }
         }
 
         foreach ($subdirectories as $subdir) {
-            $this->createGitkeep($cortexDir . '/' . $subdir, $formatter, $subdir);
+            $this->createGitkeep($ngramxDir . '/' . $subdir, $formatter, $subdir);
         }
 
-        $this->createCortexReadme($cortexDir, $formatter);
+        $this->createNgramxReadme($ngramxDir, $formatter);
     }
 
     private function createGitkeep(string $directory, OutputFormatter $formatter, string $subdirName): void
@@ -155,14 +155,14 @@ class InitCommand extends Command
             if (file_put_contents($gitkeepPath, '') === false) {
                 throw new \RuntimeException("Failed to create .gitkeep in $directory");
             }
-            $formatter->info("✓ Created .cortex/$subdirName/.gitkeep");
+            $formatter->info("✓ Created .ngramx/$subdirName/.gitkeep");
         }
     }
 
-    private function createCortexReadme(string $cortexDir, OutputFormatter $formatter): void
+    private function createNgramxReadme(string $ngramxDir, OutputFormatter $formatter): void
     {
-        $readmePath = $cortexDir . '/README.md';
-        $templatePath = $this->getTemplatePath('cortex-readme.md.template');
+        $readmePath = $ngramxDir . '/README.md';
+        $templatePath = $this->getTemplatePath('ngramx-readme.md.template');
 
         if (!file_exists($templatePath)) {
             throw new \RuntimeException("Template file not found: $templatePath");
@@ -177,19 +177,19 @@ class InitCommand extends Command
             throw new \RuntimeException('Failed to create README.md');
         }
 
-        $formatter->info('✓ Created .cortex/README.md');
+        $formatter->info('✓ Created .ngramx/README.md');
     }
 
-    private function createCortexYml(string $cwd, OutputFormatter $formatter, bool $force): void
+    private function createNgramxYml(string $cwd, OutputFormatter $formatter, bool $force): void
     {
-        $cortexYmlPath = $cwd . '/cortex.yml';
+        $ngramxYmlPath = $cwd . '/ngramx.yml';
 
-        if (file_exists($cortexYmlPath) && !$force) {
-            $formatter->warning('⚠ cortex.yml already exists (use --force to overwrite)');
+        if (file_exists($ngramxYmlPath) && !$force) {
+            $formatter->warning('⚠ ngramx.yml already exists (use --force to overwrite)');
             return;
         }
 
-        $templatePath = $this->getTemplatePath('cortex.yml.template');
+        $templatePath = $this->getTemplatePath('ngramx.yml.template');
 
         if (!file_exists($templatePath)) {
             throw new \RuntimeException("Template file not found: $templatePath");
@@ -200,11 +200,11 @@ class InitCommand extends Command
             throw new \RuntimeException("Failed to read template: $templatePath");
         }
 
-        if (file_put_contents($cortexYmlPath, $content) === false) {
-            throw new \RuntimeException('Failed to create cortex.yml');
+        if (file_put_contents($ngramxYmlPath, $content) === false) {
+            throw new \RuntimeException('Failed to create ngramx.yml');
         }
 
-        $formatter->info('✓ Created cortex.yml');
+        $formatter->info('✓ Created ngramx.yml');
     }
 
     /**
@@ -238,12 +238,12 @@ class InitCommand extends Command
         $formatter->info('✓ ~/.claude/ files updated');
     }
 
-    private const CORTEX_MARKER_START = '<!-- CORTEX START -->';
-    private const CORTEX_MARKER_END = '<!-- CORTEX END -->';
+    private const NGRAMX_MARKER_START = '<!-- NGRAMX START -->';
+    private const NGRAMX_MARKER_END = '<!-- NGRAMX END -->';
 
     private function writeClaudeMdWithMarkers(string $path, string $templateContent, OutputFormatter $formatter): void
     {
-        $cortexSection = self::CORTEX_MARKER_START . "\n" . $templateContent . "\n" . self::CORTEX_MARKER_END;
+        $ngramxSection = self::NGRAMX_MARKER_START . "\n" . $templateContent . "\n" . self::NGRAMX_MARKER_END;
 
         if (file_exists($path)) {
             $existing = file_get_contents($path);
@@ -251,15 +251,15 @@ class InitCommand extends Command
                 return;
             }
 
-            if (str_contains($existing, self::CORTEX_MARKER_START)) {
-                $pattern = '/' . preg_quote(self::CORTEX_MARKER_START, '/') . '.*?' . preg_quote(self::CORTEX_MARKER_END, '/') . '/s';
-                $newContent = preg_replace($pattern, $cortexSection, $existing) ?? $existing;
+            if (str_contains($existing, self::NGRAMX_MARKER_START)) {
+                $pattern = '/' . preg_quote(self::NGRAMX_MARKER_START, '/') . '.*?' . preg_quote(self::NGRAMX_MARKER_END, '/') . '/s';
+                $newContent = preg_replace($pattern, $ngramxSection, $existing) ?? $existing;
                 file_put_contents($path, $newContent);
             } else {
-                file_put_contents($path, $existing . "\n\n" . $cortexSection);
+                file_put_contents($path, $existing . "\n\n" . $ngramxSection);
             }
         } else {
-            file_put_contents($path, $cortexSection);
+            file_put_contents($path, $ngramxSection);
         }
     }
 
@@ -272,14 +272,14 @@ class InitCommand extends Command
     {
         $formatter->section('Initialization Complete');
         $formatter->info('');
-        $formatter->success('✓ Cortex initialized successfully!');
+        $formatter->success('✓ Ngramx initialized successfully!');
 
         $formatter->info('');
         $formatter->info('Created (project):');
-        $formatter->info('  ✓ .cortex/ directory structure');
+        $formatter->info('  ✓ .ngramx/ directory structure');
 
         if (!$skipYaml) {
-            $formatter->info('  ✓ cortex.yml');
+            $formatter->info('  ✓ ngramx.yml');
         }
 
         $formatter->info('  ✓ Agent instructions synced to configured targets');
@@ -294,18 +294,18 @@ class InitCommand extends Command
         $formatter->info('Next steps:');
 
         if (!$skipYaml) {
-            $formatter->info('  1. Review and customize cortex.yml for your project');
+            $formatter->info('  1. Review and customize ngramx.yml for your project');
             $formatter->info('  2. Add `agents:` section to configure targets and skills');
-            $formatter->info('  3. Run: cortex up');
+            $formatter->info('  3. Run: ngramx up');
         } else {
-            $formatter->info('  1. Create a cortex.yml file (see cortex.example.yml)');
-            $formatter->info('  2. Run: cortex up');
+            $formatter->info('  1. Create a ngramx.yml file (see ngramx.example.yml)');
+            $formatter->info('  2. Run: ngramx up');
         }
 
         $formatter->info('');
-        $formatter->info('Agent sync: the Cortex-managed sections are refreshed on every cortex command.');
-        $formatter->info('Configure targets in cortex.yml under `agents.targets` and `agents.skills`.');
+        $formatter->info('Agent sync: the Ngramx-managed sections are refreshed on every ngramx command.');
+        $formatter->info('Configure targets in ngramx.yml under `agents.targets` and `agents.skills`.');
         $formatter->info('');
-        $formatter->info('For help: cortex --help');
+        $formatter->info('For help: ngramx --help');
     }
 }

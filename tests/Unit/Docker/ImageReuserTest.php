@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Docker;
+namespace Ngramx\Tests\Unit\Docker;
 
-use Cortex\Docker\ImageReuser;
+use Ngramx\Docker\ImageReuser;
 use PHPUnit\Framework\TestCase;
 
 class ImageReuserTest extends TestCase
@@ -13,7 +13,7 @@ class ImageReuserTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmpDir = sys_get_temp_dir() . '/cortex-imagereuser-test-' . uniqid();
+        $this->tmpDir = sys_get_temp_dir() . '/ngramx-imagereuser-test-' . uniqid();
         mkdir($this->tmpDir, 0755, true);
     }
 

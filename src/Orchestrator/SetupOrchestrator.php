@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Orchestrator;
+namespace Ngramx\Orchestrator;
 
-use Cortex\Config\Schema\CommandDefinition;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Config\Validator\SecretsValidator;
-use Cortex\Docker\DockerCompose;
-use Cortex\Docker\Exception\ServiceNotHealthyException;
-use Cortex\Docker\HealthChecker;
-use Cortex\Docker\NetworkAttachmentChecker;
-use Cortex\Docker\ServiceReadinessWaiter;
-use Cortex\Executor\ContainerCommandExecutor;
-use Cortex\Executor\HostCommandExecutor;
-use Cortex\Http\AppUrlProbe;
-use Cortex\Http\ProbeResult;
-use Cortex\Http\UrlPortOffset;
-use Cortex\Output\LiveLogPanel;
-use Cortex\Output\OutputFormatter;
+use Ngramx\Config\Schema\CommandDefinition;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Validator\SecretsValidator;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\Exception\ServiceNotHealthyException;
+use Ngramx\Docker\HealthChecker;
+use Ngramx\Docker\NetworkAttachmentChecker;
+use Ngramx\Docker\ServiceReadinessWaiter;
+use Ngramx\Executor\ContainerCommandExecutor;
+use Ngramx\Executor\HostCommandExecutor;
+use Ngramx\Http\AppUrlProbe;
+use Ngramx\Http\ProbeResult;
+use Ngramx\Http\UrlPortOffset;
+use Ngramx\Output\LiveLogPanel;
+use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Process\Process;
 
 class SetupOrchestrator
@@ -62,20 +62,20 @@ class SetupOrchestrator
     /**
      * Orchestrate the full setup flow
      *
-     * @param CortexConfig $config Configuration
+     * @param NgramxConfig $config Configuration
      * @param bool $skipWait Skip health checks
      * @param bool $skipInit Skip initialize commands
      * @param string|null $namespace Container namespace
      * @param int|null $portOffset Port offset to apply
      * @param bool $verifyAppUrl When true, probe `docker.app_url` after setup and
-     *        throw on 5xx / connection refused. Disable with `cortex up --no-verify`
+     *        throw on 5xx / connection refused. Disable with `ngramx up --no-verify`
      *        for CI / non-HTTP stacks.
      * @return array{time: float, namespace: string, port_offset: int, app_url_probe: ?ProbeResult} Setup results
      * @throws \RuntimeException
      * @throws ServiceNotHealthyException
      */
     public function setup(
-        CortexConfig $config,
+        NgramxConfig $config,
         bool $skipWait = false,
         bool $skipInit = false,
         ?string $namespace = null,
@@ -182,7 +182,7 @@ class SetupOrchestrator
                 throw new \RuntimeException(
                     'After recreating `' . $issue->service . '` it is still running with no networks attached.'
                         . ' This usually means the compose-declared network has been deleted underneath Docker.'
-                        . ' Try `cortex down` followed by `docker network prune` and re-run `cortex up`.'
+                        . ' Try `ngramx down` followed by `docker network prune` and re-run `ngramx up`.'
                 );
             }
 
@@ -200,12 +200,12 @@ class SetupOrchestrator
      * culprit's logs (the primary service) so the user sees the actual error
      * rather than just "502 Bad Gateway".
      */
-    private function verifyAppUrl(CortexConfig $config, ?string $namespace, int $portOffset): ProbeResult
+    private function verifyAppUrl(NgramxConfig $config, ?string $namespace, int $portOffset): ProbeResult
     {
         $this->formatter->section('Verifying app URL');
         // When --avoid-conflicts / --port-offset shifted the stack, the
         // app's host port is no longer the scheme default — probe the
-        // actually-bound port, not the original cortex.yml URL.
+        // actually-bound port, not the original ngramx.yml URL.
         $url = UrlPortOffset::apply($config->docker->appUrl, $portOffset);
         $this->formatter->info("Probing {$url} ...");
 
@@ -241,7 +241,7 @@ class SetupOrchestrator
      * Best-effort — if anything throws we fall back to no hint rather than
      * obscuring the original probe error.
      */
-    private function collectUpstreamHint(CortexConfig $config, ?string $namespace): ?string
+    private function collectUpstreamHint(NgramxConfig $config, ?string $namespace): ?string
     {
         $services = $this->uniqueNonEmpty([
             $config->docker->primaryService,
@@ -297,7 +297,7 @@ class SetupOrchestrator
     /**
      * Validate that all required secrets are available before setup proceeds
      */
-    private function validateSecrets(CortexConfig $config): void
+    private function validateSecrets(NgramxConfig $config): void
     {
         $this->formatter->section('Validating secrets');
 
@@ -388,7 +388,7 @@ class SetupOrchestrator
      * `app` is dead) will abort immediately rather than being silently
      * ignored.
      *
-     * @param \Cortex\Config\Schema\ServiceWaitConfig[] $waitFor
+     * @param \Ngramx\Config\Schema\ServiceWaitConfig[] $waitFor
      */
     private function waitForServices(string $composeFile, array $waitFor, ?string $namespace = null, bool $firstRun = false): void
     {
@@ -419,7 +419,7 @@ class SetupOrchestrator
      * $waitFor. These are the services we want to watch for crash-loops while
      * the explicit wait is in progress.
      *
-     * @param \Cortex\Config\Schema\ServiceWaitConfig[] $waitFor
+     * @param \Ngramx\Config\Schema\ServiceWaitConfig[] $waitFor
      *
      * @return list<string>
      */
@@ -455,7 +455,7 @@ class SetupOrchestrator
         $this->formatter->section('Initialize commands');
 
         $containerExecutor = new ContainerCommandExecutor(
-            new \Cortex\Docker\ContainerExecutor(),
+            new \Ngramx\Docker\ContainerExecutor(),
             $composeFile,
             $primaryService,
             $namespace

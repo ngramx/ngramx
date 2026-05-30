@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Command;
+namespace Ngramx\Tests\Unit\Command;
 
-use Cortex\Command\ShowUrlCommand;
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\LockFile;
-use Cortex\Config\LockFileData;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Config\Schema\DockerConfig;
-use Cortex\Config\Schema\N8nConfig;
-use Cortex\Config\Schema\SetupConfig;
-use Cortex\Docker\PortOffsetManager;
+use Ngramx\Command\ShowUrlCommand;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\LockFile;
+use Ngramx\Config\LockFileData;
+use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\N8nConfig;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\SetupConfig;
+use Ngramx\Docker\PortOffsetManager;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
@@ -43,7 +43,7 @@ class ShowUrlCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -71,14 +71,14 @@ class ShowUrlCommandTest extends TestCase
         $config = $this->createMockConfig('http://localhost');
 
         $lockData = new LockFileData(
-            namespace: 'cortex-agent-1',
+            namespace: 'ngramx-agent-1',
             portOffset: 8000,
             startedAt: '2025-01-07T10:00:00+00:00'
         );
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -111,7 +111,7 @@ class ShowUrlCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -137,7 +137,7 @@ class ShowUrlCommandTest extends TestCase
     public function test_it_outputs_internal_url_when_no_host_mapping_with_namespace(): void
     {
         // Create a temporary docker-compose.yml for the test
-        $tempDir = sys_get_temp_dir() . '/cortex-test-' . uniqid();
+        $tempDir = sys_get_temp_dir() . '/ngramx-test-' . uniqid();
         mkdir($tempDir, 0755, true);
         $composeFile = $tempDir . '/docker-compose.yml';
         file_put_contents(
@@ -146,12 +146,12 @@ class ShowUrlCommandTest extends TestCase
 services:
   nginx:
     image: nginx:alpine
-    container_name: cortex_nginx
+    container_name: ngramx_nginx
     ports:
       - "80:80"
   app:
     image: php:8.2
-    container_name: cortex_app
+    container_name: ngramx_app
 YAML
         );
 
@@ -159,7 +159,7 @@ YAML
             $config = $this->createMockConfig('http://localhost', $composeFile);
 
             $lockData = new LockFileData(
-                namespace: 'cortex-agent-1-project',
+                namespace: 'ngramx-agent-1-project',
                 portOffset: null,
                 startedAt: '2025-01-07T10:00:00+00:00',
                 noHostMapping: true
@@ -167,7 +167,7 @@ YAML
 
             $this->configLoader->expects($this->once())
                 ->method('findConfigFile')
-                ->willReturn('/path/to/cortex.yml');
+                ->willReturn('/path/to/ngramx.yml');
 
             $this->configLoader->expects($this->once())
                 ->method('load')
@@ -190,7 +190,7 @@ YAML
             $exitCode = $tester->execute([]);
 
             $this->assertSame(0, $exitCode);
-            $this->assertSame("http://cortex-agent-1-project-cortex_nginx:80\n", $tester->getDisplay());
+            $this->assertSame("http://ngramx-agent-1-project-ngramx_nginx:80\n", $tester->getDisplay());
         } finally {
             // Clean up
             unlink($composeFile);
@@ -211,7 +211,7 @@ YAML
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -247,7 +247,7 @@ YAML
         );
     }
 
-    private function createMockConfig(string $appUrl, string $composeFile = 'docker-compose.yml'): CortexConfig
+    private function createMockConfig(string $appUrl, string $composeFile = 'docker-compose.yml'): NgramxConfig
     {
         $dockerConfig = new DockerConfig(
             composeFile: $composeFile,
@@ -265,7 +265,7 @@ YAML
             workflowsDir: './.n8n'
         );
 
-        return new CortexConfig(
+        return new NgramxConfig(
             version: '1.0',
             docker: $dockerConfig,
             setup: $setupConfig,

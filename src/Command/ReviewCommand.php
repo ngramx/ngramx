@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command;
+namespace Ngramx\Command;
 
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\LockFile;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Docker\DockerCompose;
-use Cortex\Docker\ImageReuser;
-use Cortex\Docker\NamespaceResolver;
-use Cortex\Docker\PortOffsetManager;
-use Cortex\Git\GitExcludeManager;
-use Cortex\Git\GitRepositoryService;
-use Cortex\Laravel\LaravelService;
-use Cortex\Orchestrator\CommandOrchestrator;
-use Cortex\Output\OutputFormatter;
-use Cortex\Worktree\WorktreeIdentity;
 use Exception;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\LockFile;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\ImageReuser;
+use Ngramx\Docker\NamespaceResolver;
+use Ngramx\Docker\PortOffsetManager;
+use Ngramx\Git\GitExcludeManager;
+use Ngramx\Git\GitRepositoryService;
+use Ngramx\Laravel\LaravelService;
+use Ngramx\Orchestrator\CommandOrchestrator;
+use Ngramx\Output\OutputFormatter;
+use Ngramx\Worktree\WorktreeIdentity;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputArgument;
@@ -29,8 +29,8 @@ use Symfony\Component\Process\Process;
 
 class ReviewCommand extends Command
 {
-    private const WORKTREE_DIR = '.cortex/worktrees';
-    private const EXCLUDE_ENTRY = '/.cortex/worktrees/';
+    private const WORKTREE_DIR = '.ngramx/worktrees';
+    private const EXCLUDE_ENTRY = '/.ngramx/worktrees/';
 
     /**
      * Dependency directories copied from the parent checkout into a fresh worktree
@@ -72,7 +72,7 @@ class ReviewCommand extends Command
             ->setDescription('Prepare the development environment for reviewing a ticket by checking out its branch and resetting the database')
             ->addArgument('ticket', InputArgument::REQUIRED, 'The ticket number to prepare for review')
             ->addOption('quick', null, InputOption::VALUE_NONE, 'Use the "clear" command instead of "fresh" — skips the database reset. Only safe on branches with no schema or seed changes.')
-            ->addOption('worktree', 'w', InputOption::VALUE_NONE, 'Review in an isolated git worktree + parallel dev environment under .cortex/worktrees/ instead of checking the branch out in place')
+            ->addOption('worktree', 'w', InputOption::VALUE_NONE, 'Review in an isolated git worktree + parallel dev environment under .ngramx/worktrees/ instead of checking the branch out in place')
             ->addOption('cursor', null, InputOption::VALUE_NONE, 'Open the worktree in a new Cursor window once it is ready (implies --worktree)')
             ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove the worktree + parallel environment created for this ticket');
     }
@@ -106,7 +106,7 @@ class ReviewCommand extends Command
                 }
 
                 if (!$this->dockerCompose->isRunning($composeFile, $namespace)) {
-                    $formatter->error('Services are not running. Please run "cortex up" first.');
+                    $formatter->error('Services are not running. Please run "ngramx up" first.');
                     return Command::FAILURE;
                 }
             }
@@ -190,7 +190,7 @@ class ReviewCommand extends Command
         InputInterface $input,
         OutputInterface $output,
         OutputFormatter $formatter,
-        CortexConfig $config,
+        NgramxConfig $config,
         string $repositoryPath,
         string $selectedBranch,
         string $ticketNumber
@@ -210,7 +210,7 @@ class ReviewCommand extends Command
         if ($this->gitRepositoryService->worktreeExists($repositoryPath, $worktreePath)) {
             $formatter->info("Reusing existing worktree: $worktreePath");
         } else {
-            $formatter->info("Creating worktree for $selectedBranch at .cortex/worktrees/$folderName");
+            $formatter->info("Creating worktree for $selectedBranch at .ngramx/worktrees/$folderName");
             if (!$this->gitRepositoryService->addWorktree($repositoryPath, $worktreePath, $selectedBranch)) {
                 $formatter->error('Failed to create git worktree. The branch may already be checked out elsewhere — switch the main checkout off it or remove the stale worktree, then retry.');
                 return Command::FAILURE;
@@ -231,7 +231,7 @@ class ReviewCommand extends Command
         }
 
         try {
-            $alreadyRunning = file_exists($worktreePath . '/.cortex.lock');
+            $alreadyRunning = file_exists($worktreePath . '/.ngramx.lock');
 
             if ($alreadyRunning) {
                 $formatter->info('Worktree environment is already running — skipping startup.');
@@ -256,7 +256,7 @@ class ReviewCommand extends Command
                 }
             }
 
-            $worktreeConfig = $this->configLoader->load($worktreePath . '/cortex.yml');
+            $worktreeConfig = $this->configLoader->load($worktreePath . '/ngramx.yml');
 
             $resetResult = $this->runReset(
                 $input,
@@ -302,7 +302,7 @@ class ReviewCommand extends Command
         $matches = $this->findWorktreesForTicket($repositoryPath, $ticketNumber);
 
         if ($matches === []) {
-            $formatter->error("No worktree found for ticket $ticketNumber under .cortex/worktrees/");
+            $formatter->error("No worktree found for ticket $ticketNumber under .ngramx/worktrees/");
             return Command::FAILURE;
         }
 
@@ -317,7 +317,7 @@ class ReviewCommand extends Command
         $worktreePath = $matches[0];
         $formatter->section('Cleaning up worktree: ' . basename($worktreePath));
 
-        if (file_exists($worktreePath . '/.cortex.lock')) {
+        if (file_exists($worktreePath . '/.ngramx.lock')) {
             $originalCwd = getcwd();
             if ($originalCwd !== false && chdir($worktreePath) !== false) {
                 try {
@@ -382,7 +382,7 @@ class ReviewCommand extends Command
     }
 
     /**
-     * Find worktree directories under .cortex/worktrees/ whose folder name
+     * Find worktree directories under .ngramx/worktrees/ whose folder name
      * contains the ticket (case-insensitive).
      *
      * @return list<string> Absolute paths to matching worktree directories
@@ -436,13 +436,13 @@ class ReviewCommand extends Command
 
     /**
      * Run the database/cache reset step (fresh, or clear with --quick), honouring
-     * a project-defined command in cortex.yml and otherwise falling back to the
+     * a project-defined command in ngramx.yml and otherwise falling back to the
      * default Laravel reset. Returns a Command status code.
      */
     private function runReset(
         InputInterface $input,
         OutputFormatter $formatter,
-        CortexConfig $config,
+        NgramxConfig $config,
         string $composeFile,
         string $primaryService,
         ?string $namespace
@@ -456,7 +456,7 @@ class ReviewCommand extends Command
             return Command::SUCCESS;
         }
 
-        $formatter->warning("Command '$resetCommand' is not defined in cortex.yml — falling back to default Laravel reset");
+        $formatter->warning("Command '$resetCommand' is not defined in ngramx.yml — falling back to default Laravel reset");
 
         if (!$this->laravelService->hasArtisan($composeFile, $primaryService, $namespace)) {
             $formatter->warning('Laravel artisan not found, skipping environment reset');
@@ -613,7 +613,7 @@ class ReviewCommand extends Command
     }
 
     /**
-     * Look for a completion.md (case-insensitive) in .cortex/tickets/<ticket>/ and display any URLs found.
+     * Look for a completion.md (case-insensitive) in .ngramx/tickets/<ticket>/ and display any URLs found.
      */
     private function displayCompletionUrls(string $repositoryPath, string $ticketNumber, OutputFormatter $formatter): void
     {
@@ -652,7 +652,7 @@ class ReviewCommand extends Command
      */
     private function findTicketDirectory(string $repositoryPath, string $ticketNumber): ?string
     {
-        $ticketsDir = $repositoryPath . '/.cortex/tickets';
+        $ticketsDir = $repositoryPath . '/.ngramx/tickets';
 
         if (!is_dir($ticketsDir)) {
             return null;

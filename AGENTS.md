@@ -1,24 +1,24 @@
 # Agent instructions
 
-Add project-specific notes for AI assistants above the Cortex-managed section.
+Add project-specific notes for AI assistants above the Ngramx-managed section.
 
-<!-- CORTEX_AGENTS_MANAGED_BEGIN -->
+<!-- NGRAMX_AGENTS_MANAGED_BEGIN -->
 ---
-### Cortex-managed agent rules
+### Ngramx-managed agent rules
 
-Cortex CLI replaces everything between the HTML comment markers below. Add project-specific instructions **above** `CORTEX_AGENTS_MANAGED_BEGIN`. Do not edit between the markers.
+Ngramx CLI replaces everything between the HTML comment markers below. Add project-specific instructions **above** `NGRAMX_AGENTS_MANAGED_BEGIN`. Do not edit between the markers.
 
 ---
 
 # Development environment
 
-When this repository uses Cortex, bring up the local stack with:
+When this repository uses Ngramx, bring up the local stack with:
 
 ```bash
-cortex up
+ngramx up
 ```
 
-Use the project’s documented URL or `cortex show-url` (if available) to open the app. Prefer automated checks defined in the project (for example Playwright, PHPUnit, or npm test) over manual-only verification when they are already wired in.
+Use the project’s documented URL or `ngramx show-url` (if available) to open the app. Prefer automated checks defined in the project (for example Playwright, PHPUnit, or npm test) over manual-only verification when they are already wired in.
 
 ---
 
@@ -53,7 +53,7 @@ Common patterns (adapt names and types to match the codebase):
 - If a migration has never been run outside your machine, your team may still allow in-place edits—when in doubt, add a new migration instead of rewriting history.
 - Keep a consistent **column order** if the project defines one (for example: primary key, foreign keys, audit fields, then data columns).
 
-Do not assume every Cortex project uses the same audit column names; copy the conventions from nearby migrations in the same repository.
+Do not assume every Ngramx project uses the same audit column names; copy the conventions from nearby migrations in the same repository.
 
 NEVER edit migrations. Always create new ones.
 
@@ -76,7 +76,7 @@ When using `foreignUuid()->constrained()`, pass the **explicit table name** if t
 
 ## Ticket folder
 
-Every ticket gets a `.cortex/tickets/[ticket-id]/` directory at the repo root containing:
+Every ticket gets a `.ngramx/tickets/[ticket-id]/` directory at the repo root containing:
 
 - `README.md` — ticket title, short summary, requirements, and running notes. Use this template:
 
@@ -101,15 +101,15 @@ Every ticket gets a `.cortex/tickets/[ticket-id]/` directory at the repo root co
 
 ## Completion record
 
-When work on the ticket is complete, add `.cortex/tickets/[ticket-id]/completion.md` containing at least:
+When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion.md` containing at least:
 
 - **GitHub PR:** URL of the pull request.
 - **Linear ticket:** URL of the Linear ticket (omit if not applicable).
-- **Click to Test:** a deep-link into the running application at the exact route that demonstrates the change. Use the local development URL (inspect the project's Docker / Cortex setup to find it). If the project requires a bypass token (for example `?bypass=hello@example.com`), include it on the URL so reviewers can open the page directly. Some projects ship more than one app (for example a web app and a PWA); link to every surface the change touches.
+- **Click to Test:** a deep-link into the running application at the exact route that demonstrates the change. Use the local development URL (inspect the project's Docker / Ngramx setup to find it). If the project requires a bypass token (for example `?bypass=hello@example.com`), include it on the URL so reviewers can open the page directly. Some projects ship more than one app (for example a web app and a PWA); link to every surface the change touches.
 
 ## Hard rules
 
 - **Never open draft PRs.** CI and automated review should run against the PR from the moment it is created.
 - **Never add a `cursor/` (or any other tool-specific) prefix to branch names.** The branch name should describe the work, not the tool that produced it.
 - One ticket = one branch = one PR.
-<!-- CORTEX_AGENTS_MANAGED_END -->
+<!-- NGRAMX_AGENTS_MANAGED_END -->

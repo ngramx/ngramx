@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Docker;
+namespace Ngramx\Docker;
 
 /**
  * Resolves container namespace based on directory structure
  */
 class NamespaceResolver
 {
-    private const NAMESPACE_PREFIX = 'cortex';
+    private const NAMESPACE_PREFIX = 'ngramx';
 
     /**
      * Derive namespace from directory path
      *
      * Examples:
-     *   /workspace/agent-1/project/ -> cortex-agent-1-project
-     *   /home/user/myapp/ -> cortex-user-myapp
+     *   /workspace/agent-1/project/ -> ngramx-agent-1-project
+     *   /home/user/myapp/ -> ngramx-user-myapp
      */
     public function deriveFromDirectory(?string $directory = null): string
     {

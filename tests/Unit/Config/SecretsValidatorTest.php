@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Config;
+namespace Ngramx\Tests\Unit\Config;
 
-use Cortex\Config\Schema\SecretsConfig;
-use Cortex\Config\Validator\SecretsValidator;
+use Ngramx\Config\Schema\SecretsConfig;
+use Ngramx\Config\Validator\SecretsValidator;
 use PHPUnit\Framework\TestCase;
 
 class SecretsValidatorTest extends TestCase

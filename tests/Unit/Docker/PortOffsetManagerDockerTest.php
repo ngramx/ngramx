@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Docker;
+namespace Ngramx\Tests\Unit\Docker;
 
-use Cortex\Docker\PortOffsetManager;
+use Ngramx\Docker\PortOffsetManager;
 use PHPUnit\Framework\TestCase;
 
 class PortOffsetManagerDockerTest extends TestCase

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Http;
+namespace Ngramx\Http;
 
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\GuzzleException;
@@ -12,13 +12,13 @@ use Psr\Http\Message\ResponseInterface;
 /**
  * HTTP(S) reachability probe for the running development environment.
  *
- * Used at the tail of `cortex up` to confirm the URL declared in
+ * Used at the tail of `ngramx up` to confirm the URL declared in
  * `docker.app_url` actually responds. Catches the silent-success failure
  * mode where Docker reports every container as "running" but the upstream
  * (e.g. php-fpm behind nginx) is broken and the user is staring at a 502.
  *
  * Self-signed certs are tolerated on purpose — they're normal for local dev
- * (see {@see \Cortex\Tls\CertInspector}) and we don't want TLS strictness to
+ * (see {@see \Ngramx\Tls\CertInspector}) and we don't want TLS strictness to
  * mask the real "is the app responding?" question we're trying to answer.
  */
 class AppUrlProbe
@@ -72,7 +72,7 @@ class AppUrlProbe
                     'timeout' => $this->requestTimeout,
                     'verify' => false,
                     'http_errors' => false,
-                    'headers' => ['User-Agent' => 'cortex-cli/AppUrlProbe'],
+                    'headers' => ['User-Agent' => 'ngramx/AppUrlProbe'],
                 ]
             );
 

@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tls;
+namespace Ngramx\Tls;
 
 /**
  * Inspect the TLS certificate that the project's reverse proxy is using.
  *
- * `cortex up` doesn't generate certificates — `.cortex/pre-start.sh`
- * typically lays down a self-signed cert via OpenSSL, and `cortex secure`
+ * `ngramx up` doesn't generate certificates — `.ngramx/pre-start.sh`
+ * typically lays down a self-signed cert via OpenSSL, and `ngramx secure`
  * (separately) installs a browser-trusted one via mkcert. This inspector
- * lets `cortex up` tell, at the end of a successful start, whether what
+ * lets `ngramx up` tell, at the end of a successful start, whether what
  * the user is about to load in their browser is going to be trusted.
  *
  * The check is read-only: we never touch the cert, just parse it.

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Caddy;
+namespace Ngramx\Caddy;
 
 use Symfony\Component\Process\Process;
 

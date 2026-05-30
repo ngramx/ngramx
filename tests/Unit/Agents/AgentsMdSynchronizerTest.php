@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Agents;
 
-use Cortex\Agents\AgentsMdSynchronizer;
+use Ngramx\Agents\AgentsMdSynchronizer;
 use PHPUnit\Framework\TestCase;
 
 class AgentsMdSynchronizerTest extends TestCase
@@ -16,18 +16,18 @@ class AgentsMdSynchronizerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->projectDir = sys_get_temp_dir() . '/cortex_agents_test_' . uniqid();
+        $this->projectDir = sys_get_temp_dir() . '/ngramx_agents_test_' . uniqid();
         mkdir($this->projectDir, 0755, true);
-        $this->originalSkipEnv = getenv('CORTEX_SKIP_AGENTS_SYNC');
-        putenv('CORTEX_SKIP_AGENTS_SYNC');
+        $this->originalSkipEnv = getenv('NGRAMX_SKIP_AGENTS_SYNC');
+        putenv('NGRAMX_SKIP_AGENTS_SYNC');
     }
 
     protected function tearDown(): void
     {
         if ($this->originalSkipEnv !== false) {
-            putenv('CORTEX_SKIP_AGENTS_SYNC=' . $this->originalSkipEnv);
+            putenv('NGRAMX_SKIP_AGENTS_SYNC=' . $this->originalSkipEnv);
         } else {
-            putenv('CORTEX_SKIP_AGENTS_SYNC');
+            putenv('NGRAMX_SKIP_AGENTS_SYNC');
         }
 
         if (is_dir($this->projectDir)) {
@@ -129,7 +129,7 @@ class AgentsMdSynchronizerTest extends TestCase
             . AgentsMdSynchronizer::MARKER_END . "\n"
             . "stray\n"
             . AgentsMdSynchronizer::MARKER_BEGIN . "\n"
-            . "also stray";
+            . 'also stray';
         $path = $this->projectDir . '/AGENTS.md';
         file_put_contents($path, $original);
 
@@ -158,9 +158,9 @@ class AgentsMdSynchronizerTest extends TestCase
         $this->assertFalse($sync->hasMalformedManagedMarkers($this->projectDir));
     }
 
-    public function testRespectsCortexSkipAgentsSync(): void
+    public function testRespectsNgramxSkipAgentsSync(): void
     {
-        putenv('CORTEX_SKIP_AGENTS_SYNC=1');
+        putenv('NGRAMX_SKIP_AGENTS_SYNC=1');
 
         $sync = new AgentsMdSynchronizer();
         $changed = $sync->sync($this->projectDir, 'SHOULD_NOT_APPEAR');

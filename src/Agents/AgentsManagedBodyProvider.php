@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Agents;
+namespace Ngramx\Agents;
 
-use Cortex\Templates\TemplateDirectory;
+use Ngramx\Templates\TemplateDirectory;
 
 /**
- * Builds the inner markdown for the Cortex-managed AGENTS.md block (without markers).
+ * Builds the inner markdown for the Ngramx-managed AGENTS.md block (without markers).
  *
  * Currently sources content only from templates/agents/*.md. The longer-form
  * ticket workflow templates under templates/steps and templates/ticket-types

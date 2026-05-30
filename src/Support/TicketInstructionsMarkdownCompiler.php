@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Support;
+namespace Ngramx\Support;
 
 /**
  * Compiles ticket workflow markdown from templates/steps and templates/ticket-types.

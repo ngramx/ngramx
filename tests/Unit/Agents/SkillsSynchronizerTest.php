@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Agents;
 
-use Cortex\Agents\SkillsSynchronizer;
+use Ngramx\Agents\SkillsSynchronizer;
 use PHPUnit\Framework\TestCase;
 
 class SkillsSynchronizerTest extends TestCase
@@ -15,8 +15,8 @@ class SkillsSynchronizerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->projectDir = sys_get_temp_dir() . '/cortex_skills_test_' . uniqid();
-        $this->templatesRoot = sys_get_temp_dir() . '/cortex_skills_templates_' . uniqid();
+        $this->projectDir = sys_get_temp_dir() . '/ngramx_skills_test_' . uniqid();
+        $this->templatesRoot = sys_get_temp_dir() . '/ngramx_skills_templates_' . uniqid();
         mkdir($this->projectDir, 0755, true);
         mkdir($this->templatesRoot . '/skills/test-skill', 0755, true);
         file_put_contents(
@@ -97,7 +97,7 @@ class SkillsSynchronizerTest extends TestCase
 
     public function test_sync_returns_false_when_no_skills_directory(): void
     {
-        $emptyRoot = sys_get_temp_dir() . '/cortex_empty_' . uniqid();
+        $emptyRoot = sys_get_temp_dir() . '/ngramx_empty_' . uniqid();
         mkdir($emptyRoot, 0755, true);
 
         try {

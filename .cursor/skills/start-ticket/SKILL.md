@@ -20,7 +20,7 @@ Branch from the project's default integration branch (typically `origin/main`).
 
 ## Set up the ticket folder
 
-Create `.cortex/tickets/[ticket-id]/` at the repo root with:
+Create `.ngramx/tickets/[ticket-id]/` at the repo root with:
 
 ### README.md
 
@@ -48,6 +48,6 @@ If the ticket exists in Linear, fetch the ticket data using the Linear MCP and s
 
 1. Fetch the ticket from Linear (if applicable) to understand requirements.
 2. Create and checkout the branch from `origin/main`.
-3. Create the `.cortex/tickets/[ticket-id]/` folder with `README.md` and `ticket.json`.
+3. Create the `.ngramx/tickets/[ticket-id]/` folder with `README.md` and `ticket.json`.
 4. Commit the ticket folder as the first commit on the branch.
 5. Summarise the ticket requirements back to the user and confirm the approach before starting implementation.

@@ -5,7 +5,7 @@ vendor/
 .php-cs-fixer.cache
 coverage-html/
 coverage.xml
-cortex.phar
+ngramx.phar
 *.md
 LICENSE
 

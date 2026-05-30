@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Output;
+namespace Ngramx\Output;
 
-use Cortex\Config\Schema\CommandDefinition;
+use Ngramx\Config\Schema\CommandDefinition;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleSectionOutput;
 use Symfony\Component\Console\Output\OutputInterface;

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit;
+namespace Ngramx\Tests\Unit;
 
-use Cortex\Application;
-use Cortex\Command\N8n\ImportCommand;
+use Ngramx\Application;
+use Ngramx\Command\N8n\ImportCommand;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -36,7 +36,7 @@ class ApplicationTest extends TestCase
     }
 
     /**
-     * Running a read-only/utility command inside a directory that contains a cortex.yml
+     * Running a read-only/utility command inside a directory that contains a ngramx.yml
      * must not create or mutate AGENTS.md. Tab completion (_complete), list, help, etc.
      * should never write to the project.
      */
@@ -45,11 +45,11 @@ class ApplicationTest extends TestCase
         $originalCwd = getcwd();
         $this->assertIsString($originalCwd);
 
-        $tmp = sys_get_temp_dir() . '/cortex-app-test-' . bin2hex(random_bytes(6));
+        $tmp = sys_get_temp_dir() . '/ngramx-app-test-' . bin2hex(random_bytes(6));
         mkdir($tmp, 0o755, true);
 
         try {
-            file_put_contents($tmp . '/cortex.yml', "project: tmp\nservices: []\n");
+            file_put_contents($tmp . '/ngramx.yml', "project: tmp\nservices: []\n");
             chdir($tmp);
 
             $app = new Application();
@@ -61,28 +61,28 @@ class ApplicationTest extends TestCase
             $this->assertFileDoesNotExist($tmp . '/AGENTS.md');
         } finally {
             chdir($originalCwd);
-            @unlink($tmp . '/cortex.yml');
+            @unlink($tmp . '/ngramx.yml');
             @unlink($tmp . '/AGENTS.md');
             @rmdir($tmp);
         }
     }
 
     /**
-     * A cortex.yml that's present but cannot be parsed used to vanish into
+     * A ngramx.yml that's present but cannot be parsed used to vanish into
      * a silent catch in the Application constructor — the user would see a
      * CLI missing all their custom commands with zero explanation. We now
      * capture the error and surface it.
      */
-    public function test_unparseable_cortex_yml_is_captured_as_load_error(): void
+    public function test_unparseable_ngramx_yml_is_captured_as_load_error(): void
     {
         $originalCwd = getcwd();
         $this->assertIsString($originalCwd);
 
-        $tmp = sys_get_temp_dir() . '/cortex-app-test-' . bin2hex(random_bytes(6));
+        $tmp = sys_get_temp_dir() . '/ngramx-app-test-' . bin2hex(random_bytes(6));
         mkdir($tmp, 0o755, true);
 
         try {
-            file_put_contents($tmp . '/cortex.yml', ": this : is : not : valid : yaml\n  bad indent\n");
+            file_put_contents($tmp . '/ngramx.yml', ": this : is : not : valid : yaml\n  bad indent\n");
             chdir($tmp);
 
             $app = new Application();
@@ -90,22 +90,22 @@ class ApplicationTest extends TestCase
             $errors = $app->getConfigLoadErrors();
             $this->assertNotEmpty(
                 $errors,
-                'A malformed cortex.yml must be surfaced via getConfigLoadErrors(), not silently swallowed.'
+                'A malformed ngramx.yml must be surfaced via getConfigLoadErrors(), not silently swallowed.'
             );
-            $this->assertStringContainsString('cortex.yml', $errors[0]);
+            $this->assertStringContainsString('ngramx.yml', $errors[0]);
         } finally {
             chdir($originalCwd);
-            @unlink($tmp . '/cortex.yml');
+            @unlink($tmp . '/ngramx.yml');
             @rmdir($tmp);
         }
     }
 
-    public function test_missing_cortex_yml_stays_silent(): void
+    public function test_missing_ngramx_yml_stays_silent(): void
     {
         $originalCwd = getcwd();
         $this->assertIsString($originalCwd);
 
-        $tmp = sys_get_temp_dir() . '/cortex-app-test-' . bin2hex(random_bytes(6));
+        $tmp = sys_get_temp_dir() . '/ngramx-app-test-' . bin2hex(random_bytes(6));
         mkdir($tmp, 0o755, true);
 
         try {
@@ -116,7 +116,7 @@ class ApplicationTest extends TestCase
             $this->assertSame(
                 [],
                 $app->getConfigLoadErrors(),
-                'Running outside any cortex.yml-scoped project must remain silent — only PRESENT-BUT-BROKEN configs are an error.'
+                'Running outside any ngramx.yml-scoped project must remain silent — only PRESENT-BUT-BROKEN configs are an error.'
             );
         } finally {
             chdir($originalCwd);

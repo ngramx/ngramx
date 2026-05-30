@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Config\Schema;
+namespace Ngramx\Config\Schema;
 
-readonly class CortexConfig
+readonly class NgramxConfig
 {
     /**
      * @param array<string, CommandDefinition> $commands

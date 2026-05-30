@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Docker;
+namespace Ngramx\Docker;
 
 /**
  * A running container that has zero networks attached even though its

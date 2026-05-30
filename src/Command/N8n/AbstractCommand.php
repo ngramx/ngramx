@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command\N8n;
+namespace Ngramx\Command\N8n;
 
-use Cortex\Config\ConfigLoader;
-use Cortex\Output\OutputFormatter;
 use GuzzleHttp\Client;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputInterface;
@@ -17,9 +17,9 @@ use Symfony\Component\Dotenv\Dotenv;
 abstract class AbstractCommand extends Command
 {
     protected const REQUIRED_ENV_KEYS = [
-        'CORTEX_N8N_HOST',
-        'CORTEX_N8N_PORT',
-        'CORTEX_N8N_API_KEY',
+        'NGRAMX_N8N_HOST',
+        'NGRAMX_N8N_PORT',
+        'NGRAMX_N8N_API_KEY',
     ];
 
     public function __construct(
@@ -70,7 +70,7 @@ abstract class AbstractCommand extends Command
                 );
 
                 // Hide API key input
-                if ($key === 'CORTEX_N8N_API_KEY') {
+                if ($key === 'NGRAMX_N8N_API_KEY') {
                     $question->setHidden(true);
                     $question->setHiddenFallback(false);
                 }
@@ -123,7 +123,7 @@ abstract class AbstractCommand extends Command
     protected function buildApiOptions(array $env, bool $includeContentType = false): array
     {
         $headers = [
-            'X-N8N-API-KEY' => $env['CORTEX_N8N_API_KEY'],
+            'X-N8N-API-KEY' => $env['NGRAMX_N8N_API_KEY'],
             'Accept' => 'application/json',
         ];
 
@@ -139,7 +139,7 @@ abstract class AbstractCommand extends Command
      */
     protected function buildBaseUri(array $env): string
     {
-        return "{$env['CORTEX_N8N_HOST']}:{$env['CORTEX_N8N_PORT']}";
+        return "{$env['NGRAMX_N8N_HOST']}:{$env['NGRAMX_N8N_PORT']}";
     }
 
     protected function buildWorkflowsUri(string $baseUri): string
@@ -196,7 +196,7 @@ abstract class AbstractCommand extends Command
     }
 
     /**
-     * @return array{0: \Cortex\Config\Schema\CortexConfig, 1: string}
+     * @return array{0: \Ngramx\Config\Schema\NgramxConfig, 1: string}
      */
     protected function loadConfig(OutputFormatter $formatter): array
     {

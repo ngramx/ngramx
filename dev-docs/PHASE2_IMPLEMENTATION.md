@@ -98,12 +98,12 @@ tests/Unit/Docker/HealthCheckerTest.php
 ```
 src/Command/UpCommand.php - Now executes actual commands
 src/Application.php - Injects new dependencies
-tests/fixtures/cortex.yml - Better test commands
+tests/fixtures/ngramx.yml - Better test commands
 ```
 
 ## 🎯 What Now Works
 
-### Example cortex.yml:
+### Example ngramx.yml:
 ```yaml
 version: "1.0"
 
@@ -128,7 +128,7 @@ setup:
       description: "Run migrations"
 ```
 
-### When you run `cortex up`:
+### When you run `ngramx up`:
 
 1. ✅ **Copies .env file** on host (pre-start)
 2. ✅ **Starts Docker** containers
@@ -141,8 +141,8 @@ setup:
 
 ### Test End-to-End:
 ```bash
-cd /home/rob/projects/cortex-cli/tests/fixtures
-../../bin/cortex up
+cd /home/rob/projects/ngramx/tests/fixtures
+../../bin/ngramx up
 ```
 
 This will:
@@ -155,7 +155,7 @@ This will:
 ### Test Individual Components:
 ```bash
 # Run unit tests
-cd /home/rob/projects/cortex-cli
+cd /home/rob/projects/ngramx
 vendor/bin/phpunit tests/Unit/
 
 # Test specific executor
@@ -170,14 +170,14 @@ docker-compose -f docker-compose.test.yml down -v
 
 ## 🎨 Output Example
 
-When running `cortex up`, you'll see:
+When running `ngramx up`, you'll see:
 
 ```
 ──────────────────────────────────────────────────
  Starting Development Environment
 ──────────────────────────────────────────────────
 
-  Loaded configuration from: /path/to/cortex.yml
+  Loaded configuration from: /path/to/ngramx.yml
 
 ▸ Pre-start commands
   Create temporary directory

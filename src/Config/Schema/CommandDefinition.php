@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Config\Schema;
+namespace Ngramx\Config\Schema;
 
 readonly class CommandDefinition
 {

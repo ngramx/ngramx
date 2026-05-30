@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command;
+namespace Ngramx\Command;
 
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -44,7 +44,7 @@ class StyleDemoCommand extends Command
         $output->writeln('<fg=' . self::COLOR_PURPLE . '>════════════════════════════════════════</>');
         $output->writeln('');
 
-        $output->writeln('<fg=' . self::COLOR_SMOKE . '>Loaded configuration from: /path/to/cortex.yml</>');
+        $output->writeln('<fg=' . self::COLOR_SMOKE . '>Loaded configuration from: /path/to/ngramx.yml</>');
         $output->writeln('');
 
         $output->writeln('<fg=' . self::COLOR_TEAL . '>>> Pre-start commands</>');
@@ -73,7 +73,7 @@ class StyleDemoCommand extends Command
         $output->writeln('<fg=' . self::COLOR_PURPLE . '>────────────────────────────────────────</>');
         $output->writeln('');
 
-        $output->writeln('<fg=' . self::COLOR_SMOKE . '>Loaded configuration from: /path/to/cortex.yml</>');
+        $output->writeln('<fg=' . self::COLOR_SMOKE . '>Loaded configuration from: /path/to/ngramx.yml</>');
         $output->writeln('');
 
         $output->writeln('<fg=' . self::COLOR_TEAL . '>• Pre-start commands</>');
@@ -102,7 +102,7 @@ class StyleDemoCommand extends Command
         $output->writeln('<fg=' . self::COLOR_PURPLE . '>╚════════════════════════════════════════╝</>');
         $output->writeln('');
 
-        $output->writeln('<fg=' . self::COLOR_SMOKE . '>Loaded configuration from: /path/to/cortex.yml</>');
+        $output->writeln('<fg=' . self::COLOR_SMOKE . '>Loaded configuration from: /path/to/ngramx.yml</>');
         $output->writeln('');
 
         $output->writeln('<fg=' . self::COLOR_TEAL . '>▸ Pre-start commands</>');

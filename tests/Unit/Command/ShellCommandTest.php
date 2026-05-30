@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Command;
+namespace Ngramx\Tests\Unit\Command;
 
-use Cortex\Command\ShellCommand;
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\LockFile;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Config\Schema\DockerConfig;
-use Cortex\Config\Schema\N8nConfig;
-use Cortex\Config\Schema\SetupConfig;
-use Cortex\Docker\ContainerExecutor;
+use Ngramx\Command\ShellCommand;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\LockFile;
+use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\N8nConfig;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\SetupConfig;
+use Ngramx\Docker\ContainerExecutor;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
@@ -51,7 +51,7 @@ class ShellCommandTest extends TestCase
             workflowsDir: './.n8n'
         );
 
-        $config = new CortexConfig(
+        $config = new NgramxConfig(
             version: '1.0',
             docker: $dockerConfig,
             setup: $setupConfig,
@@ -61,11 +61,11 @@ class ShellCommandTest extends TestCase
 
         $configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $configLoader->expects($this->once())
             ->method('load')
-            ->with('/path/to/cortex.yml')
+            ->with('/path/to/ngramx.yml')
             ->willReturn($config);
 
         $lockFile->expects($this->once())
@@ -97,7 +97,7 @@ class ShellCommandTest extends TestCase
 
         $configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willThrowException(new \Cortex\Config\Exception\ConfigException('Config not found'));
+            ->willThrowException(new \Ngramx\Config\Exception\ConfigException('Config not found'));
 
         $command = new ShellCommand($configLoader, $containerExecutor, $lockFile);
         $tester = new CommandTester($command);

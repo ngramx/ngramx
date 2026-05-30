@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Docker;
+namespace Ngramx\Docker;
 
-use Cortex\Config\Schema\ServiceWaitConfig;
-use Cortex\Docker\Exception\ServiceNotHealthyException;
-use Cortex\Output\OutputFormatter;
+use Ngramx\Config\Schema\ServiceWaitConfig;
+use Ngramx\Docker\Exception\ServiceNotHealthyException;
+use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Output\ConsoleSectionOutput;
 
 /**

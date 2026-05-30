@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Config;
+namespace Ngramx\Tests\Unit\Config;
 
-use Cortex\Config\ConfigWarningChecker;
-use Cortex\Config\Schema\CommandDefinition;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Config\Schema\DockerConfig;
-use Cortex\Config\Schema\N8nConfig;
-use Cortex\Config\Schema\SetupConfig;
+use Ngramx\Config\ConfigWarningChecker;
+use Ngramx\Config\Schema\CommandDefinition;
+use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\N8nConfig;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\SetupConfig;
 use PHPUnit\Framework\TestCase;
 
 class ConfigWarningCheckerTest extends TestCase
@@ -134,9 +134,9 @@ class ConfigWarningCheckerTest extends TestCase
     /**
      * @param array<string, CommandDefinition> $commands
      */
-    private function createConfig(array $commands): CortexConfig
+    private function createConfig(array $commands): NgramxConfig
     {
-        return new CortexConfig(
+        return new NgramxConfig(
             version: '1.0',
             docker: new DockerConfig(
                 composeFile: 'docker-compose.yml',

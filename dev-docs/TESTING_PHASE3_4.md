@@ -5,12 +5,12 @@
 The fastest way to test everything:
 
 ```bash
-cd /home/rob/projects/cortex-cli/tests/fixtures
-../../bin/cortex up
-../../bin/cortex run --list
-../../bin/cortex run hello
-../../bin/cortex status
-../../bin/cortex down
+cd /home/rob/projects/ngramx/tests/fixtures
+../../bin/ngramx up
+../../bin/ngramx run --list
+../../bin/ngramx run hello
+../../bin/ngramx status
+../../bin/ngramx down
 ```
 
 ## Comprehensive Test Suite
@@ -18,18 +18,18 @@ cd /home/rob/projects/cortex-cli/tests/fixtures
 Run the complete test script:
 
 ```bash
-cd /home/rob/projects/cortex-cli
+cd /home/rob/projects/ngramx
 ./test-complete.sh
 ```
 
 This tests:
 1. ✅ Command listing
-2. ✅ cortex up (with streaming)
-3. ✅ cortex status
-4. ✅ cortex run --list
-5. ✅ cortex run hello
-6. ✅ cortex run test
-7. ✅ cortex down
+2. ✅ ngramx up (with streaming)
+3. ✅ ngramx status
+4. ✅ ngramx run --list
+5. ✅ ngramx run hello
+6. ✅ ngramx run test
+7. ✅ ngramx down
 8. ✅ Final status check
 
 ## Individual Feature Tests
@@ -38,7 +38,7 @@ This tests:
 
 ```bash
 cd tests/fixtures
-../../bin/cortex up
+../../bin/ngramx up
 ```
 
 **Look for:**
@@ -50,7 +50,7 @@ cd tests/fixtures
 
 ```bash
 # List commands
-../../bin/cortex run --list
+../../bin/ngramx run --list
 
 # Expected output:
 ▸ Available Commands
@@ -68,19 +68,19 @@ cd tests/fixtures
 
 ```bash
 # Simple command
-../../bin/cortex run hello
+../../bin/ngramx run hello
 
 # Expected output:
 ▸ Running: hello
   Simple hello command
-    Hello from Cortex CLI!
+    Hello from Ngramx CLI!
 
 Command completed successfully (0.2s)
 ```
 
 ```bash
 # Command with more output
-../../bin/cortex run test
+../../bin/ngramx run test
 
 # Should see:
 - PHP version
@@ -91,7 +91,7 @@ Command completed successfully (0.2s)
 ### 4. Test SetupOrchestrator
 
 ```bash
-../../bin/cortex up
+../../bin/ngramx up
 
 # Verify:
 - Pre-start commands execute
@@ -105,16 +105,16 @@ Command completed successfully (0.2s)
 
 ```bash
 # Try running non-existent command
-../../bin/cortex run nonexistent
+../../bin/ngramx run nonexistent
 
 # Expected:
-✗ Command 'nonexistent' not found in cortex.yml
+✗ Command 'nonexistent' not found in ngramx.yml
 ```
 
 ```bash
 # Try running when services aren't started
-../../bin/cortex down
-../../bin/cortex run test
+../../bin/ngramx down
+../../bin/ngramx run test
 
 # Expected:
 # Should show Docker error or start services first message
@@ -141,8 +141,8 @@ Command completed successfully (0.2s)
 - [ ] Errors are handled gracefully
 
 ### RunCommand ✓
-- [ ] `cortex run <name>` executes commands
-- [ ] `cortex run --list` shows all commands
+- [ ] `ngramx run <name>` executes commands
+- [ ] `ngramx run --list` shows all commands
 - [ ] Help message is displayed if no arguments
 - [ ] Unknown commands show helpful error
 
@@ -167,21 +167,21 @@ All commands should use Gigabyte brand colors:
 
 Commands should execute quickly:
 
-- `cortex run hello` - ~0.2s
-- `cortex run test` - ~0.5s
-- `cortex up` - depends on services (usually 5-20s)
-- `cortex status` - ~0.1s
-- `cortex down` - ~2-5s
+- `ngramx run hello` - ~0.2s
+- `ngramx run test` - ~0.5s
+- `ngramx up` - depends on services (usually 5-20s)
+- `ngramx status` - ~0.1s
+- `ngramx down` - ~2-5s
 
 ## Common Issues
 
 ### Issue: Commands not found
 **Cause:** Services not running
-**Solution:** Run `cortex up` first
+**Solution:** Run `ngramx up` first
 
 ### Issue: No real-time output
 **Cause:** Command finishes too quickly
-**Solution:** Try `cortex run info` for longer output
+**Solution:** Try `ngramx run info` for longer output
 
 ### Issue: Permission errors
 **Cause:** Docker permissions
@@ -191,11 +191,11 @@ Commands should execute quickly:
 
 Before committing, verify:
 
-- [ ] `cortex up` works with streaming
-- [ ] `cortex down` stops services
-- [ ] `cortex status` shows table
-- [ ] `cortex run --list` shows commands
-- [ ] `cortex run <cmd>` executes correctly
+- [ ] `ngramx up` works with streaming
+- [ ] `ngramx down` stops services
+- [ ] `ngramx status` shows table
+- [ ] `ngramx run --list` shows commands
+- [ ] `ngramx run <cmd>` executes correctly
 - [ ] All colors are correct
 - [ ] Error messages are helpful
 - [ ] No PHP errors or warnings
@@ -210,7 +210,7 @@ Phase 3 & 4 are working if:
 2. ✅ SetupOrchestrator handles all setup phases
 3. ✅ UpCommand delegates to SetupOrchestrator
 4. ✅ Custom commands can be defined and executed
-5. ✅ `cortex run --list` shows all commands
+5. ✅ `ngramx run --list` shows all commands
 6. ✅ All existing functionality still works
 7. ✅ Gigabyte colors are used throughout
 8. ✅ Error handling is consistent
@@ -221,7 +221,7 @@ If something isn't working:
 
 ```bash
 # Add verbose output
-cortex up -vvv
+ngramx up -vvv
 
 # Check Docker directly
 cd tests/fixtures

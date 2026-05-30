@@ -1,10 +1,10 @@
-# Cortex CLI
+# Ngramx CLI
 
-[![Tests](https://github.com/gigabyte-software/cortex-cli/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/gigabyte-software/cortex-cli/actions/workflows/tests.yml)
-[![Release](https://github.com/gigabyte-software/cortex-cli/actions/workflows/release.yml/badge.svg)](https://github.com/gigabyte-software/cortex-cli/actions/workflows/release.yml)
-[![codecov](https://codecov.io/gh/gigabyte-software/cortex-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/gigabyte-software/cortex-cli)
+[![Tests](https://github.com/ngramx/ngramx/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/ngramx/ngramx/actions/workflows/tests.yml)
+[![Release](https://github.com/ngramx/ngramx/actions/workflows/release.yml/badge.svg)](https://github.com/ngramx/ngramx/actions/workflows/release.yml)
+[![codecov](https://codecov.io/gh/ngramx/ngramx/branch/main/graph/badge.svg)](https://codecov.io/gh/ngramx/ngramx)
 [![semantic-release: angular](https://img.shields.io/badge/semantic--release-angular-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
-[![Release](https://img.shields.io/github/v/release/gigabyte-software/cortex-cli)](https://github.com/gigabyte-software/cortex-cli/releases)
+[![Release](https://img.shields.io/github/v/release/ngramx/ngramx)](https://github.com/ngramx/ngramx/releases)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 A PHP-based CLI tool that orchestrates Docker-based development environments using a simple YAML configuration file.
@@ -25,20 +25,20 @@ A PHP-based CLI tool that orchestrates Docker-based development environments usi
 
 ## Installation
 
-Download the latest [release](https://github.com/gigabyte-software/cortex-cli/releases/latest): grab `cortex.phar` and `install.sh`, then run the installer locally.
+Download the latest [release](https://github.com/ngramx/ngramx/releases/latest): grab `ngramx.phar` and `install.sh`, then run the installer locally.
 
 ```bash
-curl -L https://github.com/gigabyte-software/cortex-cli/releases/latest/download/cortex.phar -o cortex.phar
-curl -L https://github.com/gigabyte-software/cortex-cli/releases/latest/download/install.sh -o install.sh
+curl -L https://github.com/ngramx/ngramx/releases/latest/download/ngramx.phar -o ngramx.phar
+curl -L https://github.com/ngramx/ngramx/releases/latest/download/install.sh -o install.sh
 chmod +x install.sh
 ./install.sh
 ```
 
-This installs `cortex` to `/usr/local/bin/cortex`, enables shell completion (bash/zsh), and makes the CLI available system-wide.
+This installs `ngramx` to `/usr/local/bin/ngramx`, enables shell completion (bash/zsh), and makes the CLI available system-wide.
 
 ## Quick Start
 
-Create a `cortex.yml` file in your project root:
+Create a `ngramx.yml` file in your project root:
 
 ```yaml
 version: "1.0"
@@ -70,7 +70,7 @@ commands:
 Then run:
 
 ```bash
-cortex up
+ngramx up
 ```
 
 *Note:* this process relies on an existing Docker container called `mcp-network`.
@@ -83,62 +83,62 @@ docker network create mcp-network
 
 ```
 # First, stop the environment
-cortex down
-# Rebuild the image (outside of cortex-cli)
+ngramx down
+# Rebuild the image (outside of ngramx)
 docker compose build --no-cache app
-# Then start again via cortex
-cortex up
+# Then start again via ngramx
+ngramx up
 ```
 
 ## Commands
 
-### `cortex init`
+### `ngramx init`
 
-Initialize Cortex configuration and directory structure:
+Initialize Ngramx configuration and directory structure:
 
 ```bash
-cortex init                # Full initialization
-cortex init --skip-yaml    # Skip creating cortex.yml
-cortex init --skip-claude  # Skip creating ~/.claude files
-cortex init --force        # Overwrite existing files
+ngramx init                # Full initialization
+ngramx init --skip-yaml    # Skip creating ngramx.yml
+ngramx init --skip-claude  # Skip creating ~/.claude files
+ngramx init --force        # Overwrite existing files
 ```
 
 This command creates:
 
 **Project-level files:**
-- `.cortex/` directory structure (tickets, specs, meetings)
-- `.cortex/README.md` with documentation
-- `cortex.yml` configuration file (unless `--skip-yaml`)
+- `.ngramx/` directory structure (tickets, specs, meetings)
+- `.ngramx/README.md` with documentation
+- `ngramx.yml` configuration file (unless `--skip-yaml`)
 
 **User-level files (in `~/.claude/`):**
 - `CLAUDE.md` - Instructions for Claude Code
-- `rules/cortex.md` - Cortex workflow rules
+- `rules/ngramx.md` - Ngramx workflow rules
 
-The user-level files are automatically updated if templates change when re-running `cortex init`. Use `--skip-claude` if you maintain your own `~/.claude` files.
+The user-level files are automatically updated if templates change when re-running `ngramx init`. Use `--skip-claude` if you maintain your own `~/.claude` files.
 
-### `cortex init-github-actions`
+### `ngramx init-github-actions`
 
 Add caller workflows under `.github/workflows/` that invoke the shared automation from [`gigabyte-software/shared-workflows`](https://github.com/gigabyte-software/shared-workflows): CI auto-fix, auto-rebase, review-comment fixes, and auto-merge.
 
 ```bash
-cortex init-github-actions
-cortex init-github-actions --ref v1 --ci-workflow-name "CI" --base-branch develop
-cortex init-github-actions --no-composer --force
-cortex init-github-actions --auto-merge-label ship-it --merge-method rebase
+ngramx init-github-actions
+ngramx init-github-actions --ref v1 --ci-workflow-name "CI" --base-branch develop
+ngramx init-github-actions --no-composer --force
+ngramx init-github-actions --auto-merge-label ship-it --merge-method rebase
 ```
 
 The generated `auto-merge.yml` looks for the `auto-merge` label (override with `--auto-merge-label`) and refuses to merge into any branch listed in `--protected-branches` (default: `master,main,stage,staging,test,testing,prod,production`). Merge method defaults to `squash` and can be `merge`, `squash`, or `rebase`.
 
-See `cortex init-github-actions --help` for all options (`--repo`, `--ref`, `--php-version`, `--node-version`, `--auto-merge-label`, `--protected-branches`, `--merge-method`, etc.). After running, configure the repository secrets listed in the command output and confirm your CI workflow name matches `--ci-workflow-name`.
+See `ngramx init-github-actions --help` for all options (`--repo`, `--ref`, `--php-version`, `--node-version`, `--auto-merge-label`, `--protected-branches`, `--merge-method`, etc.). After running, configure the repository secrets listed in the command output and confirm your CI workflow name matches `--ci-workflow-name`.
 
-### `cortex update`
+### `ngramx update`
 
-Update Cortex CLI to the latest version:
+Update Ngramx CLI to the latest version:
 
 ```bash
-cortex update           # Update to latest version
-cortex update --check   # Check for updates without installing
-cortex update --force   # Force update even if already latest
+ngramx update           # Update to latest version
+ngramx update --check   # Check for updates without installing
+ngramx update --force   # Force update even if already latest
 ```
 
 This command:
@@ -149,12 +149,12 @@ This command:
 
 **Note**: Only works when running as the installed PHAR.
 
-### `cortex up`
+### `ngramx up`
 
 Start your development environment:
 
 ```bash
-cortex up
+ngramx up
 ```
 
 This will:
@@ -163,7 +163,7 @@ This will:
 3. Wait for services to be healthy
 4. Run initialize commands in container
 
-After a successful start, if `docker.app_url` uses a hostname that does not resolve (for example `http://dev.myproduct`), Cortex prints a suggested `/etc/hosts` line. That check is generic; it only knows about the hostname in `app_url`, not other vhosts your compose stack might use (add those lines yourself if needed).
+After a successful start, if `docker.app_url` uses a hostname that does not resolve (for example `http://dev.myproduct`), Ngramx prints a suggested `/etc/hosts` line. That check is generic; it only knows about the hostname in `app_url`, not other vhosts your compose stack might use (add those lines yourself if needed).
 
 Options:
 - `--no-wait` - Skip health checks
@@ -179,30 +179,30 @@ To run the same project multiple times (e.g., for different branches):
 
 ```bash
 # Option 1: Auto-avoid conflicts (recommended)
-cortex up --avoid-conflicts
+ngramx up --avoid-conflicts
 
 # Option 2: Manual namespace and port offset
-cortex up --namespace feature-x --port-offset 100
+ngramx up --namespace feature-x --port-offset 100
 
 # Option 3: No host ports (access via Docker network only)
-cortex up --no-host-mapping
+ngramx up --no-host-mapping
 ```
 
-### `cortex down`
+### `ngramx down`
 
 Stop your development environment:
 
 ```bash
-cortex down           # Stop services, keep volumes
-cortex down --volumes # Stop services and remove volumes
+ngramx down           # Stop services, keep volumes
+ngramx down --volumes # Stop services and remove volumes
 ```
 
-### `cortex rebuild`
+### `ngramx rebuild`
 
 Rebuild Docker images, recreate containers, and reset the database:
 
 ```bash
-cortex rebuild
+ngramx rebuild
 ```
 
 This command:
@@ -214,18 +214,18 @@ This command:
 
 Use this when `Dockerfile`, `docker-compose.yml`, or any image-layer dependency changes, or when you want a completely clean environment.
 
-**Requires:** a `fresh` command defined in `cortex.yml` (see [Recommended commands](#recommended-commands)). If it's not defined, rebuild will warn and skip the database reset.
+**Requires:** a `fresh` command defined in `ngramx.yml` (see [Recommended commands](#recommended-commands)). If it's not defined, rebuild will warn and skip the database reset.
 
-### `cortex review`
+### `ngramx review`
 
 Prepare the environment for reviewing a ticket by checking out its branch and resetting the database:
 
 ```bash
-cortex review GIG-1234           # Checks out the branch and runs `fresh`
-cortex review GIG-1234 --quick   # Checks out the branch and runs `clear` instead
-cortex review GIG-1234 --worktree # Reviews in an isolated worktree + parallel env
-cortex review GIG-1234 --cursor   # Same as --worktree, then opens a new Cursor window
-cortex review GIG-1234 --cleanup  # Tears down + removes that ticket's worktree env
+ngramx review GIG-1234           # Checks out the branch and runs `fresh`
+ngramx review GIG-1234 --quick   # Checks out the branch and runs `clear` instead
+ngramx review GIG-1234 --worktree # Reviews in an isolated worktree + parallel env
+ngramx review GIG-1234 --cursor   # Same as --worktree, then opens a new Cursor window
+ngramx review GIG-1234 --cleanup  # Tears down + removes that ticket's worktree env
 ```
 
 This command:
@@ -233,7 +233,7 @@ This command:
 1. Fetches from `origin`
 2. Finds branches containing the ticket number and checks one out (prompts if there are multiple)
 3. Runs either `fresh` (default) or `clear` (with `--quick`) to sync the environment
-4. Prints any URLs from `.cortex/tickets/<ticket>/completion.md`
+4. Prints any URLs from `.ngramx/tickets/<ticket>/completion.md`
 
 **Options:**
 
@@ -244,23 +244,23 @@ This command:
 
 **How worktree mode works:**
 
-- Creates a git worktree at `.cortex/worktrees/<ticket>-<repo>/` (e.g. `.cortex/worktrees/gig-178-ill-kendrick/`). The folder name is the ticket slug + repository name, so it reads clearly in the Cursor title bar.
-- Brings up a **separate Docker stack** with its own namespace and an automatically-chosen port offset, so it never conflicts with your main `cortex up` or other worktrees.
+- Creates a git worktree at `.ngramx/worktrees/<ticket>-<repo>/` (e.g. `.ngramx/worktrees/gig-178-ill-kendrick/`). The folder name is the ticket slug + repository name, so it reads clearly in the Cursor title bar.
+- Brings up a **separate Docker stack** with its own namespace and an automatically-chosen port offset, so it never conflicts with your main `ngramx up` or other worktrees.
 - Generates a ticket-prefixed dev URL like `http://gig-178-ill-kendrick.localhost:8080`. Browsers resolve `*.localhost` to loopback automatically — no `/etc/hosts` edits or `sudo` required.
 - Copies your **parent `.env`** into the worktree and patches `APP_URL` to the worktree URL. Other values (DB creds, etc.) are safe to share because each worktree gets its own namespaced containers and volumes.
 - **Reuses your already-built Docker image** (re-tags the main checkout's image for the worktree's Compose project) instead of rebuilding from scratch, and **copies `vendor/` and `node_modules/`** from the parent so `composer install` / `npm ci` is a near-instant no-op. In practice this turns a multi-minute cold start into seconds.
-- Adds `/.cortex/worktrees/` to `.git/info/exclude` and `.cursorignore` so the parent checkout neither tracks nor indexes the nested worktrees.
+- Adds `/.ngramx/worktrees/` to `.git/info/exclude` and `.cursorignore` so the parent checkout neither tracks nor indexes the nested worktrees.
 
-When you're done, run `cortex review <ticket> --cleanup` to stop the stack (and remove its volumes) and delete the worktree in one step.
+When you're done, run `ngramx review <ticket> --cleanup` to stop the stack (and remove its volumes) and delete the worktree in one step.
 
-**Requires:** `fresh` and (for `--quick`) `clear` defined in `cortex.yml` — see [Recommended commands](#recommended-commands). If the relevant command isn't defined, review falls back to a generic Laravel reset (`optimize:clear` + `migrate:fresh --seed`).
+**Requires:** `fresh` and (for `--quick`) `clear` defined in `ngramx.yml` — see [Recommended commands](#recommended-commands). If the relevant command isn't defined, review falls back to a generic Laravel reset (`optimize:clear` + `migrate:fresh --seed`).
 
-### `cortex status`
+### `ngramx status`
 
 Check the health status of services:
 
 ```bash
-cortex status
+ngramx status
 ```
 
 Shows a table with:
@@ -268,16 +268,16 @@ Shows a table with:
 - Running status (running/exited)
 - Health status (healthy/unhealthy/starting)
 
-### `cortex shell`
+### `ngramx shell`
 
 Open an interactive bash shell inside the primary service container:
 
 ```bash
-cortex shell
+ngramx shell
 ```
 
 This command:
-1. Reads the `primary_service` from your `cortex.yml` configuration
+1. Reads the `primary_service` from your `ngramx.yml` configuration
 2. Opens an interactive bash shell in that container
 3. Allows you to run commands, debug, or explore the container environment
 
@@ -287,18 +287,18 @@ Perfect for:
 - Exploring the container's filesystem
 - Interactive development
 
-### `cortex secure`
+### `ngramx secure`
 
 Generate browser-trusted SSL certificates for your local development environment using [mkcert](https://github.com/FiloSottile/mkcert):
 
 ```bash
-cortex secure
+ngramx secure
 ```
 
 This command:
 1. Checks that `mkcert` is installed (prints platform-specific install instructions if not)
 2. Installs the local CA into your system trust store (one-time setup)
-3. Reads `docker.app_url` from your `cortex.yml` to determine the hostname
+3. Reads `docker.app_url` from your `ngramx.yml` to determine the hostname
 4. Generates a trusted certificate and key in the SSL directory
 
 The generated certificates replace any existing self-signed certs, so browsers will no longer show security warnings for your local HTTPS URLs.
@@ -314,7 +314,7 @@ The generated certificates replace any existing self-signed certs, so browsers w
 
 **Configuration:**
 
-By default, certificates are written to `docker/nginx/ssl/`. You can override this with the optional `docker.ssl_path` key in `cortex.yml`:
+By default, certificates are written to `docker/nginx/ssl/`. You can override this with the optional `docker.ssl_path` key in `ngramx.yml`:
 
 ```yaml
 docker:
@@ -332,13 +332,13 @@ Run custom commands directly by name:
 
 ```bash
 # Run a custom command
-cortex test
+ngramx test
 
 # List all available commands
-cortex list
+ngramx list
 ```
 
-Define custom commands in your `cortex.yml`:
+Define custom commands in your `ngramx.yml`:
 
 ```yaml
 commands:
@@ -368,15 +368,15 @@ commands:
     timeout: 180
 ```
 
-While the commands run, Cortex shows a live panel with one row per sub-command in the form `<label>: <last log line>`. Labels are auto-derived from the first token of each command (e.g. `vendor/bin/phpstan analyse …` → `phpstan`); duplicate labels get `#2`, `#3` suffixes. Rows disappear as each sub-command finishes, and once they're all done the panel is cleared and the command reports completion.
+While the commands run, Ngramx shows a live panel with one row per sub-command in the form `<label>: <last log line>`. Labels are auto-derived from the first token of each command (e.g. `vendor/bin/phpstan analyse …` → `phpstan`); duplicate labels get `#2`, `#3` suffixes. Rows disappear as each sub-command finishes, and once they're all done the panel is cleared and the command reports completion.
 
-If any sub-command fails or times out, every sub-command still runs to completion; Cortex then prints a per-command status summary, shows the tail of the failed command's output, and the overall command exits with a non-zero status.
+If any sub-command fails or times out, every sub-command still runs to completion; Ngramx then prints a per-command status summary, shows the tail of the failed command's output, and the overall command exits with a non-zero status.
 
 The list form is only supported for entries under `commands:`. Setup steps in `setup.pre_start` / `setup.initialize` continue to run sequentially, one `command:` string per entry.
 
 ### Recommended commands
 
-Cortex expects two lifecycle commands to be defined in every project so that `cortex rebuild` and `cortex review` can drive your environment consistently. If either is missing, Cortex prints a warning on every invocation.
+Ngramx expects two lifecycle commands to be defined in every project so that `ngramx rebuild` and `ngramx review` can drive your environment consistently. If either is missing, Ngramx prints a warning on every invocation.
 
 ```yaml
 commands:
@@ -389,42 +389,42 @@ commands:
     description: "Reset database from scratch (drop tables, re-migrate, re-seed, install deps, clear caches)"
 ```
 
-- **`fresh`** is the default for `cortex review` and is what `cortex rebuild` runs after containers are back up. It does a full database reset so you always get a known-good state.
-- **`clear`** is used by `cortex review --quick`. It deliberately does **not** run migrations or seed data — it only installs deps and clears caches. Use it when you're reviewing branches that don't touch the database. If a branch has schema or seed changes, stick with the default `fresh`, since running migrations alone won't re-seed the new data.
+- **`fresh`** is the default for `ngramx review` and is what `ngramx rebuild` runs after containers are back up. It does a full database reset so you always get a known-good state.
+- **`clear`** is used by `ngramx review --quick`. It deliberately does **not** run migrations or seed data — it only installs deps and clears caches. Use it when you're reviewing branches that don't touch the database. If a branch has schema or seed changes, stick with the default `fresh`, since running migrations alone won't re-seed the new data.
 
 ## n8n Workflow Management
 
-Cortex CLI provides commands to manage n8n workflows, including exporting, importing, and normalizing credentials across different n8n instances.
+Ngramx CLI provides commands to manage n8n workflows, including exporting, importing, and normalizing credentials across different n8n instances.
 
 ### Prerequisites
 
 All n8n commands require configuration in your `.env` file:
 
 ```env
-CORTEX_N8N_HOST=http://localhost
-CORTEX_N8N_PORT=5678
-CORTEX_N8N_API_KEY=your-api-key-here
+NGRAMX_N8N_HOST=http://localhost
+NGRAMX_N8N_PORT=5678
+NGRAMX_N8N_API_KEY=your-api-key-here
 ```
 
 The commands will prompt you for any missing values on first run.
 
-### `cortex n8n:export`
+### `ngramx n8n:export`
 
 Export workflows from a running n8n instance to JSON files:
 
 ```bash
-cortex n8n:export              # Export all workflows
-cortex n8n:export --force      # Overwrite existing files
+ngramx n8n:export              # Export all workflows
+ngramx n8n:export --force      # Overwrite existing files
 ```
 
 **What it does:**
 1. Connects to the n8n instance specified in `.env`
 2. Fetches all workflows via the n8n API
-3. Saves each workflow as a JSON file in the directory specified by `n8n.workflows_dir` in `cortex.yml`
+3. Saves each workflow as a JSON file in the directory specified by `n8n.workflows_dir` in `ngramx.yml`
 
 **Configuration:**
 
-Add to your `cortex.yml`:
+Add to your `ngramx.yml`:
 
 ```yaml
 n8n:
@@ -435,13 +435,13 @@ n8n:
 - Each workflow is saved as `{workflow-name}.json` in the workflows directory
 - Files are skipped if they already exist (unless `--force` is used)
 
-### `cortex n8n:import`
+### `ngramx n8n:import`
 
 Import workflows from JSON files into a running n8n instance:
 
 ```bash
-cortex n8n:import              # Import all workflows from workflows directory
-cortex n8n:import --force     # Overwrite existing workflows with same name
+ngramx n8n:import              # Import all workflows from workflows directory
+ngramx n8n:import --force     # Overwrite existing workflows with same name
 ```
 
 **What it does:**
@@ -459,31 +459,31 @@ Uses the same `n8n.workflows_dir` configuration as export.
 - Shows progress for each workflow being imported
 - Reports any errors encountered during import
 
-### `cortex n8n:normalise`
+### `ngramx n8n:normalise`
 
 Normalize workflow credentials by mapping them to credentials in a target n8n instance. This is essential when moving workflows between environments where credential names or IDs differ.
 
 ```bash
 # Basic usage - validate and patch credentials
-cortex n8n:normalise workflow.json
+ngramx n8n:normalise workflow.json
 
 # Output to file
-cortex n8n:normalise workflow.json --output patched-workflow.json
+ngramx n8n:normalise workflow.json --output patched-workflow.json
 
 # Use credential mapping file
-cortex n8n:normalise workflow.json --map credentials.map.json
+ngramx n8n:normalise workflow.json --map credentials.map.json
 
 # Dry run - see what would change without modifying
-cortex n8n:normalise workflow.json --dry-run
+ngramx n8n:normalise workflow.json --dry-run
 
 # Validation only - don't patch, just check
-cortex n8n:normalise workflow.json --no-patch
+ngramx n8n:normalise workflow.json --no-patch
 
 # JSON report for CI/CD
-cortex n8n:normalise workflow.json --report json
+ngramx n8n:normalise workflow.json --report json
 
 # Non-strict mode - don't exit on errors
-cortex n8n:normalise workflow.json --no-strict
+ngramx n8n:normalise workflow.json --no-strict
 ```
 
 **What it does:**
@@ -523,13 +523,13 @@ cortex n8n:normalise workflow.json --no-strict
 
 ```bash
 # Output clean JSON to stdout (report suppressed) - good for piping
-cortex n8n:normalise workflow.json > patched.json
+ngramx n8n:normalise workflow.json > patched.json
 
 # Output to file with report in console
-cortex n8n:normalise workflow.json --output patched.json
+ngramx n8n:normalise workflow.json --output patched.json
 
 # Validation only - just see the report
-cortex n8n:normalise workflow.json --no-patch
+ngramx n8n:normalise workflow.json --no-patch
 ```
 
 **Options:**
@@ -575,7 +575,7 @@ The map file is a JSON object where:
 
 **Without mapping:**
 ```bash
-cortex n8n:normalise workflow.json
+ngramx n8n:normalise workflow.json
 # ❌ Error: MISS postgres:prod-db used by: Read Customers, Upsert Customer
 ```
 
@@ -586,7 +586,7 @@ cortex n8n:normalise workflow.json
   "postgres:prod-db": "postgres:prod-db-v2"
 }
 
-cortex n8n:normalise workflow.json --map credentials.map.json
+ngramx n8n:normalise workflow.json --map credentials.map.json
 # ✅ Success: Maps postgres:prod-db → postgres:prod-db-v2 → finds credential ID
 # ✅ Patches workflow: Updates credential ID, keeps name as "prod-db"
 ```
@@ -664,29 +664,29 @@ Tab completion is automatically installed by the install script. To set it up ma
 
 ### Docker Development Environment (Recommended)
 
-Cortex CLI uses itself for development! Simply run:
+Ngramx CLI uses itself for development! Simply run:
 
 ```bash
 # Start the development environment
-./bin/cortex up
+./bin/ngramx up
 
 # Run tests
-./bin/cortex test
+./bin/ngramx test
 
 # Run static analysis
-./bin/cortex phpstan
+./bin/ngramx phpstan
 
 # Fix code style
-./bin/cortex cs-fix
+./bin/ngramx cs-fix
 
 # Build the PHAR
-./bin/cortex build
+./bin/ngramx build
 
 # Run all validation checks
-./bin/cortex validate
+./bin/ngramx validate
 
 # Open a shell in the container
-./bin/cortex shell
+./bin/ngramx shell
 ```
 
 All PHP dependencies, extensions (including Xdebug for coverage), and tools are pre-configured in the Docker container.
@@ -729,9 +729,9 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for de
 
 **Quick start for contributors:**
 ```bash
-./bin/cortex up      # Start dev environment
-./bin/cortex test    # Run tests
-./bin/cortex validate # Run all checks
+./bin/ngramx up      # Start dev environment
+./bin/ngramx test    # Run tests
+./bin/ngramx validate # Run all checks
 ```
 
 This project follows PSR-12 coding standards and uses PHP 8.2+ features. See [dev-docs](dev-docs/) for additional documentation.

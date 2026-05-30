@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Command;
+namespace Ngramx\Tests\Unit\Command;
 
-use Cortex\Command\RebuildCommand;
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\LockFile;
-use Cortex\Config\LockFileData;
-use Cortex\Config\Schema\CommandDefinition;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Config\Schema\DockerConfig;
-use Cortex\Config\Schema\N8nConfig;
-use Cortex\Config\Schema\ServiceWaitConfig;
-use Cortex\Config\Schema\SetupConfig;
-use Cortex\Docker\ComposeOverrideGenerator;
-use Cortex\Docker\DockerCompose;
-use Cortex\Docker\HealthChecker;
-use Cortex\Orchestrator\CommandOrchestrator;
-use Cortex\Output\OutputFormatter;
+use Ngramx\Command\RebuildCommand;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\LockFile;
+use Ngramx\Config\LockFileData;
+use Ngramx\Config\Schema\CommandDefinition;
+use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\N8nConfig;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\ServiceWaitConfig;
+use Ngramx\Config\Schema\SetupConfig;
+use Ngramx\Docker\ComposeOverrideGenerator;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\HealthChecker;
+use Ngramx\Orchestrator\CommandOrchestrator;
+use Ngramx\Output\OutputFormatter;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -65,7 +65,7 @@ class RebuildCommandTest extends TestCase
         $exitCode = $tester->execute([]);
 
         $this->assertSame(1, $exitCode);
-        $this->assertStringContainsString('You must start Docker before running cortex rebuild', $tester->getDisplay());
+        $this->assertStringContainsString('You must start Docker before running ngramx rebuild', $tester->getDisplay());
     }
 
     public function test_it_tears_down_rebuilds_and_runs_fresh(): void
@@ -283,11 +283,11 @@ class RebuildCommandTest extends TestCase
         );
     }
 
-    private function setupConfigLoader(CortexConfig $config): void
+    private function setupConfigLoader(NgramxConfig $config): void
     {
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -298,9 +298,9 @@ class RebuildCommandTest extends TestCase
      * @param array<string, CommandDefinition> $commands
      * @param ServiceWaitConfig[] $waitFor
      */
-    private function createMockConfig(array $commands, array $waitFor = []): CortexConfig
+    private function createMockConfig(array $commands, array $waitFor = []): NgramxConfig
     {
-        return new CortexConfig(
+        return new NgramxConfig(
             version: '1.0',
             docker: new DockerConfig(
                 composeFile: 'docker-compose.yml',

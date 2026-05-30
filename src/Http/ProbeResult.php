@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Http;
+namespace Ngramx\Http;
 
 use Psr\Http\Message\ResponseInterface;
 
@@ -64,7 +64,7 @@ readonly class ProbeResult
 
     /**
      * A short, human-friendly description of what went wrong, designed to be
-     * surfaced as a single line in `cortex up` failure output.
+     * surfaced as a single line in `ngramx up` failure output.
      */
     public function describeFailure(): string
     {

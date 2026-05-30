@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Docker;
+namespace Ngramx\Tests\Unit\Docker;
 
-use Cortex\Config\Schema\ServiceWaitConfig;
-use Cortex\Docker\DockerCompose;
-use Cortex\Docker\Exception\ServiceNotHealthyException;
-use Cortex\Docker\HealthChecker;
-use Cortex\Docker\ServiceReadinessWaiter;
-use Cortex\Output\OutputFormatter;
+use Ngramx\Config\Schema\ServiceWaitConfig;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\Exception\ServiceNotHealthyException;
+use Ngramx\Docker\HealthChecker;
+use Ngramx\Docker\ServiceReadinessWaiter;
+use Ngramx\Output\OutputFormatter;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Output\BufferedOutput;

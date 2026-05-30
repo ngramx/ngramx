@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Docker;
+namespace Ngramx\Docker;
 
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
@@ -429,7 +429,7 @@ class DockerCompose
         $stderr = trim($stderr);
         $detail = $stderr === '' ? '(no stderr)' : $stderr;
         if (defined('STDERR') && is_resource(STDERR)) {
-            fwrite(STDERR, "[cortex] warning: docker-compose {$subcommand} failed: {$detail}\n");
+            fwrite(STDERR, "[ngramx] warning: docker-compose {$subcommand} failed: {$detail}\n");
         }
     }
 

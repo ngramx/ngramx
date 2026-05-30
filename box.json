@@ -1,6 +1,6 @@
 {
-  "main": "bin/cortex",
-  "output": "cortex.phar",
+  "main": "bin/ngramx",
+  "output": "ngramx.phar",
   "directories": [
     "src",
     "templates"
@@ -27,11 +27,11 @@
   ],
   "stub": true,
   "banner": [
-    "Cortex CLI - Docker Development Environment Orchestration",
+    "Ngramx CLI - Docker Development Environment Orchestration",
     "",
-    "This file is part of Cortex CLI.",
+    "This file is part of Ngramx CLI.",
     "",
-    "@link https://github.com/gigabyte-software/cortex-cli"
+    "@link https://github.com/ngramx/ngramx"
   ]
 }
 

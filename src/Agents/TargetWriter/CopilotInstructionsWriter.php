@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Agents\TargetWriter;
+namespace Ngramx\Agents\TargetWriter;
 
 /**
- * Writes .github/copilot-instructions.md with a Cortex-managed section.
+ * Writes .github/copilot-instructions.md with a Ngramx-managed section.
  */
 final class CopilotInstructionsWriter implements TargetWriterInterface
 {
-    private const MARKER_BEGIN = '<!-- CORTEX_COPILOT_MANAGED_BEGIN -->';
+    private const MARKER_BEGIN = '<!-- NGRAMX_COPILOT_MANAGED_BEGIN -->';
 
-    private const MARKER_END = '<!-- CORTEX_COPILOT_MANAGED_END -->';
+    private const MARKER_END = '<!-- NGRAMX_COPILOT_MANAGED_END -->';
 
     public function write(string $projectRoot, string $markdown): bool
     {

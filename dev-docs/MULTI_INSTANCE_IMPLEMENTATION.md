@@ -2,7 +2,7 @@
 
 ## Overview
 
-Cortex CLI now supports running multiple instances of the same project simultaneously without conflicts. This is achieved through namespace isolation and port offset management.
+Ngramx CLI now supports running multiple instances of the same project simultaneously without conflicts. This is achieved through namespace isolation and port offset management.
 
 ## Key Features
 
@@ -17,7 +17,7 @@ Cortex CLI now supports running multiple instances of the same project simultane
 ### Default Mode (Single Instance)
 
 ```bash
-cortex up
+ngramx up
 ```
 
 - No namespace prefix or port changes
@@ -27,7 +27,7 @@ cortex up
 ### Auto Conflict Avoidance
 
 ```bash
-cortex up --avoid-conflicts
+ngramx up --avoid-conflicts
 ```
 
 - Auto-generates namespace from directory path
@@ -39,13 +39,13 @@ cortex up --avoid-conflicts
 
 ```bash
 # Custom namespace
-cortex up --namespace agent-1
+ngramx up --namespace agent-1
 
 # Custom port offset
-cortex up --port-offset 1000
+ngramx up --port-offset 1000
 
 # Both
-cortex up --namespace agent-1 --port-offset 1000
+ngramx up --namespace agent-1 --port-offset 1000
 ```
 
 ## Technical Implementation
@@ -53,13 +53,13 @@ cortex up --namespace agent-1 --port-offset 1000
 ### New Components
 
 1. **LockFile** (`src/Config/LockFile.php`)
-   - Manages `.cortex.lock` file
+   - Manages `.ngramx.lock` file
    - Prevents duplicate instances per directory
    - Stores namespace and port offset
 
 2. **NamespaceResolver** (`src/Docker/NamespaceResolver.php`)
    - Derives namespace from directory path
-   - Example: `/workspace/agent-1/project/` → `cortex-agent-1-project`
+   - Example: `/workspace/agent-1/project/` → `ngramx-agent-1-project`
    - Validates custom namespaces
 
 3. **PortOffsetManager** (`src/Docker/PortOffsetManager.php`)
@@ -69,7 +69,7 @@ cortex up --namespace agent-1 --port-offset 1000
 
 4. **ComposeOverrideGenerator** (`src/Docker/ComposeOverrideGenerator.php`)
    - Generates `docker-compose.override.yml` with port offsets
-   - Cleaned up automatically on `cortex down`
+   - Cleaned up automatically on `ngramx down`
 
 ### Modified Components
 
@@ -84,11 +84,11 @@ cortex up --namespace agent-1 --port-offset 1000
 
 ## Lock File Format
 
-`.cortex.lock` stores minimal state:
+`.ngramx.lock` stores minimal state:
 
 ```json
 {
-  "namespace": "cortex-agent-1-project",
+  "namespace": "ngramx-agent-1-project",
   "port_offset": 8000,
   "started_at": "2025-11-08T10:30:00+00:00"
 }
@@ -104,7 +104,7 @@ Only created when using:
 ### Example 1: Default Developer Workflow
 
 ```bash
-$ cortex up
+$ ngramx up
 
 🚀 Starting Development Environment
 ✅ Environment ready!
@@ -117,23 +117,23 @@ $ cortex up
 $ pwd
 /workspace/agent-1/project
 
-$ cortex up --avoid-conflicts
+$ ngramx up --avoid-conflicts
 
 🚀 Starting Development Environment
 
-Auto-generated namespace: cortex-agent-1-project
+Auto-generated namespace: ngramx-agent-1-project
 Scanning for available ports...
 Port offset allocated: +8000
 
 ✅ Environment ready!
 🌐 app: http://localhost:8080
-📝 Instance details saved to .cortex.lock
+📝 Instance details saved to .ngramx.lock
 ```
 
 ### Example 3: Multi-Agent with Explicit Control
 
 ```bash
-$ cortex up --namespace agent-2 --port-offset 1000
+$ ngramx up --namespace agent-2 --port-offset 1000
 
 🚀 Starting Development Environment
 
@@ -141,16 +141,16 @@ Using namespace: agent-2
 
 ✅ Environment ready!
 🌐 app: http://localhost:1080
-📝 Instance details saved to .cortex.lock
+📝 Instance details saved to .ngramx.lock
 ```
 
 ### Example 4: Status Command
 
 ```bash
-$ cortex status
+$ ngramx status
 
 Environment Status
-Namespace: cortex-agent-1-project
+Namespace: ngramx-agent-1-project
 Port offset: +8000
 Started: 2025-11-08T10:30:00+00:00
 
@@ -162,14 +162,14 @@ db       running  healthy
 ### Example 5: Shell Command
 
 ```bash
-$ cortex shell
+$ ngramx shell
 # Opens interactive shell in the correct namespace
 ```
 
 ### Example 6: Down Command
 
 ```bash
-$ cortex down
+$ ngramx down
 
 Stopping environment
 Docker services stopped
@@ -217,21 +217,21 @@ Namespaces are derived from the last 2 segments of the directory path:
 
 | Directory                      | Namespace                    |
 |--------------------------------|------------------------------|
-| `/workspace/agent-1/project/`  | `cortex-agent-1-project`     |
-| `/home/user/myapp/`            | `cortex-user-myapp`          |
-| `/projects/acme/backend/`      | `cortex-acme-backend`        |
+| `/workspace/agent-1/project/`  | `ngramx-agent-1-project`     |
+| `/home/user/myapp/`            | `ngramx-user-myapp`          |
+| `/projects/acme/backend/`      | `ngramx-acme-backend`        |
 
 ## One Instance Per Directory
 
 The lock file enforces one active instance per directory:
 
 ```bash
-$ cortex up
+$ ngramx up
 ✅ Environment ready!
 
-$ cortex up
+$ ngramx up
 ❌ Environment already running in this directory.
-   Use "cortex down" to stop it first.
+   Use "ngramx down" to stop it first.
 ```
 
 This is perfect for coding agents because:
@@ -244,24 +244,24 @@ This is perfect for coding agents because:
 Orchestrators can use environment variables for configuration:
 
 ```bash
-export CORTEX_INSTANCE_ID="agent-${AGENT_NUM}"
-export CORTEX_PORT_OFFSET=$((1000 * AGENT_NUM))
+export NGRAMX_INSTANCE_ID="agent-${AGENT_NUM}"
+export NGRAMX_PORT_OFFSET=$((1000 * AGENT_NUM))
 
-cortex up --namespace "$CORTEX_INSTANCE_ID" --port-offset "$CORTEX_PORT_OFFSET"
+ngramx up --namespace "$NGRAMX_INSTANCE_ID" --port-offset "$NGRAMX_PORT_OFFSET"
 ```
 
 Or use the simple mode:
 
 ```bash
-cortex up --avoid-conflicts
+ngramx up --avoid-conflicts
 ```
 
-Then read `.cortex.lock` to discover allocated ports:
+Then read `.ngramx.lock` to discover allocated ports:
 
 ```bash
-$ cat .cortex.lock
+$ cat .ngramx.lock
 {
-  "namespace": "cortex-agent-1-project",
+  "namespace": "ngramx-agent-1-project",
   "port_offset": 8000,
   "started_at": "2025-11-08T10:30:00+00:00"
 }
@@ -295,25 +295,25 @@ Test the implementation:
 
 ```bash
 # Test default mode
-cortex up
-cortex status
-cortex shell
-cortex down
+ngramx up
+ngramx status
+ngramx shell
+ngramx down
 
 # Test auto mode
-cortex up --avoid-conflicts
-cortex status
-cortex down
+ngramx up --avoid-conflicts
+ngramx status
+ngramx down
 
 # Test explicit mode
-cortex up --namespace test-1 --port-offset 2000
-cortex status
-cortex down
+ngramx up --namespace test-1 --port-offset 2000
+ngramx status
+ngramx down
 
 # Test lock file prevention
-cortex up
-cortex up  # Should fail with "already running" message
-cortex down
+ngramx up
+ngramx up  # Should fail with "already running" message
+ngramx down
 ```
 
 ## Backward Compatibility

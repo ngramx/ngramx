@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Executor;
+namespace Ngramx\Executor;
 
-use Cortex\Docker\ContainerExecutor;
-use Cortex\Executor\Result\ParallelCommandResult;
+use Ngramx\Docker\ContainerExecutor;
+use Ngramx\Executor\Result\ParallelCommandResult;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 

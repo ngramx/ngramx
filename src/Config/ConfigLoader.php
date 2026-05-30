@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Config;
+namespace Ngramx\Config;
 
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\Schema\AgentsConfig;
-use Cortex\Config\Schema\CommandDefinition;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Config\Schema\DockerConfig;
-use Cortex\Config\Schema\N8nConfig;
-use Cortex\Config\Schema\SecretsConfig;
-use Cortex\Config\Schema\ServiceWaitConfig;
-use Cortex\Config\Schema\SetupConfig;
-use Cortex\Config\Validator\ConfigValidator;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\Schema\AgentsConfig;
+use Ngramx\Config\Schema\CommandDefinition;
+use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\N8nConfig;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\SecretsConfig;
+use Ngramx\Config\Schema\ServiceWaitConfig;
+use Ngramx\Config\Schema\SetupConfig;
+use Ngramx\Config\Validator\ConfigValidator;
 use Symfony\Component\Yaml\Yaml;
 
 class ConfigLoader
@@ -28,7 +28,7 @@ class ConfigLoader
     /**
      * @throws ConfigException
      */
-    public function load(string $path = 'cortex.yml'): CortexConfig
+    public function load(string $path = 'ngramx.yml'): NgramxConfig
     {
         $filePath = $this->resolveConfigPath($path);
 
@@ -57,7 +57,7 @@ class ConfigLoader
     }
 
     /**
-     * Find cortex.yml in current or parent directories
+     * Find ngramx.yml in current or parent directories
      *
      * @throws ConfigException
      */
@@ -72,7 +72,7 @@ class ConfigLoader
         $depth = 0;
 
         while ($depth < $maxDepth) {
-            $configPath = $currentDir . '/cortex.yml';
+            $configPath = $currentDir . '/ngramx.yml';
             if (file_exists($configPath)) {
                 return $configPath;
             }
@@ -86,7 +86,7 @@ class ConfigLoader
             $depth++;
         }
 
-        throw new ConfigException('cortex.yml not found in current directory or any parent directory');
+        throw new ConfigException('ngramx.yml not found in current directory or any parent directory');
     }
 
     private function resolveConfigPath(string $path): string
@@ -106,7 +106,7 @@ class ConfigLoader
     /**
      * @param array<string, mixed> $config
      */
-    private function buildConfig(array $config, string $configDir): CortexConfig
+    private function buildConfig(array $config, string $configDir): NgramxConfig
     {
         $docker = $this->buildDockerConfig($config['docker'], $configDir);
         $setup = $this->buildSetupConfig($config['setup'] ?? []);
@@ -115,7 +115,7 @@ class ConfigLoader
         $agents = $this->buildAgentsConfig($config['agents'] ?? []);
         $commands = $this->buildCommandsMap($config['commands'] ?? []);
 
-        return new CortexConfig(
+        return new NgramxConfig(
             version: $config['version'],
             docker: $docker,
             setup: $setup,

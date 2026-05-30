@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Config\Exception;
+namespace Ngramx\Config\Exception;
 
 use Exception;
 

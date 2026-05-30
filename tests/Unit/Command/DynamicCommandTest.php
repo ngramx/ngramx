@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Command;
+namespace Ngramx\Tests\Unit\Command;
 
-use Cortex\Command\DynamicCommand;
-use Cortex\Config\Schema\CommandDefinition;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Config\Schema\DockerConfig;
-use Cortex\Config\Schema\N8nConfig;
-use Cortex\Config\Schema\SetupConfig;
-use Cortex\Orchestrator\CommandOrchestrator;
+use Ngramx\Command\DynamicCommand;
+use Ngramx\Config\Schema\CommandDefinition;
+use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\N8nConfig;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\SetupConfig;
+use Ngramx\Orchestrator\CommandOrchestrator;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
@@ -41,7 +41,7 @@ class DynamicCommandTest extends TestCase
 
         $this->assertSame(1, $exitCode);
         $this->assertStringContainsString("'clear' is not yet configured", $tester->getDisplay());
-        $this->assertStringContainsString('cortex.yml', $tester->getDisplay());
+        $this->assertStringContainsString('ngramx.yml', $tester->getDisplay());
     }
 
     public function test_empty_command_shows_recommended_example(): void
@@ -122,9 +122,9 @@ class DynamicCommandTest extends TestCase
     /**
      * @param array<string, CommandDefinition> $commands
      */
-    private function createMockConfig(array $commands): CortexConfig
+    private function createMockConfig(array $commands): NgramxConfig
     {
-        return new CortexConfig(
+        return new NgramxConfig(
             version: '1.0',
             docker: new DockerConfig(
                 composeFile: 'docker-compose.yml',

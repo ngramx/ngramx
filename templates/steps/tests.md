@@ -13,7 +13,7 @@ Implement the test code that verifies the scenarios defined in the feature specs
 ### Prerequisites
 
 Before this step:
-* Specs must be approved (`.cortex/specs/*.feature`)
+* Specs must be approved (`.ngramx/specs/*.feature`)
 * Approach must be selected
 * Detailed plan must be approved
 
@@ -41,11 +41,11 @@ Before this step:
 
 ### File Locations
 
-Tests are placed in the main project (not `.cortex/`):
+Tests are placed in the main project (not `.ngramx/`):
 
 ```
 project-root/
-├── .cortex/
+├── .ngramx/
 │   └── specs/
 │       └── feature-name.feature    # Specs (already created)
 └── tests/
@@ -60,7 +60,7 @@ project-root/
 **Matching Spec Language:**
 
 ```gherkin
-# In .cortex/specs/invoice-creation.feature
+# In .ngramx/specs/invoice-creation.feature
 Scenario: Create invoice with valid data
   Given I am logged in as an admin
   When I create an invoice with amount "100.00"
@@ -130,7 +130,7 @@ Before proceeding, verify tests are:
 
 ### Update specs.md
 
-Add test implementation details to `.cortex/tickets/[ticket-id]/specs.md`:
+Add test implementation details to `.ngramx/tickets/[ticket-id]/specs.md`:
 
 ```markdown
 # Specs for CORE-123

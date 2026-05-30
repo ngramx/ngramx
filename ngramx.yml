@@ -10,7 +10,7 @@ docker:
 
 setup:
   pre_start:
-    - command: "echo 'Starting Cortex CLI development environment...'"
+    - command: "echo 'Starting Ngramx CLI development environment...'"
       description: "Welcome message"
       ignore_failure: true
       
@@ -42,8 +42,8 @@ commands:
     description: "Check code style without fixing"
   
   build:
-    command: "php -d phar.readonly=0 vendor/bin/box compile && echo 'Cortex CLI built successfully. Run .bin/cortex to test it out.'"
-    description: "Build cortex.phar with Box"
+    command: "php -d phar.readonly=0 vendor/bin/box compile && echo 'Ngramx CLI built successfully. Run .bin/ngramx to test it out.'"
+    description: "Build ngramx.phar with Box"
     timeout: 120
   
   shell:

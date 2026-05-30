@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Command;
 
-use Cortex\Command\InitGithubActionsCommand;
+use Ngramx\Command\InitGithubActionsCommand;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -16,7 +16,7 @@ class InitGithubActionsCommandTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->testDir = sys_get_temp_dir() . '/cortex_init_gha_' . uniqid();
+        $this->testDir = sys_get_temp_dir() . '/ngramx_init_gha_' . uniqid();
         mkdir($this->testDir, 0755, true);
     }
 

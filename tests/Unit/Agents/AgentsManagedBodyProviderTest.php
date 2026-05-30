@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Agents;
 
-use Cortex\Agents\AgentsManagedBodyProvider;
+use Ngramx\Agents\AgentsManagedBodyProvider;
 use PHPUnit\Framework\TestCase;
 
 class AgentsManagedBodyProviderTest extends TestCase
@@ -51,12 +51,12 @@ class AgentsManagedBodyProviderTest extends TestCase
         $this->assertStringNotContainsString('risk:low', $markdown);
     }
 
-    public function test_ticket_folder_path_is_under_dot_cortex(): void
+    public function test_ticket_folder_path_is_under_dot_ngramx(): void
     {
         $provider = new AgentsManagedBodyProvider();
         $markdown = $provider->getMarkdown();
 
-        $this->assertStringContainsString('.cortex/tickets/[ticket-id]/', $markdown);
+        $this->assertStringContainsString('.ngramx/tickets/[ticket-id]/', $markdown);
     }
 
     /**
@@ -70,7 +70,7 @@ class AgentsManagedBodyProviderTest extends TestCase
      */
     public function test_get_markdown_enumerates_agents_dir_via_scandir_and_filters_by_pattern(): void
     {
-        $tmpRoot = sys_get_temp_dir() . '/cortex_agents_provider_test_' . uniqid();
+        $tmpRoot = sys_get_temp_dir() . '/ngramx_agents_provider_test_' . uniqid();
         $agentsDir = $tmpRoot . '/agents';
         mkdir($agentsDir, 0755, true);
 
@@ -115,7 +115,7 @@ class AgentsManagedBodyProviderTest extends TestCase
 
     public function test_get_markdown_returns_empty_string_when_agents_dir_missing(): void
     {
-        $tmpRoot = sys_get_temp_dir() . '/cortex_agents_missing_' . uniqid();
+        $tmpRoot = sys_get_temp_dir() . '/ngramx_agents_missing_' . uniqid();
         mkdir($tmpRoot, 0755, true);
 
         try {

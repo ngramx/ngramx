@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Command\N8n;
+namespace Ngramx\Tests\Unit\Command\N8n;
 
-use Cortex\Command\N8n\AbstractCommand;
-use Cortex\Command\N8n\ExportCommand;
-use Cortex\Config\ConfigLoader;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ConnectException;
+use Ngramx\Command\N8n\AbstractCommand;
+use Ngramx\Command\N8n\ExportCommand;
+use Ngramx\Config\ConfigLoader;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use Symfony\Component\Console\Application;
@@ -33,7 +33,7 @@ class AbstractCommandTest extends TestCase
 
         $this->configLoader = $this->createMock(ConfigLoader::class);
         $this->httpClient = $this->createMock(Client::class);
-        $this->testDir = sys_get_temp_dir() . '/cortex_n8n_test_' . uniqid();
+        $this->testDir = sys_get_temp_dir() . '/ngramx_n8n_test_' . uniqid();
         mkdir($this->testDir, 0755, true);
         $this->envPath = $this->testDir . '/.env';
         $this->workflowsDir = $this->testDir . '/.n8n';
@@ -96,7 +96,7 @@ class AbstractCommandTest extends TestCase
 
     public function test_loadEnv_loads_existing_env_file(): void
     {
-        $envContent = "CORTEX_N8N_HOST=http://localhost\nCORTEX_N8N_PORT=5678\nCORTEX_N8N_API_KEY=test-key-123";
+        $envContent = "NGRAMX_N8N_HOST=http://localhost\nNGRAMX_N8N_PORT=5678\nNGRAMX_N8N_API_KEY=test-key-123";
         if (@file_put_contents($this->envPath, $envContent) === false) {
             $this->markTestSkipped('Cannot write .env file (sandbox restrictions)');
         }
@@ -105,12 +105,12 @@ class AbstractCommandTest extends TestCase
         $result = $this->invokeMethod($command, 'loadEnv', [$this->envPath]);
 
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('CORTEX_N8N_HOST', $result);
-        $this->assertArrayHasKey('CORTEX_N8N_PORT', $result);
-        $this->assertArrayHasKey('CORTEX_N8N_API_KEY', $result);
-        $this->assertSame('http://localhost', $result['CORTEX_N8N_HOST']);
-        $this->assertSame('5678', $result['CORTEX_N8N_PORT']);
-        $this->assertSame('test-key-123', $result['CORTEX_N8N_API_KEY']);
+        $this->assertArrayHasKey('NGRAMX_N8N_HOST', $result);
+        $this->assertArrayHasKey('NGRAMX_N8N_PORT', $result);
+        $this->assertArrayHasKey('NGRAMX_N8N_API_KEY', $result);
+        $this->assertSame('http://localhost', $result['NGRAMX_N8N_HOST']);
+        $this->assertSame('5678', $result['NGRAMX_N8N_PORT']);
+        $this->assertSame('test-key-123', $result['NGRAMX_N8N_API_KEY']);
     }
 
     // ==================== escapeEnvValue() Tests ====================
@@ -157,9 +157,9 @@ class AbstractCommandTest extends TestCase
     {
         $command = $this->createCommand();
         $env = [
-            'CORTEX_N8N_API_KEY' => 'test-key',
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
         ];
 
         $this->invokeMethod($command, 'writeEnv', [$this->envPath, $env]);
@@ -168,9 +168,9 @@ class AbstractCommandTest extends TestCase
             $content = file_get_contents($this->envPath);
             $this->assertIsString($content);
             $lines = array_filter(explode(PHP_EOL, trim($content)), fn ($line) => $line !== '');
-            $this->assertStringStartsWith('CORTEX_N8N_API_KEY', $lines[0] ?? '');
-            $this->assertStringStartsWith('CORTEX_N8N_HOST', $lines[1] ?? '');
-            $this->assertStringStartsWith('CORTEX_N8N_PORT', $lines[2] ?? '');
+            $this->assertStringStartsWith('NGRAMX_N8N_API_KEY', $lines[0] ?? '');
+            $this->assertStringStartsWith('NGRAMX_N8N_HOST', $lines[1] ?? '');
+            $this->assertStringStartsWith('NGRAMX_N8N_PORT', $lines[2] ?? '');
         } else {
             $this->markTestSkipped('Cannot write .env file (sandbox restrictions)');
         }
@@ -180,7 +180,7 @@ class AbstractCommandTest extends TestCase
     {
         $command = $this->createCommand();
         $env = [
-            'CORTEX_N8N_API_KEY' => 'key with spaces and "quotes"',
+            'NGRAMX_N8N_API_KEY' => 'key with spaces and "quotes"',
         ];
 
         $this->invokeMethod($command, 'writeEnv', [$this->envPath, $env]);
@@ -204,9 +204,9 @@ class AbstractCommandTest extends TestCase
         $output = $this->createMock(OutputInterface::class);
 
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         $result = $this->invokeMethod($command, 'promptForMissingEnvValues', [$env, $input, $output]);
@@ -228,9 +228,9 @@ class AbstractCommandTest extends TestCase
 
         $result = $this->invokeMethod($command, 'promptForMissingEnvValues', [[], $input, $output]);
 
-        $this->assertArrayHasKey('CORTEX_N8N_HOST', $result);
-        $this->assertArrayHasKey('CORTEX_N8N_PORT', $result);
-        $this->assertArrayHasKey('CORTEX_N8N_API_KEY', $result);
+        $this->assertArrayHasKey('NGRAMX_N8N_HOST', $result);
+        $this->assertArrayHasKey('NGRAMX_N8N_PORT', $result);
+        $this->assertArrayHasKey('NGRAMX_N8N_API_KEY', $result);
     }
 
     public function test_promptForMissingEnvValues_throws_exception_on_null_input(): void
@@ -247,7 +247,7 @@ class AbstractCommandTest extends TestCase
         $command->setHelperSet($helperSet);
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('CORTEX_N8N_HOST is required');
+        $this->expectExceptionMessage('NGRAMX_N8N_HOST is required');
 
         $this->invokeMethod($command, 'promptForMissingEnvValues', [[], $input, $output]);
     }
@@ -258,9 +258,9 @@ class AbstractCommandTest extends TestCase
     {
         $command = $this->createCommand();
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-api-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-api-key',
         ];
 
         $result = $this->invokeMethod($command, 'buildApiOptions', [$env, false]);
@@ -278,9 +278,9 @@ class AbstractCommandTest extends TestCase
     {
         $command = $this->createCommand();
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-api-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-api-key',
         ];
 
         $result = $this->invokeMethod($command, 'buildApiOptions', [$env, true]);
@@ -301,9 +301,9 @@ class AbstractCommandTest extends TestCase
     {
         $command = $this->createCommand();
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         $result = $this->invokeMethod($command, 'buildBaseUri', [$env]);
@@ -315,9 +315,9 @@ class AbstractCommandTest extends TestCase
     {
         $command = $this->createCommand();
         $env = [
-            'CORTEX_N8N_HOST' => 'http://localhost/',
-            'CORTEX_N8N_PORT' => '5678',
-            'CORTEX_N8N_API_KEY' => 'test-key',
+            'NGRAMX_N8N_HOST' => 'http://localhost/',
+            'NGRAMX_N8N_PORT' => '5678',
+            'NGRAMX_N8N_API_KEY' => 'test-key',
         ];
 
         $result = $this->invokeMethod($command, 'buildBaseUri', [$env]);

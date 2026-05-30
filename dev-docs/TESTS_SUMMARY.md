@@ -186,7 +186,7 @@ Tests for shell command with namespace support:
 
 ```bash
 # Run all tests
-./bin/cortex test
+./bin/ngramx test
 
 # Run specific test file
 ./vendor/bin/phpunit tests/Unit/Config/LockFileTest.php

@@ -12,7 +12,7 @@ description: >-
 ## Teams
 
 - **Gigabyte (GIG)** — client work
-- **Cortex (COR)** — internal Gigabyte tooling
+- **Ngramx (COR)** — internal Gigabyte tooling
 - **Verafind (VF)** — managed on behalf of Verafind staff
 - **GiftACo (GIFT)** — Rob's side project
 

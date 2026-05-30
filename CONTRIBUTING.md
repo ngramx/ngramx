@@ -1,6 +1,6 @@
-# Contributing to Cortex CLI
+# Contributing to Ngramx CLI
 
-Thank you for your interest in contributing to Cortex CLI! 🎉
+Thank you for your interest in contributing to Ngramx CLI! 🎉
 
 ## Getting Started
 
@@ -16,13 +16,13 @@ That's it! All PHP dependencies and tools are containerized.
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/gigabyte-software/cortex-cli.git
-   cd cortex-cli
+   git clone https://github.com/ngramx/ngramx.git
+   cd ngramx
    ```
 
 2. **Start the development environment:**
    ```bash
-   ./bin/cortex up
+   ./bin/ngramx up
    ```
    
    This will:
@@ -32,7 +32,7 @@ That's it! All PHP dependencies and tools are containerized.
 
 3. **Verify everything works:**
    ```bash
-   ./bin/cortex validate
+   ./bin/ngramx validate
    ```
 
 ## Development Workflow
@@ -41,10 +41,10 @@ That's it! All PHP dependencies and tools are containerized.
 
 ```bash
 # Run all tests
-./bin/cortex test
+./bin/ngramx test
 
 # Run tests with HTML coverage report
-./bin/cortex test-coverage
+./bin/ngramx test-coverage
 # Then open coverage-html/index.html in your browser
 ```
 
@@ -52,40 +52,40 @@ That's it! All PHP dependencies and tools are containerized.
 
 ```bash
 # Run PHPStan (level 8)
-./bin/cortex phpstan
+./bin/ngramx phpstan
 ```
 
 ### Code Style
 
 ```bash
 # Check code style
-./bin/cortex cs-check
+./bin/ngramx cs-check
 
 # Automatically fix code style
-./bin/cortex cs-fix
+./bin/ngramx cs-fix
 ```
 
 ### Building the PHAR
 
 ```bash
-./bin/cortex build
+./bin/ngramx build
 ```
 
 ### Working in the Container
 
 ```bash
 # Open an interactive shell
-./bin/cortex shell
+./bin/ngramx shell
 
 # Run custom commands
-./bin/cortex composer require vendor/package
-./bin/cortex php bin/cortex list
+./bin/ngramx composer require vendor/package
+./bin/ngramx php bin/ngramx list
 ```
 
 ### Stopping the Environment
 
 ```bash
-./bin/cortex down
+./bin/ngramx down
 ```
 
 ## Commit Message Convention
@@ -163,22 +163,22 @@ This project follows:
 
 1. **Ensure all tests pass:**
    ```bash
-   ./bin/cortex test
+   ./bin/ngramx test
    ```
 
 2. **Run static analysis:**
    ```bash
-   ./bin/cortex phpstan
+   ./bin/ngramx phpstan
    ```
 
 3. **Format your code:**
    ```bash
-   ./bin/cortex cs-fix
+   ./bin/ngramx cs-fix
    ```
 
 4. **Or run everything at once:**
    ```bash
-   ./bin/cortex validate
+   ./bin/ngramx validate
    ```
 
 5. **Write tests** for new features
@@ -188,8 +188,8 @@ This project follows:
 ## Project Structure
 
 ```
-cortex-cli/
-├── bin/cortex          # CLI entry point
+ngramx/
+├── bin/ngramx          # CLI entry point
 ├── src/                # Source code
 │   ├── Command/        # Symfony Console commands
 │   ├── Config/         # Configuration handling
@@ -201,19 +201,19 @@ cortex-cli/
 │   ├── Unit/           # Unit tests
 │   └── fixtures/       # Test fixtures
 ├── docker/             # Docker development environment
-├── cortex.yml          # Cortex config (for self-development!)
+├── ngramx.yml          # Ngramx config (for self-development!)
 └── docker-compose.yml  # Docker Compose setup
 ```
 
 ## Available Commands
 
-Run `./bin/cortex list` to see all available development commands:
+Run `./bin/ngramx list` to see all available development commands:
 - `test` - Run PHPUnit tests
 - `test-coverage` - Run tests with HTML coverage report
 - `phpstan` - Run PHPStan static analysis
 - `cs-fix` - Fix code style with PHP CS Fixer
 - `cs-check` - Check code style without fixing
-- `build` - Build cortex.phar with Box
+- `build` - Build ngramx.phar with Box
 - `shell` - Open interactive bash shell
 - `composer` - Run composer commands
 - `php` - Run PHP commands
@@ -235,5 +235,5 @@ All checks must pass before a PR can be merged.
 
 ## License
 
-By contributing to Cortex CLI, you agree that your contributions will be licensed under the Apache License 2.0.
+By contributing to Ngramx CLI, you agree that your contributions will be licensed under the Apache License 2.0.
 

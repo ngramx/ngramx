@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Http;
+namespace Ngramx\Tests\Unit\Http;
 
-use Cortex\Http\UrlPortOffset;
+use Ngramx\Http\UrlPortOffset;
 use PHPUnit\Framework\TestCase;
 
 class UrlPortOffsetTest extends TestCase

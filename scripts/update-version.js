@@ -22,8 +22,8 @@ const applicationPath = path.join(__dirname, '..', 'src', 'Application.php');
 try {
   let content = fs.readFileSync(applicationPath, 'utf8');
   
-  // Replace version in: parent::__construct('Cortex CLI', '1.0.6');
-  const versionRegex = /(parent::__construct\(['"]Cortex CLI['"],\s*['"]).+?(['"])/;
+  // Replace version in: parent::__construct('Ngramx CLI', '1.0.6');
+  const versionRegex = /(parent::__construct\(['"]Ngramx CLI['"],\s*['"]).+?(['"])/;
   
   if (!versionRegex.test(content)) {
     console.error('Error: Could not find version pattern in Application.php');

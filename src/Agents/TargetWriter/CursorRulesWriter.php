@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Agents\TargetWriter;
+namespace Ngramx\Agents\TargetWriter;
 
 /**
- * Writes a .cursor/rules/cortex.mdc file with alwaysApply: true frontmatter.
+ * Writes a .cursor/rules/ngramx.mdc file with alwaysApply: true frontmatter.
  */
 final class CursorRulesWriter implements TargetWriterInterface
 {
     public function write(string $projectRoot, string $markdown): bool
     {
         $dir = $projectRoot . '/.cursor/rules';
-        $path = $dir . '/cortex.mdc';
+        $path = $dir . '/ngramx.mdc';
 
         $content = $this->buildMdcContent($markdown);
 
@@ -34,7 +34,7 @@ final class CursorRulesWriter implements TargetWriterInterface
     {
         $frontmatter = <<<'YAML'
 ---
-description: "Cortex project conventions (architecture, DB, dev environment, ticket workflow)"
+description: "Ngramx project conventions (architecture, DB, dev environment, ticket workflow)"
 alwaysApply: true
 ---
 YAML;
@@ -45,7 +45,7 @@ YAML;
     private function writeAtomic(string $path, string $content): bool
     {
         $dir = dirname($path);
-        $tmp = $dir . '/.cortex-mdc.' . bin2hex(random_bytes(8)) . '.tmp';
+        $tmp = $dir . '/.ngramx-mdc.' . bin2hex(random_bytes(8)) . '.tmp';
 
         if (file_put_contents($tmp, $content) === false) {
             return false;

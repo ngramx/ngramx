@@ -43,7 +43,7 @@ Every PR gets two labels — one for risk, one for size. The merge automation re
 
 ## Completion record
 
-After the PR is created, add `.cortex/tickets/[ticket-id]/completion.md`:
+After the PR is created, add `.ngramx/tickets/[ticket-id]/completion.md`:
 
 ```markdown
 ## GitHub PR

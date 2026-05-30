@@ -1,10 +1,10 @@
 {
-  "name": "cortex-cli",
+  "name": "ngramx",
   "version": "0.0.0-development",
   "description": "A CLI tool for orchestrating Docker-based development environments",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gigabyte-software/cortex-cli.git"
+    "url": "git+https://github.com/ngramx/ngramx.git"
   },
   "license": "Apache-2.0",
   "private": true,

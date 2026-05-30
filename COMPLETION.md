@@ -6,8 +6,8 @@ Due to PHAR packaging limitations, tab completion needs to be set up manually. I
 
 ```bash
 # Generate completion script from source (not PHAR)
-cd /home/rob/projects/cortex-cli
-./bin/cortex completion bash | sudo tee /etc/bash_completion.d/cortex
+cd /home/rob/projects/ngramx
+./bin/ngramx completion bash | sudo tee /etc/bash_completion.d/ngramx
 
 # Reload your shell
 source ~/.bashrc
@@ -17,8 +17,8 @@ source ~/.bashrc
 
 ```bash
 # Generate completion script from source (not PHAR)
-cd /home/rob/projects/cortex-cli
-./bin/cortex completion zsh | sudo tee /usr/share/zsh/vendor-completions/_cortex
+cd /home/rob/projects/ngramx
+./bin/ngramx completion zsh | sudo tee /usr/share/zsh/vendor-completions/_ngramx
 
 # Reload your shell
 source ~/.zshrc
@@ -28,14 +28,14 @@ source ~/.zshrc
 
 ### Bash
 ```bash
-./bin/cortex completion bash >> ~/.bash_completion
+./bin/ngramx completion bash >> ~/.bash_completion
 source ~/.bashrc
 ```
 
 ### Zsh
 ```bash
 mkdir -p ~/.zsh/completion
-./bin/cortex completion zsh > ~/.zsh/completion/_cortex
+./bin/ngramx completion zsh > ~/.zsh/completion/_ngramx
 
 # Add to ~/.zshrc if not already there:
 echo 'fpath=(~/.zsh/completion $fpath)' >> ~/.zshrc
@@ -48,7 +48,7 @@ source ~/.zshrc
 
 ```bash
 # Type this and hit TAB
-cortex <TAB>
+ngramx <TAB>
 
 # Should show: up, down, status, and your custom commands
 ```

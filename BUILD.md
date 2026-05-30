@@ -1,4 +1,4 @@
-# Building Cortex CLI
+# Building Ngramx CLI
 
 ## Prerequisites
 
@@ -25,44 +25,44 @@ composer install --no-dev --optimize-autoloader
 box compile
 ```
 
-This will create `cortex.phar` in the project root.
+This will create `ngramx.phar` in the project root.
 
 ### 3. Test the PHAR
 
 ```bash
-php cortex.phar --version
-php cortex.phar list
+php ngramx.phar --version
+php ngramx.phar list
 ```
 
 ### 4. Make it Executable
 
 ```bash
-chmod +x cortex.phar
-./cortex.phar --version
+chmod +x ngramx.phar
+./ngramx.phar --version
 ```
 
 ## Distribution
 
 ### Option 1: GitHub Releases (Recommended)
 
-Upload `cortex.phar` and `install.sh` to GitHub Releases:
+Upload `ngramx.phar` and `install.sh` to GitHub Releases:
 
 ```bash
 # Create release with both files
-gh release create v1.0.0 cortex.phar install.sh \
-  --title "Cortex CLI v1.0.0" \
+gh release create v1.0.0 ngramx.phar install.sh \
+  --title "Ngramx CLI v1.0.0" \
   --notes "Initial release - Docker development environment orchestration"
 
 # Users can then install with one command:
-curl -fsSL https://github.com/gigabyte-software/cortex-cli/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/ngramx/ngramx/releases/latest/download/install.sh | bash
 ```
 
 ### Option 2: Manual Download
 
 ```bash
 # Download files
-curl -L https://github.com/gigabyte-software/cortex-cli/releases/latest/download/cortex.phar -o cortex.phar
-curl -L https://github.com/gigabyte-software/cortex-cli/releases/latest/download/install.sh -o install.sh
+curl -L https://github.com/ngramx/ngramx/releases/latest/download/ngramx.phar -o ngramx.phar
+curl -L https://github.com/ngramx/ngramx/releases/latest/download/install.sh -o install.sh
 
 # Run installer
 chmod +x install.sh
@@ -72,7 +72,7 @@ chmod +x install.sh
 ## Installation Script
 
 The `install.sh` script:
-1. Copies PHAR to `/usr/local/bin/cortex`
+1. Copies PHAR to `/usr/local/bin/ngramx`
 2. Makes it executable
 3. Uses Gigabyte brand colors for output
 4. Shows quick start guide
@@ -112,7 +112,7 @@ echo 'export PATH="$PATH:$HOME/.config/composer/vendor/bin"' >> ~/.bashrc
 ```bash
 # Use sudo for box compile if needed
 sudo box compile
-sudo chown $USER:$USER cortex.phar
+sudo chown $USER:$USER ngramx.phar
 ```
 
 ### PHAR readonly errors
@@ -161,7 +161,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            cortex.phar
+            ngramx.phar
             install.sh
 ```
 
@@ -184,14 +184,14 @@ To reduce size:
 box compile --with-sign
 
 # Verify signature
-box verify cortex.phar
+box verify ngramx.phar
 ```
 
 ## Testing PHAR
 
 ```bash
 # Test in clean environment
-docker run --rm -it -v $(pwd)/cortex.phar:/usr/local/bin/cortex php:8.2-cli bash
-cortex --version
+docker run --rm -it -v $(pwd)/ngramx.phar:/usr/local/bin/ngramx php:8.2-cli bash
+ngramx --version
 ```
 

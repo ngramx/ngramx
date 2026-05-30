@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    container_name: cortex-dev
+    container_name: ngramx-dev
     working_dir: /app
     volumes:
       - .:/app

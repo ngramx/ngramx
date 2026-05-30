@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Docker;
+namespace Ngramx\Docker;
 
 use Symfony\Component\Process\Process;
 
@@ -15,7 +15,7 @@ use Symfony\Component\Process\Process;
  * service's name (e.g. an app container's `getent hosts db` returns
  * nothing), entrypoints sit in wait-for-db loops, php-fpm never starts,
  * nginx hands out 502s. Docker reports every container as `running`, so
- * cortex's existing readiness checks have no way to spot it.
+ * ngramx's existing readiness checks have no way to spot it.
  *
  * This checker enumerates each compose service, asks Docker for the
  * container's real network attachment, and reports any service that's

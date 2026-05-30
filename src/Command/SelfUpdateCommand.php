@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command;
+namespace Ngramx\Command;
 
-use Cortex\Output\OutputFormatter;
+use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -12,14 +12,14 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class SelfUpdateCommand extends Command
 {
-    private const GITHUB_REPO = 'gigabyte-software/cortex-cli';
+    private const GITHUB_REPO = 'ngramx/ngramx';
     private const GITHUB_API_URL = 'https://api.github.com/repos/' . self::GITHUB_REPO . '/releases/latest';
 
     protected function configure(): void
     {
         $this
             ->setName('update')
-            ->setDescription('Update Cortex CLI to the latest version')
+            ->setDescription('Update Ngramx CLI to the latest version')
             ->addOption('check', null, InputOption::VALUE_NONE, 'Check for updates without installing')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Force update even if already on latest version');
     }
@@ -42,7 +42,7 @@ class SelfUpdateCommand extends Command
         if (!is_writable($pharPath)) {
             $formatter->error("Cannot update: No write permission to $pharPath");
             $formatter->info('Try running with sudo:');
-            $formatter->info('  sudo cortex update');
+            $formatter->info('  sudo ngramx update');
             return Command::FAILURE;
         }
 
@@ -91,7 +91,7 @@ class SelfUpdateCommand extends Command
 
             $formatter->success("✓ Successfully updated to version $latestVersion");
             $formatter->info('');
-            $formatter->info('Run "cortex --version" to verify');
+            $formatter->info('Run "ngramx --version" to verify');
 
             return Command::SUCCESS;
         } catch (\Exception $e) {
@@ -109,7 +109,7 @@ class SelfUpdateCommand extends Command
             'http' => [
                 'method' => 'GET',
                 'header' => [
-                    'User-Agent: Cortex-CLI',
+                    'User-Agent: Ngramx-CLI',
                     'Accept: application/json',
                 ],
                 'timeout' => 10,
@@ -128,17 +128,17 @@ class SelfUpdateCommand extends Command
             throw new \RuntimeException('Invalid response from GitHub API');
         }
 
-        // Find the cortex.phar asset
+        // Find the ngramx.phar asset
         $downloadUrl = null;
         foreach ($data['assets'] as $asset) {
-            if (isset($asset['name']) && $asset['name'] === 'cortex.phar') {
+            if (isset($asset['name']) && $asset['name'] === 'ngramx.phar') {
                 $downloadUrl = $asset['browser_download_url'];
                 break;
             }
         }
 
         if ($downloadUrl === null) {
-            throw new \RuntimeException('cortex.phar not found in latest release');
+            throw new \RuntimeException('ngramx.phar not found in latest release');
         }
 
         // Remove 'v' prefix if present
@@ -152,7 +152,7 @@ class SelfUpdateCommand extends Command
 
     private function downloadLatestVersion(string $downloadUrl): string
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'cortex_update_');
+        $tempFile = tempnam(sys_get_temp_dir(), 'ngramx_update_');
 
         if ($tempFile === false) {
             throw new \RuntimeException('Failed to create temporary file');
@@ -161,7 +161,7 @@ class SelfUpdateCommand extends Command
         $context = stream_context_create([
             'http' => [
                 'method' => 'GET',
-                'header' => 'User-Agent: Cortex-CLI',
+                'header' => 'User-Agent: Ngramx-CLI',
                 'timeout' => 60,
                 'follow_location' => 1,
             ],
@@ -201,7 +201,7 @@ class SelfUpdateCommand extends Command
             new \Phar($tempFile);
         } catch (\Exception $e) {
             // If Phar loading fails but file looks like PHP, it might be a stub-only PHAR
-            // Check file size - should be at least 10KB for a valid Cortex PHAR
+            // Check file size - should be at least 10KB for a valid Ngramx PHAR
             $fileSize = filesize($tempFile);
             if ($fileSize === false || $fileSize < 10240) {
                 @unlink($tempFile);

@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Agents\TargetWriter;
+namespace Ngramx\Agents\TargetWriter;
 
 /**
- * Writes a CLAUDE.md file at the project root with a Cortex-managed section.
+ * Writes a CLAUDE.md file at the project root with a Ngramx-managed section.
  */
 final class ClaudeMdWriter implements TargetWriterInterface
 {
-    private const MARKER_BEGIN = '<!-- CORTEX_CLAUDE_MANAGED_BEGIN -->';
+    private const MARKER_BEGIN = '<!-- NGRAMX_CLAUDE_MANAGED_BEGIN -->';
 
-    private const MARKER_END = '<!-- CORTEX_CLAUDE_MANAGED_END -->';
+    private const MARKER_END = '<!-- NGRAMX_CLAUDE_MANAGED_END -->';
 
     public function write(string $projectRoot, string $markdown): bool
     {

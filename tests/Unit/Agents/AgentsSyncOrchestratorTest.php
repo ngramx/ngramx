@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Agents;
 
-use Cortex\Agents\AgentsSyncOrchestrator;
-use Cortex\Config\Schema\AgentsConfig;
+use Ngramx\Agents\AgentsSyncOrchestrator;
+use Ngramx\Config\Schema\AgentsConfig;
 use PHPUnit\Framework\TestCase;
 
 class AgentsSyncOrchestratorTest extends TestCase
@@ -15,7 +15,7 @@ class AgentsSyncOrchestratorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->projectDir = sys_get_temp_dir() . '/cortex_orchestrator_test_' . uniqid();
+        $this->projectDir = sys_get_temp_dir() . '/ngramx_orchestrator_test_' . uniqid();
         mkdir($this->projectDir, 0755, true);
     }
 
@@ -31,7 +31,7 @@ class AgentsSyncOrchestratorTest extends TestCase
 
         $this->assertContains('agents_md', $result['targets_changed']);
         $this->assertFileExists($this->projectDir . '/AGENTS.md');
-        $this->assertFileExists($this->projectDir . '/.cursor/rules/cortex.mdc');
+        $this->assertFileExists($this->projectDir . '/.cursor/rules/ngramx.mdc');
     }
 
     public function test_sync_with_all_targets(): void
@@ -45,7 +45,7 @@ class AgentsSyncOrchestratorTest extends TestCase
         $result = $orchestrator->sync($this->projectDir, $config);
 
         $this->assertFileExists($this->projectDir . '/AGENTS.md');
-        $this->assertFileExists($this->projectDir . '/.cursor/rules/cortex.mdc');
+        $this->assertFileExists($this->projectDir . '/.cursor/rules/ngramx.mdc');
         $this->assertFileExists($this->projectDir . '/CLAUDE.md');
         $this->assertFileExists($this->projectDir . '/.github/copilot-instructions.md');
         $this->assertTrue($result['skills_changed']);
@@ -62,7 +62,7 @@ class AgentsSyncOrchestratorTest extends TestCase
         $orchestrator->sync($this->projectDir, $config);
 
         $this->assertFileExists($this->projectDir . '/AGENTS.md');
-        $this->assertFileDoesNotExist($this->projectDir . '/.cursor/rules/cortex.mdc');
+        $this->assertFileDoesNotExist($this->projectDir . '/.cursor/rules/ngramx.mdc');
         $this->assertFileDoesNotExist($this->projectDir . '/CLAUDE.md');
     }
 

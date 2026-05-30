@@ -2,7 +2,7 @@
 
 ## Overview
 
-Implemented an `update` command for Cortex CLI that allows users to update their installation to the latest version from GitHub releases.
+Implemented an `update` command for Ngramx CLI that allows users to update their installation to the latest version from GitHub releases.
 
 ## Implementation Details
 
@@ -55,13 +55,13 @@ Implemented an `update` command for Cortex CLI that allows users to update their
 
 ```bash
 # Update to latest version
-cortex update
+ngramx update
 
 # Check if update is available
-cortex update --check
+ngramx update --check
 
 # Force update even if already latest
-cortex update --force
+ngramx update --force
 ```
 
 ## When Running from Source

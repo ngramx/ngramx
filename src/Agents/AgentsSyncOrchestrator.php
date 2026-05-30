@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Agents;
+namespace Ngramx\Agents;
 
-use Cortex\Agents\TargetWriter\ClaudeMdWriter;
-use Cortex\Agents\TargetWriter\CopilotInstructionsWriter;
-use Cortex\Agents\TargetWriter\CursorRulesWriter;
-use Cortex\Agents\TargetWriter\TargetWriterInterface;
-use Cortex\Config\Schema\AgentsConfig;
+use Ngramx\Agents\TargetWriter\ClaudeMdWriter;
+use Ngramx\Agents\TargetWriter\CopilotInstructionsWriter;
+use Ngramx\Agents\TargetWriter\CursorRulesWriter;
+use Ngramx\Agents\TargetWriter\TargetWriterInterface;
+use Ngramx\Config\Schema\AgentsConfig;
 
 /**
  * Orchestrates the sync of agent instructions to all configured targets.
@@ -76,7 +76,7 @@ final class AgentsSyncOrchestrator
     }
 
     /**
-     * Convenience method: sync using default config (for when no cortex.yml is available).
+     * Convenience method: sync using default config (for when no ngramx.yml is available).
      *
      * @return array{targets_changed: list<string>, skills_changed: bool}
      */

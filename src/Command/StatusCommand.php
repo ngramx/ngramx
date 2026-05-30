@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command;
+namespace Ngramx\Command;
 
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\LockFile;
-use Cortex\Docker\DockerCompose;
-use Cortex\Docker\HealthChecker;
-use Cortex\Output\OutputFormatter;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\LockFile;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\HealthChecker;
+use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Input\InputInterface;
@@ -70,7 +70,7 @@ class StatusCommand extends Command
             // Check if services are running
             if (!$this->dockerCompose->isRunning($config->docker->composeFile, $namespace)) {
                 $formatter->warning('No services are currently running');
-                $formatter->info('Run "cortex up" to start the environment');
+                $formatter->info('Run "ngramx up" to start the environment');
                 return Command::SUCCESS;
             }
 

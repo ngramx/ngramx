@@ -2,51 +2,51 @@
 
 declare(strict_types=1);
 
-namespace Cortex;
+namespace Ngramx;
 
-use Cortex\Agents\AgentsMdSynchronizer;
-use Cortex\Agents\AgentsSyncOrchestrator;
-use Cortex\Caddy\CaddyService;
-use Cortex\Command\DownCommand;
-use Cortex\Command\DynamicCommand;
-use Cortex\Command\InitCommand;
-use Cortex\Command\InitGithubActionsCommand;
-use Cortex\Command\LogsCommand;
-use Cortex\Command\N8n\ExportCommand;
-use Cortex\Command\N8n\ImportCommand;
-use Cortex\Command\N8n\NormaliseCommand;
-use Cortex\Command\RebuildCommand;
-use Cortex\Command\ReviewCommand;
-use Cortex\Command\SecureCommand;
-use Cortex\Command\SelfUpdateCommand;
-use Cortex\Command\ShellCommand;
-use Cortex\Command\ShowUrlCommand;
-use Cortex\Command\StatusCommand;
-use Cortex\Command\StyleDemoCommand;
-use Cortex\Command\SyncAgentsCommand;
-use Cortex\Command\UpCommand;
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\ConfigWarningChecker;
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\LockFile;
-use Cortex\Config\Validator\ConfigValidator;
-use Cortex\Docker\ComposeOverrideGenerator;
-use Cortex\Docker\ContainerExecutor;
-use Cortex\Docker\DockerCompose;
-use Cortex\Docker\HealthChecker;
-use Cortex\Docker\ImageReuser;
-use Cortex\Docker\NamespaceResolver;
-use Cortex\Docker\PortOffsetManager;
-use Cortex\Executor\HostCommandExecutor;
-use Cortex\Git\GitExcludeManager;
-use Cortex\Git\GitRepositoryService;
-use Cortex\Herd\HerdService;
-use Cortex\Laravel\LaravelLogParser;
-use Cortex\Laravel\LaravelService;
-use Cortex\Orchestrator\CommandOrchestrator;
-use Cortex\Orchestrator\SetupOrchestrator;
-use Cortex\Output\OutputFormatter;
 use GuzzleHttp\Client;
+use Ngramx\Agents\AgentsMdSynchronizer;
+use Ngramx\Agents\AgentsSyncOrchestrator;
+use Ngramx\Caddy\CaddyService;
+use Ngramx\Command\DownCommand;
+use Ngramx\Command\DynamicCommand;
+use Ngramx\Command\InitCommand;
+use Ngramx\Command\InitGithubActionsCommand;
+use Ngramx\Command\LogsCommand;
+use Ngramx\Command\N8n\ExportCommand;
+use Ngramx\Command\N8n\ImportCommand;
+use Ngramx\Command\N8n\NormaliseCommand;
+use Ngramx\Command\RebuildCommand;
+use Ngramx\Command\ReviewCommand;
+use Ngramx\Command\SecureCommand;
+use Ngramx\Command\SelfUpdateCommand;
+use Ngramx\Command\ShellCommand;
+use Ngramx\Command\ShowUrlCommand;
+use Ngramx\Command\StatusCommand;
+use Ngramx\Command\StyleDemoCommand;
+use Ngramx\Command\SyncAgentsCommand;
+use Ngramx\Command\UpCommand;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\ConfigWarningChecker;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\LockFile;
+use Ngramx\Config\Validator\ConfigValidator;
+use Ngramx\Docker\ComposeOverrideGenerator;
+use Ngramx\Docker\ContainerExecutor;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\HealthChecker;
+use Ngramx\Docker\ImageReuser;
+use Ngramx\Docker\NamespaceResolver;
+use Ngramx\Docker\PortOffsetManager;
+use Ngramx\Executor\HostCommandExecutor;
+use Ngramx\Git\GitExcludeManager;
+use Ngramx\Git\GitRepositoryService;
+use Ngramx\Herd\HerdService;
+use Ngramx\Laravel\LaravelLogParser;
+use Ngramx\Laravel\LaravelService;
+use Ngramx\Orchestrator\CommandOrchestrator;
+use Ngramx\Orchestrator\SetupOrchestrator;
+use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Application as BaseApplication;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -82,7 +82,7 @@ class Application extends BaseApplication
     }
 
     /**
-     * Errors surfaced while attempting to load `cortex.yml` during boot.
+     * Errors surfaced while attempting to load `ngramx.yml` during boot.
      *
      * The constructor used to swallow these silently to allow commands like
      * `help` and `self-update` to work from any directory, but that also
@@ -115,7 +115,7 @@ class Application extends BaseApplication
 
     public function __construct()
     {
-        parent::__construct('Cortex CLI', '2.21.1');
+        parent::__construct('Ngramx CLI', '2.21.1');
 
         // Simple dependency injection
         $configValidator = new ConfigValidator();
@@ -243,11 +243,11 @@ class Application extends BaseApplication
             $overrideGenerator
         ));
 
-        // Try to load cortex.yml and register custom commands dynamically.
+        // Try to load ngramx.yml and register custom commands dynamically.
         //
-        // The "no cortex.yml in scope" case is silent on purpose — users
-        // are allowed to run `cortex --version`, `cortex help`, etc. from
-        // anywhere. But if a cortex.yml DOES exist and we couldn't parse
+        // The "no ngramx.yml in scope" case is silent on purpose — users
+        // are allowed to run `ngramx --version`, `ngramx help`, etc. from
+        // anywhere. But if a ngramx.yml DOES exist and we couldn't parse
         // it, that almost always means a real config bug, and silently
         // swallowing the error leaves the user staring at a CLI that's
         // missing all their custom commands with no explanation.
@@ -255,7 +255,7 @@ class Application extends BaseApplication
         try {
             $configPath = $configLoader->findConfigFile();
         } catch (ConfigException) {
-            // No cortex.yml found in cwd or its parents — fine.
+            // No ngramx.yml found in cwd or its parents — fine.
         }
 
         if ($configPath !== null) {
@@ -304,7 +304,7 @@ class Application extends BaseApplication
             foreach ($this->configLoadErrors as $error) {
                 $formatter->warning("  ⚠ $error");
             }
-            $formatter->info('Custom commands from `cortex.yml` are unavailable until the file is fixed.');
+            $formatter->info('Custom commands from `ngramx.yml` are unavailable until the file is fixed.');
             $output->writeln('');
         }
 
@@ -328,7 +328,7 @@ class Application extends BaseApplication
             $config = $configLoader->load($configPath);
             (new AgentsSyncOrchestrator())->sync($projectRoot, $config->agents);
         } catch (ConfigException) {
-            // No cortex.yml in cwd or parents — fall back to AGENTS.md only
+            // No ngramx.yml in cwd or parents — fall back to AGENTS.md only
             try {
                 $cwd = getcwd();
                 if ($cwd !== false) {

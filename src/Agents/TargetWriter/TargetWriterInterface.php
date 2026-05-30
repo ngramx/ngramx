@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Agents\TargetWriter;
+namespace Ngramx\Agents\TargetWriter;
 
 interface TargetWriterInterface
 {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Output;
+namespace Ngramx\Output;
 
 use Symfony\Component\Console\Output\ConsoleSectionOutput;
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Agents\TargetWriter;
 
-use Cortex\Agents\TargetWriter\CursorRulesWriter;
+use Ngramx\Agents\TargetWriter\CursorRulesWriter;
 use PHPUnit\Framework\TestCase;
 
 class CursorRulesWriterTest extends TestCase
@@ -14,7 +14,7 @@ class CursorRulesWriterTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->projectDir = sys_get_temp_dir() . '/cortex_cursor_writer_' . uniqid();
+        $this->projectDir = sys_get_temp_dir() . '/ngramx_cursor_writer_' . uniqid();
         mkdir($this->projectDir, 0755, true);
     }
 
@@ -29,9 +29,9 @@ class CursorRulesWriterTest extends TestCase
         $changed = $writer->write($this->projectDir, '# Test content');
 
         $this->assertTrue($changed);
-        $this->assertFileExists($this->projectDir . '/.cursor/rules/cortex.mdc');
+        $this->assertFileExists($this->projectDir . '/.cursor/rules/ngramx.mdc');
 
-        $content = file_get_contents($this->projectDir . '/.cursor/rules/cortex.mdc');
+        $content = file_get_contents($this->projectDir . '/.cursor/rules/ngramx.mdc');
         $this->assertIsString($content);
         assert(is_string($content));
         $this->assertStringContainsString('alwaysApply: true', $content);
@@ -55,7 +55,7 @@ class CursorRulesWriterTest extends TestCase
         $changed = $writer->write($this->projectDir, '# Updated');
         $this->assertTrue($changed);
 
-        $content = file_get_contents($this->projectDir . '/.cursor/rules/cortex.mdc');
+        $content = file_get_contents($this->projectDir . '/.cursor/rules/ngramx.mdc');
         $this->assertIsString($content);
         assert(is_string($content));
         $this->assertStringContainsString('# Updated', $content);

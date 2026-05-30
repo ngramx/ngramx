@@ -2,9 +2,9 @@
 
 ## ✅ What Was Implemented
 
-Two new commands have been added to Cortex CLI:
-1. **`cortex down`** - Stop Docker services
-2. **`cortex status`** - Check service status
+Two new commands have been added to Ngramx CLI:
+1. **`ngramx down`** - Stop Docker services
+2. **`ngramx status`** - Check service status
 
 ## 1. Down Command
 
@@ -12,16 +12,16 @@ Two new commands have been added to Cortex CLI:
 - Stops all Docker Compose services
 - Optional `--volumes` flag to remove volumes
 - Uses same beautiful purple/teal color scheme
-- Finds cortex.yml automatically
+- Finds ngramx.yml automatically
 
 ### Usage
 
 ```bash
 # Stop services (keep volumes)
-cortex down
+ngramx down
 
 # Stop services and remove volumes
-cortex down --volumes
+ngramx down --volumes
 ```
 
 ### Output Example
@@ -36,7 +36,7 @@ Environment stopped successfully
 ### Implementation
 **File:** `src/Command/DownCommand.php`
 
-- Loads cortex.yml to get compose file path
+- Loads ngramx.yml to get compose file path
 - Calls `DockerCompose::down()` with optional volumes flag
 - Shows purple success message
 - Handles errors gracefully
@@ -52,7 +52,7 @@ Environment stopped successfully
 ### Usage
 
 ```bash
-cortex status
+ngramx status
 ```
 
 ### Output Example
@@ -73,7 +73,7 @@ When nothing is running:
 ```
 ▸ Service Status
   No services are currently running
-  Run "cortex up" to start the environment
+  Run "ngramx up" to start the environment
 ```
 
 ### Color Coding
@@ -92,7 +92,7 @@ When nothing is running:
 ### Implementation
 **File:** `src/Command/StatusCommand.php`
 
-- Loads cortex.yml
+- Loads ngramx.yml
 - Calls `DockerCompose::ps()` to get service list
 - Calls `HealthChecker::getHealthStatus()` for each service
 - Uses Symfony Console Table component
@@ -117,10 +117,10 @@ src/Application.php - Registered new commands
 
 ```bash
 # 1. Navigate to test directory
-cd /home/rob/projects/cortex-cli/tests/fixtures
+cd /home/rob/projects/ngramx/tests/fixtures
 
 # 2. Check commands are registered
-../../bin/cortex list
+../../bin/ngramx list
 
 # You should see:
 # - down
@@ -128,28 +128,28 @@ cd /home/rob/projects/cortex-cli/tests/fixtures
 # - up
 
 # 3. Start environment
-../../bin/cortex up
+../../bin/ngramx up
 
 # 4. Check status (should show running services)
-../../bin/cortex status
+../../bin/ngramx status
 
 # 5. Stop services
-../../bin/cortex down
+../../bin/ngramx down
 
 # 6. Check status again (should show no services)
-../../bin/cortex status
+../../bin/ngramx status
 
 # 7. Clean up with volumes
-../../bin/cortex down --volumes
+../../bin/ngramx down --volumes
 ```
 
 ### Expected Behavior
 
 | Command | When Services Running | When Services Stopped |
 |---------|----------------------|----------------------|
-| `cortex status` | Shows table with services | "No services running" |
-| `cortex down` | Stops services | Shows error or "already stopped" |
-| `cortex down -v` | Stops + removes volumes | Shows error or "already stopped" |
+| `ngramx status` | Shows table with services | "No services running" |
+| `ngramx down` | Stops services | Shows error or "already stopped" |
+| `ngramx down -v` | Stops + removes volumes | Shows error or "already stopped" |
 
 ## Integration with Existing Commands
 
@@ -157,25 +157,25 @@ cd /home/rob/projects/cortex-cli/tests/fixtures
 
 ```bash
 # Start your dev environment
-cortex up
+ngramx up
 
 # Check everything is running
-cortex status
+ngramx status
 
 # Work on your project...
 
 # Stop when done
-cortex down
+ngramx down
 
 # Or stop and clean volumes
-cortex down --volumes
+ngramx down --volumes
 ```
 
 ## Command Help
 
 ### Down Command Help
 ```bash
-cortex down --help
+ngramx down --help
 
 Description:
   Tear down the development environment
@@ -190,7 +190,7 @@ Options:
 
 ### Status Command Help
 ```bash
-cortex status --help
+ngramx status --help
 
 Description:
   Check the health status of services
@@ -224,13 +224,13 @@ Both commands use the Gigabyte brand colors:
 ## Edge Cases Handled
 
 ### DownCommand
-- ✅ No cortex.yml found
+- ✅ No ngramx.yml found
 - ✅ Services already stopped
 - ✅ Invalid compose file path
 - ✅ Docker not running
 
 ### StatusCommand
-- ✅ No cortex.yml found
+- ✅ No ngramx.yml found
 - ✅ No services running
 - ✅ Services without healthchecks
 - ✅ Docker not running
@@ -239,9 +239,9 @@ Both commands use the Gigabyte brand colors:
 ## What's Next
 
 These two commands complete the basic lifecycle:
-- ✅ `cortex up` - Start environment
-- ✅ `cortex status` - Check environment
-- ✅ `cortex down` - Stop environment
+- ✅ `ngramx up` - Start environment
+- ✅ `ngramx status` - Check environment
+- ✅ `ngramx down` - Stop environment
 
 **Not Yet Implemented (Future):**
 - Real-time output streaming (separate commit)
@@ -251,11 +251,11 @@ These two commands complete the basic lifecycle:
 ## Success Criteria
 
 Down & Status commands are working if:
-- ✅ Both commands show in `cortex list`
-- ✅ `cortex down` stops Docker services
-- ✅ `cortex down --volumes` removes volumes
-- ✅ `cortex status` shows running services in table
-- ✅ `cortex status` shows helpful message when nothing running
+- ✅ Both commands show in `ngramx list`
+- ✅ `ngramx down` stops Docker services
+- ✅ `ngramx down --volumes` removes volumes
+- ✅ `ngramx status` shows running services in table
+- ✅ `ngramx status` shows helpful message when nothing running
 - ✅ Colors match Gigabyte brand
 - ✅ Error messages are clear and helpful
 
@@ -264,8 +264,8 @@ Down & Status commands are working if:
 Test the new commands right now:
 
 ```bash
-cd /home/rob/projects/cortex-cli/tests/fixtures
-../../bin/cortex up && ../../bin/cortex status && ../../bin/cortex down
+cd /home/rob/projects/ngramx/tests/fixtures
+../../bin/ngramx up && ../../bin/ngramx status && ../../bin/ngramx down
 ```
 
 This will:

@@ -1,15 +1,15 @@
 /vendor/
 /.php-cs-fixer.cache
 /.phpunit.cache
-/cortex.phar
+/ngramx.phar
 /coverage.xml
 /coverage-html/
 
 # Docker
 /docker-compose.override.yml
 
-# Cortex CLI
-/.cortex.lock
+# Ngramx CLI
+/.ngramx.lock
 
 # Node.js / Semantic Release
 /node_modules/

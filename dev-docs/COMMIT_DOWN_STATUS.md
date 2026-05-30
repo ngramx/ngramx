@@ -2,9 +2,9 @@
 
 ## Summary
 
-Added two essential lifecycle management commands to Cortex CLI:
-- `cortex down` - Stop Docker services
-- `cortex status` - Check service health
+Added two essential lifecycle management commands to Ngramx CLI:
+- `ngramx down` - Stop Docker services
+- `ngramx status` - Check service health
 
 ## Changes
 
@@ -39,16 +39,16 @@ Added two essential lifecycle management commands to Cortex CLI:
 
 ```bash
 # Start environment
-cortex up
+ngramx up
 
 # Check what's running
-cortex status
+ngramx status
 
 # Stop services (keep volumes)
-cortex down
+ngramx down
 
 # Stop and remove volumes
-cortex down --volumes
+ngramx down --volumes
 ```
 
 ## Testing
@@ -56,10 +56,10 @@ cortex down --volumes
 Manual test sequence:
 ```bash
 cd tests/fixtures
-../../bin/cortex up
-../../bin/cortex status    # Should show running services
-../../bin/cortex down
-../../bin/cortex status    # Should show no services
+../../bin/ngramx up
+../../bin/ngramx status    # Should show running services
+../../bin/ngramx down
+../../bin/ngramx status    # Should show no services
 ```
 
 ## Design
@@ -94,9 +94,9 @@ Both commands follow established patterns:
 ```
 feat: add down and status commands
 
-- Add cortex down command to stop Docker services
-- Add cortex down --volumes to remove volumes
-- Add cortex status command with service health table
+- Add ngramx down command to stop Docker services
+- Add ngramx down --volumes to remove volumes
+- Add ngramx status command with service health table
 - Color-coded status indicators (green/red/yellow)
 - Update README with new commands
 - Add comprehensive documentation

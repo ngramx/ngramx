@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Laravel;
+namespace Ngramx\Laravel;
 
-use Cortex\Docker\ContainerExecutor;
+use Ngramx\Docker\ContainerExecutor;
 
 class LaravelService
 {

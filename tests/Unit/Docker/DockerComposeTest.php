@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Docker;
+namespace Ngramx\Tests\Unit\Docker;
 
-use Cortex\Docker\DockerCompose;
+use Ngramx\Docker\DockerCompose;
 use PHPUnit\Framework\TestCase;
 
 class DockerComposeTest extends TestCase

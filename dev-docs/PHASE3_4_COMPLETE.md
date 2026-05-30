@@ -28,7 +28,7 @@ Command output now streams **as it happens** instead of waiting for completion.
 
 ### 2. SetupOrchestrator
 
-Refactored `cortex up` logic into a dedicated orchestrator class.
+Refactored `ngramx up` logic into a dedicated orchestrator class.
 
 **Benefits:**
 - Clean separation of concerns
@@ -44,7 +44,7 @@ Refactored `cortex up` logic into a dedicated orchestrator class.
 
 ### 3. CommandOrchestrator
 
-New orchestrator for running custom commands from `cortex.yml`.
+New orchestrator for running custom commands from `ngramx.yml`.
 
 **Features:**
 - Looks up commands by name
@@ -55,15 +55,15 @@ New orchestrator for running custom commands from `cortex.yml`.
 
 ### 4. RunCommand
 
-New `cortex run` command to execute custom commands.
+New `ngramx run` command to execute custom commands.
 
 **Usage:**
 ```bash
 # Run a custom command
-cortex run test
+ngramx run test
 
 # List all available commands
-cortex run --list
+ngramx run --list
 ```
 
 **Features:**
@@ -78,7 +78,7 @@ Built-in command discovery and listing.
 
 **Usage:**
 ```bash
-cortex run --list
+ngramx run --list
 ```
 
 **Output:**
@@ -93,14 +93,14 @@ cortex run --list
 │ info    │ Show PHP info       │
 └─────────┴─────────────────────┘
 
-  Run a command with: cortex run <command-name>
+  Run a command with: ngramx run <command-name>
 ```
 
 ## 📁 Files Created/Modified
 
 ### New Files (3)
 ```
-src/Orchestrator/SetupOrchestrator.php     - Orchestrates cortex up
+src/Orchestrator/SetupOrchestrator.php     - Orchestrates ngramx up
 src/Orchestrator/CommandOrchestrator.php   - Orchestrates custom commands
 src/Command/RunCommand.php                 - Run custom commands
 ```
@@ -112,24 +112,24 @@ src/Application.php                        - Register orchestrators and RunComma
 src/Executor/HostCommandExecutor.php       - Added streaming support
 src/Executor/ContainerCommandExecutor.php  - Added streaming support
 src/Docker/ContainerExecutor.php           - Added streaming support
-tests/fixtures/cortex.yml                  - Added example custom commands
+tests/fixtures/ngramx.yml                  - Added example custom commands
 ```
 
 ## 🚀 Complete Command Set
 
-Cortex CLI now has a full suite of commands:
+Ngramx CLI now has a full suite of commands:
 
 | Command | Description | Phase |
 |---------|-------------|-------|
-| `cortex up` | Start development environment | 1-3 |
-| `cortex down` | Stop environment | 3 |
-| `cortex status` | Check service status | 3 |
-| `cortex run <cmd>` | Run custom command | 4 |
-| `cortex run --list` | List custom commands | 4 |
+| `ngramx up` | Start development environment | 1-3 |
+| `ngramx down` | Stop environment | 3 |
+| `ngramx status` | Check service status | 3 |
+| `ngramx run <cmd>` | Run custom command | 4 |
+| `ngramx run --list` | List custom commands | 4 |
 
 ## 💡 Example Usage
 
-### Define Custom Commands in cortex.yml
+### Define Custom Commands in ngramx.yml
 
 ```yaml
 commands:
@@ -155,25 +155,25 @@ commands:
 
 ```bash
 # Start environment with real-time output
-cortex up
+ngramx up
 
 # Run tests
-cortex run test
+ngramx run test
 
 # Run migrations
-cortex run migrate
+ngramx run migrate
 
 # Reset database
-cortex run fresh
+ngramx run fresh
 
 # List all commands
-cortex run --list
+ngramx run --list
 
 # Check status
-cortex status
+ngramx status
 
 # Stop everything
-cortex down
+ngramx down
 ```
 
 ## 🎨 Real-Time Streaming in Action
@@ -228,7 +228,7 @@ RunCommand
 ### Test Everything
 
 ```bash
-cd /home/rob/projects/cortex-cli/tests/fixtures
+cd /home/rob/projects/ngramx/tests/fixtures
 
 # Run comprehensive test
 ../../test-complete.sh
@@ -237,22 +237,22 @@ cd /home/rob/projects/cortex-cli/tests/fixtures
 ### Manual Testing
 
 ```bash
-# 1. Test cortex up with streaming
-cortex up
+# 1. Test ngramx up with streaming
+ngramx up
 
 # 2. Test custom command listing
-cortex run --list
+ngramx run --list
 
 # 3. Test running custom commands
-cortex run hello
-cortex run test
-cortex run info
+ngramx run hello
+ngramx run test
+ngramx run info
 
 # 4. Test status
-cortex status
+ngramx status
 
 # 5. Test down
-cortex down
+ngramx down
 ```
 
 ## 🔧 Technical Details
@@ -303,7 +303,7 @@ $executor->execute($cmd, $outputCallback);
 
 ### Custom Commands
 - **Before:** Not implemented
-- **After:** Full support with `cortex run`
+- **After:** Full support with `ngramx run`
 - **Result:** Users can define and run any command
 
 ## ✅ Success Criteria
@@ -335,7 +335,7 @@ None! All existing functionality still works exactly the same way.
 
 ## 🎊 Summary
 
-Phase 3 & 4 complete! Cortex CLI now has:
+Phase 3 & 4 complete! Ngramx CLI now has:
 - ✅ Complete lifecycle management (up, down, status)
 - ✅ Real-time command output
 - ✅ Custom command support

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Config;
+namespace Ngramx\Tests\Unit\Config;
 
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\Validator\ConfigValidator;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\Validator\ConfigValidator;
 use PHPUnit\Framework\TestCase;
 
 class ConfigLoaderTest extends TestCase
@@ -20,7 +20,7 @@ class ConfigLoaderTest extends TestCase
 
     public function test_it_loads_valid_config(): void
     {
-        $config = $this->loader->load(__DIR__ . '/../../fixtures/cortex.yml');
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
 
         $this->assertEquals('1.0', $config->version);
         $this->assertEquals('app', $config->docker->primaryService);
@@ -35,12 +35,12 @@ class ConfigLoaderTest extends TestCase
         $this->expectException(ConfigException::class);
         $this->expectExceptionMessage('Configuration file not found');
 
-        $this->loader->load('/nonexistent/cortex.yml');
+        $this->loader->load('/nonexistent/ngramx.yml');
     }
 
     public function test_it_resolves_relative_compose_file_path(): void
     {
-        $config = $this->loader->load(__DIR__ . '/../../fixtures/cortex.yml');
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
 
         // The compose file path should be absolute after loading
         $this->assertStringContainsString('docker-compose.test.yml', $config->docker->composeFile);
@@ -49,14 +49,14 @@ class ConfigLoaderTest extends TestCase
 
     public function test_it_loads_app_url(): void
     {
-        $config = $this->loader->load(__DIR__ . '/../../fixtures/cortex.yml');
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
 
         $this->assertEquals('http://localhost:8080', $config->docker->appUrl);
     }
 
     public function test_it_parses_command_definitions(): void
     {
-        $config = $this->loader->load(__DIR__ . '/../../fixtures/cortex.yml');
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
 
         $initCommand = $config->setup->initialize[0];
         $this->assertEquals("echo 'Initialize command executed'", $initCommand->command);
@@ -66,7 +66,7 @@ class ConfigLoaderTest extends TestCase
 
     public function test_it_parses_custom_commands(): void
     {
-        $config = $this->loader->load(__DIR__ . '/../../fixtures/cortex.yml');
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
 
         $this->assertArrayHasKey('test', $config->commands);
         $testCommand = $config->commands['test'];
@@ -76,7 +76,7 @@ class ConfigLoaderTest extends TestCase
 
     public function test_it_loads_default_secrets_config_when_not_specified(): void
     {
-        $config = $this->loader->load(__DIR__ . '/../../fixtures/cortex.yml');
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
 
         $this->assertEquals('env', $config->secrets->provider);
         $this->assertEmpty($config->secrets->required);
@@ -84,7 +84,7 @@ class ConfigLoaderTest extends TestCase
 
     public function test_it_parses_single_command_into_commands_list(): void
     {
-        $config = $this->loader->load(__DIR__ . '/../../fixtures/cortex-parallel.yml');
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx-parallel.yml');
 
         $single = $config->commands['single'];
         $this->assertSame('echo single', $single->command);
@@ -94,7 +94,7 @@ class ConfigLoaderTest extends TestCase
 
     public function test_it_parses_parallel_command_list(): void
     {
-        $config = $this->loader->load(__DIR__ . '/../../fixtures/cortex-parallel.yml');
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx-parallel.yml');
 
         $validate = $config->commands['validate'];
         $this->assertCount(3, $validate->commands);
@@ -109,7 +109,7 @@ class ConfigLoaderTest extends TestCase
 
     public function test_it_loads_secrets_config(): void
     {
-        $config = $this->loader->load(__DIR__ . '/../../fixtures/cortex-with-secrets.yml');
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx-with-secrets.yml');
 
         $this->assertEquals('env', $config->secrets->provider);
         $this->assertCount(2, $config->secrets->required);

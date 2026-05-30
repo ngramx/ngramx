@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command;
+namespace Ngramx\Command;
 
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\LockFile;
-use Cortex\Docker\ComposeOverrideGenerator;
-use Cortex\Docker\DockerCompose;
-use Cortex\Herd\HerdService;
-use Cortex\Output\OutputFormatter;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\LockFile;
+use Ngramx\Docker\ComposeOverrideGenerator;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Herd\HerdService;
+use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -77,7 +77,7 @@ class DownCommand extends Command
                 $formatter->info('Docker services stopped');
             }
 
-            // Restart Herd if it was stopped during "cortex up"
+            // Restart Herd if it was stopped during "ngramx up"
             if ($herdStopped) {
                 $formatter->info('Restarting Herd services...');
                 try {

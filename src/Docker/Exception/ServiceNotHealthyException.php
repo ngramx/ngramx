@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Docker\Exception;
+namespace Ngramx\Docker\Exception;
 
 use RuntimeException;
 

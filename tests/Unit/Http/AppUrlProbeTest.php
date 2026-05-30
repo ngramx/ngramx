@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Http;
+namespace Ngramx\Tests\Unit\Http;
 
-use Cortex\Http\AppUrlProbe;
-use Cortex\Http\ProbeResult;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
+use Ngramx\Http\AppUrlProbe;
+use Ngramx\Http\ProbeResult;
 use PHPUnit\Framework\TestCase;
 
 class AppUrlProbeTest extends TestCase

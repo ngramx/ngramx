@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command;
+namespace Ngramx\Command;
 
-use Cortex\Config\ConfigLoader;
-use Cortex\Output\OutputFormatter;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -85,7 +85,7 @@ class SecureCommand extends Command
         $formatter->success('✓ Browser-trusted SSL certificate generated!');
         $formatter->info('');
         $formatter->info('Your browser will now trust https://' . $hostname);
-        $formatter->info('Run `cortex up` to start your environment with SSL.');
+        $formatter->info('Run `ngramx up` to start your environment with SSL.');
 
         return Command::SUCCESS;
     }
@@ -136,7 +136,7 @@ class SecureCommand extends Command
         }
 
         $formatter->info('');
-        $formatter->info('Then run `cortex secure` again.');
+        $formatter->info('Then run `ngramx secure` again.');
     }
 
     private function extractHostname(string $appUrl): ?string

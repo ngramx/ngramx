@@ -95,7 +95,7 @@ For a "user notification system" feature, you might present:
 
 ### Updating plan.md
 
-Once the user selects an approach, update `.cortex/tickets/[ticket-id]/plan.md`:
+Once the user selects an approach, update `.ngramx/tickets/[ticket-id]/plan.md`:
 
 ```markdown
 # Implementation Plan for CORE-123

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Config;
+namespace Ngramx\Config;
 
 final class RecommendedCommands
 {

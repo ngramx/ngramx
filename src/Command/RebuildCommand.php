@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command;
+namespace Ngramx\Command;
 
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\LockFile;
-use Cortex\Docker\ComposeOverrideGenerator;
-use Cortex\Docker\DockerCompose;
-use Cortex\Docker\Exception\ServiceNotHealthyException;
-use Cortex\Docker\HealthChecker;
-use Cortex\Docker\ServiceReadinessWaiter;
-use Cortex\Orchestrator\CommandOrchestrator;
-use Cortex\Output\LiveLogPanel;
-use Cortex\Output\OutputFormatter;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\LockFile;
+use Ngramx\Docker\ComposeOverrideGenerator;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\Exception\ServiceNotHealthyException;
+use Ngramx\Docker\HealthChecker;
+use Ngramx\Docker\ServiceReadinessWaiter;
+use Ngramx\Orchestrator\CommandOrchestrator;
+use Ngramx\Output\LiveLogPanel;
+use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -48,7 +48,7 @@ class RebuildCommand extends Command
 
             // Check Docker daemon is running
             if (!$this->dockerCompose->isDockerRunning()) {
-                $formatter->error('You must start Docker before running cortex rebuild');
+                $formatter->error('You must start Docker before running ngramx rebuild');
                 return Command::FAILURE;
             }
 
@@ -59,7 +59,7 @@ class RebuildCommand extends Command
 
             // Show config warnings after loading
             $app = $this->getApplication();
-            if ($app instanceof \Cortex\Application) {
+            if ($app instanceof \Ngramx\Application) {
                 $warnings = $app->getConfigWarnings();
                 if ($warnings !== []) {
                     $formatter->getOutput()->writeln('');
@@ -132,7 +132,7 @@ class RebuildCommand extends Command
                 $formatter->section('Running fresh');
                 $this->commandOrchestrator->run('fresh', $config);
             } else {
-                $formatter->warning('Command \'fresh\' is not defined in cortex.yml — skipping database reset');
+                $formatter->warning('Command \'fresh\' is not defined in ngramx.yml — skipping database reset');
                 $formatter->info('Define a \'fresh\' command to have rebuild automatically reset your database');
             }
 

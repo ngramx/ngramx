@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Command;
+namespace Ngramx\Tests\Unit\Command;
 
-use Cortex\Command\SelfUpdateCommand;
+use Ngramx\Command\SelfUpdateCommand;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -69,6 +69,6 @@ class SelfUpdateCommandTest extends TestCase
         $command = new SelfUpdateCommand();
 
         $this->assertEquals('update', $command->getName());
-        $this->assertEquals('Update Cortex CLI to the latest version', $command->getDescription());
+        $this->assertEquals('Update Ngramx CLI to the latest version', $command->getDescription());
     }
 }

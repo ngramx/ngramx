@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Orchestrator;
+namespace Ngramx\Tests\Unit\Orchestrator;
 
-use Cortex\Orchestrator\CommandOrchestrator;
+use Ngramx\Orchestrator\CommandOrchestrator;
 use PHPUnit\Framework\TestCase;
 
 class CommandOrchestratorTest extends TestCase

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Worktree;
+namespace Ngramx\Tests\Unit\Worktree;
 
-use Cortex\Worktree\WorktreeIdentity;
+use Ngramx\Worktree\WorktreeIdentity;
 use PHPUnit\Framework\TestCase;
 
 class WorktreeIdentityTest extends TestCase
@@ -35,7 +35,7 @@ class WorktreeIdentityTest extends TestCase
 
     public function test_it_builds_namespace_with_prefix(): void
     {
-        $this->assertSame('cortex-gig-178-ill-kendrick', WorktreeIdentity::namespaceFor('gig-178-ill-kendrick'));
+        $this->assertSame('ngramx-gig-178-ill-kendrick', WorktreeIdentity::namespaceFor('gig-178-ill-kendrick'));
     }
 
     public function test_it_truncates_long_namespace_to_63_chars(): void
@@ -44,7 +44,7 @@ class WorktreeIdentityTest extends TestCase
         $namespace = WorktreeIdentity::namespaceFor($folder);
 
         $this->assertLessThanOrEqual(63, strlen($namespace));
-        $this->assertStringStartsWith('cortex-gig-178-', $namespace);
+        $this->assertStringStartsWith('ngramx-gig-178-', $namespace);
     }
 
     public function test_it_builds_url_with_subdomain_and_port_offset(): void

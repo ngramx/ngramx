@@ -2,24 +2,24 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command;
+namespace Ngramx\Command;
 
-use Cortex\Caddy\CaddyService;
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\LockFile;
-use Cortex\Config\LockFileData;
-use Cortex\Docker\ComposeOverrideGenerator;
-use Cortex\Docker\DockerCompose;
-use Cortex\Docker\Exception\ServiceNotHealthyException;
-use Cortex\Docker\NamespaceResolver;
-use Cortex\Docker\PortOffsetManager;
-use Cortex\Herd\HerdService;
-use Cortex\Host\EtcHostsHint;
-use Cortex\Http\UrlPortOffset;
-use Cortex\Orchestrator\SetupOrchestrator;
-use Cortex\Output\OutputFormatter;
-use Cortex\Tls\CertInspector;
+use Ngramx\Caddy\CaddyService;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\LockFile;
+use Ngramx\Config\LockFileData;
+use Ngramx\Docker\ComposeOverrideGenerator;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\Exception\ServiceNotHealthyException;
+use Ngramx\Docker\NamespaceResolver;
+use Ngramx\Docker\PortOffsetManager;
+use Ngramx\Herd\HerdService;
+use Ngramx\Host\EtcHostsHint;
+use Ngramx\Http\UrlPortOffset;
+use Ngramx\Orchestrator\SetupOrchestrator;
+use Ngramx\Output\OutputFormatter;
+use Ngramx\Tls\CertInspector;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -64,7 +64,7 @@ class UpCommand extends Command
             ->addOption('rebuild', null, InputOption::VALUE_NONE, 'Force rebuild of Docker images before starting')
             ->addOption('timeout', null, InputOption::VALUE_REQUIRED, 'Timeout in seconds for Docker Compose operations')
             ->addOption('no-verify', null, InputOption::VALUE_NONE, 'Skip post-start verification (HTTP probe of docker.app_url and other sanity checks)')
-            ->addOption('no-prompt-secure', null, InputOption::VALUE_NONE, 'Do not offer to run `cortex secure` when a self-signed dev cert is detected');
+            ->addOption('no-prompt-secure', null, InputOption::VALUE_NONE, 'Do not offer to run `ngramx secure` when a self-signed dev cert is detected');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -76,14 +76,14 @@ class UpCommand extends Command
 
             // Check Docker daemon is running
             if (!$this->dockerCompose->isDockerRunning()) {
-                $formatter->error('You must start Docker before running cortex up');
+                $formatter->error('You must start Docker before running ngramx up');
                 return Command::FAILURE;
             }
 
             // Check if already running
             if ($this->lockFile->exists()) {
                 $formatter->error('Environment already running in this directory.');
-                $formatter->info('Use "cortex down" to stop it first.');
+                $formatter->info('Use "ngramx down" to stop it first.');
                 return Command::FAILURE;
             }
 
@@ -95,7 +95,7 @@ class UpCommand extends Command
 
             // Show config warnings after loading
             $app = $this->getApplication();
-            if ($app instanceof \Cortex\Application) {
+            if ($app instanceof \Ngramx\Application) {
                 $warnings = $app->getConfigWarnings();
                 if ($warnings !== []) {
                     $formatter->getOutput()->writeln('');
@@ -178,7 +178,7 @@ class UpCommand extends Command
                 );
                 $this->lockFile->write($lockData);
                 $output->writeln('');
-                $formatter->info('Instance details saved to .cortex.lock');
+                $formatter->info('Instance details saved to .ngramx.lock');
             }
 
             // Display completion summary with port information
@@ -186,7 +186,7 @@ class UpCommand extends Command
 
             // Inspect the TLS cert (if any) and either reassure the user it's
             // browser-trusted or offer to upgrade self-signed -> mkcert via
-            // `cortex secure`. Non-interactive shells just get the warning.
+            // `ngramx secure`. Non-interactive shells just get the warning.
             $this->reviewTlsCertificate($formatter, $input, $output, $configPath, $config);
 
             return Command::SUCCESS;
@@ -272,7 +272,7 @@ class UpCommand extends Command
     private function displayCompletionSummary(
         OutputFormatter $formatter,
         float $totalTime,
-        \Cortex\Config\Schema\CortexConfig $config,
+        \Ngramx\Config\Schema\NgramxConfig $config,
         int $portOffset
     ): void {
         $output = $formatter->getOutput();
@@ -310,7 +310,7 @@ class UpCommand extends Command
      *   - print a one-line warning if the cert is self-signed AND we can't
      *     do better (mkcert not installed, or `--no-prompt-secure` was set,
      *     or we're not on a TTY);
-     *   - print the warning AND offer to run `cortex secure` interactively
+     *   - print the warning AND offer to run `ngramx secure` interactively
      *     when mkcert is installed and we have a TTY.
      */
     private function reviewTlsCertificate(
@@ -318,7 +318,7 @@ class UpCommand extends Command
         InputInterface $input,
         OutputInterface $output,
         string $configPath,
-        \Cortex\Config\Schema\CortexConfig $config,
+        \Ngramx\Config\Schema\NgramxConfig $config,
     ): void {
         $info = $this->certInspector->inspectForAppUrl(
             $config->docker->appUrl,
@@ -344,13 +344,13 @@ class UpCommand extends Command
 
         $mkcertInstalled = $this->isMkcertInstalled();
         if (!$mkcertInstalled) {
-            $formatter->info('Install mkcert and re-run `cortex secure` to get a browser-trusted cert:');
+            $formatter->info('Install mkcert and re-run `ngramx secure` to get a browser-trusted cert:');
             $formatter->info('  https://github.com/FiloSottile/mkcert');
             return;
         }
 
         if ($input->getOption('no-prompt-secure') || !$input->isInteractive()) {
-            $formatter->info('Run `cortex secure` to upgrade to a browser-trusted cert.');
+            $formatter->info('Run `ngramx secure` to upgrade to a browser-trusted cert.');
             return;
         }
 
@@ -362,20 +362,20 @@ class UpCommand extends Command
         );
 
         if (!$helper->ask($input, $output, $question)) {
-            $formatter->info('Skipped. You can run `cortex secure` manually any time.');
+            $formatter->info('Skipped. You can run `ngramx secure` manually any time.');
             return;
         }
 
         $secure = $this->getApplication()?->find('secure');
         if ($secure === null) {
-            $formatter->error('Internal error: `cortex secure` command is not registered.');
+            $formatter->error('Internal error: `ngramx secure` command is not registered.');
             return;
         }
 
         $output->writeln('');
         $exit = $secure->run(new ArrayInput([]), $output);
         if ($exit !== Command::SUCCESS) {
-            $formatter->warning('`cortex secure` did not complete successfully. Run it manually for details.');
+            $formatter->warning('`ngramx secure` did not complete successfully. Run it manually for details.');
             return;
         }
 
@@ -398,7 +398,7 @@ class UpCommand extends Command
      * Clean up stale containers from previous failed runs
      */
     private function cleanupStaleContainers(
-        \Cortex\Config\Schema\CortexConfig $config,
+        \Ngramx\Config\Schema\NgramxConfig $config,
         OutputFormatter $formatter,
         string $namespace
     ): void {

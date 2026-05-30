@@ -9,7 +9,7 @@ Releases are **fully automated** and triggered by pushing commits to the `main` 
 1. **Analyzes commit messages** to determine the version bump
 2. **Updates the version** in `src/Application.php`
 3. **Generates/updates** `CHANGELOG.md`
-4. **Builds** the PHAR file (`cortex.phar`)
+4. **Builds** the PHAR file (`ngramx.phar`)
 5. **Creates** a Git tag
 6. **Publishes** a GitHub Release with assets
 
@@ -96,10 +96,10 @@ The GitHub Actions workflow automatically:
 3. 🚀 Analyzes commits since last release
 4. 📝 Updates `CHANGELOG.md`
 5. 🔢 Updates version in `src/Application.php`
-6. 📦 Builds `cortex.phar` with Box
+6. 📦 Builds `ngramx.phar` with Box
 7. 🏷️ Creates Git tag
 8. 📤 Creates GitHub Release
-9. 📎 Uploads `cortex.phar` and `install.sh`
+9. 📎 Uploads `ngramx.phar` and `install.sh`
 
 No manual intervention required!
 
@@ -184,8 +184,8 @@ git diff src/Application.php
 ## Monitoring Releases
 
 View releases at:
-- GitHub Releases: https://github.com/gigabyte-software/cortex-cli/releases
-- GitHub Actions: https://github.com/gigabyte-software/cortex-cli/actions
+- GitHub Releases: https://github.com/ngramx/ngramx/releases
+- GitHub Actions: https://github.com/ngramx/ngramx/actions
 
 ## Rolling Back a Release
 
@@ -200,7 +200,7 @@ If a release has issues:
 Add this to your README:
 
 ```markdown
-[![Release](https://img.shields.io/github/v/release/gigabyte-software/cortex-cli)](https://github.com/gigabyte-software/cortex-cli/releases)
+[![Release](https://img.shields.io/github/v/release/ngramx/ngramx)](https://github.com/ngramx/ngramx/releases)
 [![semantic-release: angular](https://img.shields.io/badge/semantic--release-angular-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
 ```
 

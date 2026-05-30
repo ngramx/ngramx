@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Agents;
+namespace Ngramx\Agents;
 
-use Cortex\Templates\TemplateDirectory;
+use Ngramx\Templates\TemplateDirectory;
 
 /**
  * Copies skill folders from templates/skills/ to target-specific paths in the project.

@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Orchestrator;
+namespace Ngramx\Tests\Unit\Orchestrator;
 
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Config\Schema\DockerConfig;
-use Cortex\Config\Schema\N8nConfig;
-use Cortex\Config\Schema\ServiceWaitConfig;
-use Cortex\Config\Schema\SetupConfig;
-use Cortex\Docker\DockerCompose;
-use Cortex\Docker\HealthChecker;
-use Cortex\Docker\NetworkAttachmentChecker;
-use Cortex\Docker\NetworkAttachmentIssue;
-use Cortex\Executor\HostCommandExecutor;
-use Cortex\Http\AppUrlProbe;
-use Cortex\Orchestrator\SetupOrchestrator;
-use Cortex\Output\OutputFormatter;
 use GuzzleHttp\Psr7\Response;
+use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\N8nConfig;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\ServiceWaitConfig;
+use Ngramx\Config\Schema\SetupConfig;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\HealthChecker;
+use Ngramx\Docker\NetworkAttachmentChecker;
+use Ngramx\Docker\NetworkAttachmentIssue;
+use Ngramx\Executor\HostCommandExecutor;
+use Ngramx\Http\AppUrlProbe;
+use Ngramx\Orchestrator\SetupOrchestrator;
+use Ngramx\Output\OutputFormatter;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -342,7 +342,7 @@ class SetupOrchestratorTest extends TestCase
         // Service never becomes healthy
         $this->healthChecker->method('getHealthStatus')->willReturn('starting');
 
-        $this->expectException(\Cortex\Docker\Exception\ServiceNotHealthyException::class);
+        $this->expectException(\Ngramx\Docker\Exception\ServiceNotHealthyException::class);
         $this->expectExceptionMessageMatches('/did not become healthy/');
 
         $orchestrator = $this->createOrchestrator();
@@ -373,7 +373,7 @@ class SetupOrchestratorTest extends TestCase
                 };
             });
 
-        $this->expectException(\Cortex\Docker\Exception\ServiceNotHealthyException::class);
+        $this->expectException(\Ngramx\Docker\Exception\ServiceNotHealthyException::class);
         $this->expectExceptionMessageMatches('/nginx \(restarting\)/');
 
         $orchestrator = $this->createOrchestrator();
@@ -388,14 +388,14 @@ class SetupOrchestratorTest extends TestCase
         $this->dockerCompose->expects($this->once())->method('up');
         $this->dockerCompose->method('listServices')->willReturn(['app', 'nginx']);
 
-        // No wait_for configured, but app is crash-looping — cortex must still
+        // No wait_for configured, but app is crash-looping — ngramx must still
         // catch this instead of blindly declaring success.
         $this->healthChecker->method('getHealthStatus')
             ->willReturnCallback(function (string $composeFile, string $service): string {
                 return $service === 'app' ? 'restarting' : 'running';
             });
 
-        $this->expectException(\Cortex\Docker\Exception\ServiceNotHealthyException::class);
+        $this->expectException(\Ngramx\Docker\Exception\ServiceNotHealthyException::class);
         $this->expectExceptionMessageMatches('/app \(restarting\)/');
 
         $orchestrator = $this->createOrchestrator();
@@ -472,9 +472,9 @@ class SetupOrchestratorTest extends TestCase
     /**
      * @param ServiceWaitConfig[] $waitFor
      */
-    private function createConfig(array $waitFor = []): CortexConfig
+    private function createConfig(array $waitFor = []): NgramxConfig
     {
-        return new CortexConfig(
+        return new NgramxConfig(
             version: '1.0',
             docker: new DockerConfig(
                 composeFile: 'docker-compose.yml',

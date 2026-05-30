@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Http;
+namespace Ngramx\Http;
 
 /**
  * Apply a numeric port offset to a URL, returning a new URL that targets
  * `(scheme_default_port + offset)` on the same host.
  *
- * Used by `cortex up` when `--avoid-conflicts` / `--port-offset` shift the
+ * Used by `ngramx up` when `--avoid-conflicts` / `--port-offset` shift the
  * stack onto non-default ports: the probe URL and the URL we print to the
  * user both need to follow the shift, otherwise we end up probing the
  * original 443 while the stack is actually listening on 8543.

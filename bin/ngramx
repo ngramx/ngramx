@@ -28,7 +28,7 @@ if (Phar::running()) {
     }
 }
 
-use Cortex\Application;
+use Ngramx\Application;
 
 $application = new Application();
 $application->run();

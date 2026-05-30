@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Command;
 
-use Cortex\Command\InitCommand;
+use Ngramx\Command\InitCommand;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -19,10 +19,10 @@ class InitCommandTest extends TestCase
     {
         parent::setUp();
 
-        $this->testDir = sys_get_temp_dir() . '/cortex_init_test_' . uniqid();
+        $this->testDir = sys_get_temp_dir() . '/ngramx_init_test_' . uniqid();
         mkdir($this->testDir, 0755, true);
 
-        $this->testHomeDir = sys_get_temp_dir() . '/cortex_home_test_' . uniqid();
+        $this->testHomeDir = sys_get_temp_dir() . '/ngramx_home_test_' . uniqid();
         mkdir($this->testHomeDir, 0755, true);
 
         $this->originalHome = getenv('HOME');
@@ -55,10 +55,10 @@ class InitCommandTest extends TestCase
         $tester->execute([], ['interactive' => false]);
 
         $this->assertEquals(0, $tester->getStatusCode());
-        $this->assertDirectoryExists($this->testDir . '/.cortex');
-        $this->assertDirectoryExists($this->testDir . '/.cortex/tickets');
-        $this->assertDirectoryExists($this->testDir . '/.cortex/specs');
-        $this->assertDirectoryExists($this->testDir . '/.cortex/meetings');
+        $this->assertDirectoryExists($this->testDir . '/.ngramx');
+        $this->assertDirectoryExists($this->testDir . '/.ngramx/tickets');
+        $this->assertDirectoryExists($this->testDir . '/.ngramx/specs');
+        $this->assertDirectoryExists($this->testDir . '/.ngramx/meetings');
     }
 
     public function testInitCreatesGitkeep(): void
@@ -68,7 +68,7 @@ class InitCommandTest extends TestCase
 
         $tester->execute([], ['interactive' => false]);
 
-        $this->assertFileExists($this->testDir . '/.cortex/tickets/.gitkeep');
+        $this->assertFileExists($this->testDir . '/.ngramx/tickets/.gitkeep');
     }
 
     public function testInitCreatesReadme(): void
@@ -78,26 +78,26 @@ class InitCommandTest extends TestCase
 
         $tester->execute([], ['interactive' => false]);
 
-        $this->assertFileExists($this->testDir . '/.cortex/README.md');
+        $this->assertFileExists($this->testDir . '/.ngramx/README.md');
 
-        $content = file_get_contents($this->testDir . '/.cortex/README.md');
+        $content = file_get_contents($this->testDir . '/.ngramx/README.md');
         $this->assertIsString($content, 'Failed to read README.md');
         assert(is_string($content));
-        $this->assertStringContainsString('# .cortex Folder', $content);
+        $this->assertStringContainsString('# .ngramx Folder', $content);
         $this->assertStringContainsString('Core Principle', $content);
     }
 
-    public function testInitCreatesCortexYml(): void
+    public function testInitCreatesNgramxYml(): void
     {
         $command = new InitCommand();
         $tester = $this->createCommandTester($command);
 
         $tester->execute([], ['interactive' => false]);
 
-        $this->assertFileExists($this->testDir . '/cortex.yml');
+        $this->assertFileExists($this->testDir . '/ngramx.yml');
 
-        $content = file_get_contents($this->testDir . '/cortex.yml');
-        $this->assertIsString($content, 'Failed to read cortex.yml');
+        $content = file_get_contents($this->testDir . '/ngramx.yml');
+        $this->assertIsString($content, 'Failed to read ngramx.yml');
         assert(is_string($content));
         $this->assertStringContainsString('version: "1.0"', $content);
         $this->assertStringContainsString('docker:', $content);
@@ -112,8 +112,8 @@ class InitCommandTest extends TestCase
         $tester->execute(['--skip-yaml' => true], ['interactive' => false]);
 
         $this->assertEquals(0, $tester->getStatusCode());
-        $this->assertDirectoryExists($this->testDir . '/.cortex');
-        $this->assertFileDoesNotExist($this->testDir . '/cortex.yml');
+        $this->assertDirectoryExists($this->testDir . '/.ngramx');
+        $this->assertFileDoesNotExist($this->testDir . '/ngramx.yml');
     }
 
     public function testInitWithSkipClaudeOption(): void
@@ -124,8 +124,8 @@ class InitCommandTest extends TestCase
         $tester->execute(['--skip-claude' => true], ['interactive' => false]);
 
         $this->assertEquals(0, $tester->getStatusCode());
-        $this->assertDirectoryExists($this->testDir . '/.cortex');
-        $this->assertFileExists($this->testDir . '/cortex.yml');
+        $this->assertDirectoryExists($this->testDir . '/.ngramx');
+        $this->assertFileExists($this->testDir . '/ngramx.yml');
         $this->assertFileDoesNotExist($this->testHomeDir . '/.claude/CLAUDE.md');
 
         $output = $tester->getDisplay();
@@ -151,8 +151,8 @@ class InitCommandTest extends TestCase
 
     public function testInitWithForceOverwrites(): void
     {
-        mkdir($this->testDir . '/.cortex', 0755, true);
-        file_put_contents($this->testDir . '/cortex.yml', 'old content');
+        mkdir($this->testDir . '/.ngramx', 0755, true);
+        file_put_contents($this->testDir . '/ngramx.yml', 'old content');
 
         $command = new InitCommand();
         $tester = $this->createCommandTester($command);
@@ -161,8 +161,8 @@ class InitCommandTest extends TestCase
 
         $this->assertEquals(0, $tester->getStatusCode());
 
-        $content = file_get_contents($this->testDir . '/cortex.yml');
-        $this->assertIsString($content, 'Failed to read cortex.yml');
+        $content = file_get_contents($this->testDir . '/ngramx.yml');
+        $this->assertIsString($content, 'Failed to read ngramx.yml');
         assert(is_string($content));
         $this->assertStringContainsString('version: "1.0"', $content);
         $this->assertStringNotContainsString('old content', $content);
@@ -181,9 +181,9 @@ class InitCommandTest extends TestCase
         $this->assertIsString($content, 'Failed to read CLAUDE.md');
         assert(is_string($content));
 
-        $this->assertStringContainsString('<!-- CORTEX START -->', $content);
-        $this->assertStringContainsString('<!-- CORTEX END -->', $content);
-        $this->assertStringContainsString('cortex up', $content);
+        $this->assertStringContainsString('<!-- NGRAMX START -->', $content);
+        $this->assertStringContainsString('<!-- NGRAMX END -->', $content);
+        $this->assertStringContainsString('ngramx up', $content);
     }
 
     public function testInitAppendsToExistingClaudeMd(): void
@@ -202,21 +202,21 @@ class InitCommandTest extends TestCase
 
         $this->assertStringContainsString('# My Project', $content);
         $this->assertStringContainsString('Existing content here.', $content);
-        $this->assertStringContainsString('<!-- CORTEX START -->', $content);
-        $this->assertStringContainsString('<!-- CORTEX END -->', $content);
-        $this->assertStringContainsString('cortex up', $content);
+        $this->assertStringContainsString('<!-- NGRAMX START -->', $content);
+        $this->assertStringContainsString('<!-- NGRAMX END -->', $content);
+        $this->assertStringContainsString('ngramx up', $content);
 
         $existingPos = strpos($content, '# My Project');
-        $cortexPos = strpos($content, '<!-- CORTEX START -->');
+        $ngramxPos = strpos($content, '<!-- NGRAMX START -->');
         $this->assertNotFalse($existingPos);
-        $this->assertNotFalse($cortexPos);
-        $this->assertLessThan($cortexPos, $existingPos, 'Existing content should come before Cortex section');
+        $this->assertNotFalse($ngramxPos);
+        $this->assertLessThan($ngramxPos, $existingPos, 'Existing content should come before Ngramx section');
     }
 
-    public function testInitUpdatesClaudeMdWhenCortexSectionChanged(): void
+    public function testInitUpdatesClaudeMdWhenNgramxSectionChanged(): void
     {
         mkdir($this->testHomeDir . '/.claude', 0755, true);
-        $existingContent = "# My Project\n\n<!-- CORTEX START -->\nOld cortex content\n<!-- CORTEX END -->";
+        $existingContent = "# My Project\n\n<!-- NGRAMX START -->\nOld ngramx content\n<!-- NGRAMX END -->";
         file_put_contents($this->testHomeDir . '/.claude/CLAUDE.md', $existingContent);
 
         $command = new InitCommand();
@@ -228,8 +228,8 @@ class InitCommandTest extends TestCase
         $this->assertIsString($content, 'Failed to read CLAUDE.md');
         assert(is_string($content));
 
-        $this->assertStringNotContainsString('Old cortex content', $content);
-        $this->assertStringContainsString('cortex up', $content);
+        $this->assertStringNotContainsString('Old ngramx content', $content);
+        $this->assertStringContainsString('ngramx up', $content);
         $this->assertStringContainsString('# My Project', $content);
     }
 
@@ -254,9 +254,9 @@ class InitCommandTest extends TestCase
         $tester->execute([], ['interactive' => false]);
 
         $output = $tester->getDisplay();
-        $this->assertStringContainsString('Cortex initialized successfully', $output);
+        $this->assertStringContainsString('Ngramx initialized successfully', $output);
         $this->assertStringContainsString('Next steps:', $output);
-        $this->assertStringContainsString('cortex up', $output);
+        $this->assertStringContainsString('ngramx up', $output);
     }
 
     public function testInitSuccessMessageIncludesClaudeMd(): void

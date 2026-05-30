@@ -3,7 +3,7 @@
 ### Structure
 
 ```
-.cortex/
+.ngramx/
 └── tickets/
     └── CORE-123/
         ├── README.md      # Human-readable overview
@@ -54,7 +54,7 @@ You should save any assets the user gives you in here.
 
 When starting work on a new ticket:
 
-1. Create folder: `.cortex/tickets/[ticket-id]/`
+1. Create folder: `.ngramx/tickets/[ticket-id]/`
 2. Create `README.md` with ticket context
 3. Create `ticket.json` with Linear issue data (ignore if not working on linear issue)
 4. Create a `plan.md`, blank for now

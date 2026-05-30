@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Git;
+namespace Ngramx\Tests\Unit\Git;
 
-use Cortex\Git\GitRepositoryService;
+use Ngramx\Git\GitRepositoryService;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -20,7 +20,7 @@ class GitRepositoryServiceTest extends TestCase
     protected function setUp(): void
     {
         $this->service = new GitRepositoryService();
-        $this->tempDir = sys_get_temp_dir() . '/cortex-git-test-' . uniqid();
+        $this->tempDir = sys_get_temp_dir() . '/ngramx-git-test-' . uniqid();
         $bareRepoPath = $this->tempDir . '/bare-repo';
         $this->gitRepoPath = $this->tempDir . '/repo';
 
@@ -562,7 +562,7 @@ class GitRepositoryServiceTest extends TestCase
 
     public function test_addWorktree_creates_intermediate_directories(): void
     {
-        $worktreePath = $this->tempDir . '/.cortex/worktrees/ticket-456-repo';
+        $worktreePath = $this->tempDir . '/.ngramx/worktrees/ticket-456-repo';
 
         $result = $this->service->addWorktree($this->gitRepoPath, $worktreePath, 'feature/TICKET-456');
 

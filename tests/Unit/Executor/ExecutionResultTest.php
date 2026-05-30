@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Executor;
+namespace Ngramx\Tests\Unit\Executor;
 
-use Cortex\Executor\Result\ExecutionResult;
+use Ngramx\Executor\Result\ExecutionResult;
 use PHPUnit\Framework\TestCase;
 
 class ExecutionResultTest extends TestCase

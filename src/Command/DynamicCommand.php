@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Command;
+namespace Ngramx\Command;
 
-use Cortex\Config\RecommendedCommands;
-use Cortex\Config\Schema\CommandDefinition;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Orchestrator\CommandOrchestrator;
-use Cortex\Output\OutputFormatter;
+use Ngramx\Config\RecommendedCommands;
+use Ngramx\Config\Schema\CommandDefinition;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Orchestrator\CommandOrchestrator;
+use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -18,7 +18,7 @@ class DynamicCommand extends Command
     public function __construct(
         string $name,
         private readonly CommandDefinition $commandDef,
-        private readonly CortexConfig $config,
+        private readonly NgramxConfig $config,
         private readonly CommandOrchestrator $orchestrator,
     ) {
         parent::__construct($name);
@@ -68,7 +68,7 @@ class DynamicCommand extends Command
         $recommended = RecommendedCommands::COMMANDS[$commandName] ?? null;
         $example = $recommended['example'] ?? 'your-command-here';
 
-        $formatter->getOutput()->writeln('  Define it in cortex.yml:');
+        $formatter->getOutput()->writeln('  Define it in ngramx.yml:');
         $formatter->getOutput()->writeln('');
         $formatter->getOutput()->writeln("    <fg=cyan>$commandName:</>");
         $formatter->getOutput()->writeln("      <fg=cyan>command: \"$example\"</>");

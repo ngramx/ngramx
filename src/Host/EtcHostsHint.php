@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Host;
+namespace Ngramx\Host;
 
 /**
  * Detects when docker.app_url uses a hostname that will not resolve on the developer's

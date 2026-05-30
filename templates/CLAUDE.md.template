@@ -1,4 +1,4 @@
-You should spin up a development environment by running `cortex up`.
+You should spin up a development environment by running `ngramx up`.
 
 Check you can access the application using Playwright. It should be available as an MCP server.
 

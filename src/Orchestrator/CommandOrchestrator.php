@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Orchestrator;
+namespace Ngramx\Orchestrator;
 
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Docker\ContainerExecutor;
-use Cortex\Executor\ContainerCommandExecutor;
-use Cortex\Executor\ParallelContainerExecutor;
-use Cortex\Executor\Result\ParallelCommandResult;
-use Cortex\Output\OutputFormatter;
-use Cortex\Output\ParallelCommandPanel;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Docker\ContainerExecutor;
+use Ngramx\Executor\ContainerCommandExecutor;
+use Ngramx\Executor\ParallelContainerExecutor;
+use Ngramx\Executor\Result\ParallelCommandResult;
+use Ngramx\Output\OutputFormatter;
+use Ngramx\Output\ParallelCommandPanel;
 use Symfony\Component\Process\Process;
 
 class CommandOrchestrator
@@ -21,14 +21,14 @@ class CommandOrchestrator
     }
 
     /**
-     * Run a custom command from cortex.yml
+     * Run a custom command from ngramx.yml
      *
      * @throws \RuntimeException
      */
-    public function run(string $commandName, CortexConfig $config, ?string $projectName = null): float
+    public function run(string $commandName, NgramxConfig $config, ?string $projectName = null): float
     {
         if (!isset($config->commands[$commandName])) {
-            throw new \RuntimeException("Command '$commandName' not found in cortex.yml");
+            throw new \RuntimeException("Command '$commandName' not found in ngramx.yml");
         }
 
         $cmd = $config->commands[$commandName];
@@ -45,7 +45,7 @@ class CommandOrchestrator
      *
      * @return array<string, string> Command name => description
      */
-    public function listAvailableCommands(CortexConfig $config): array
+    public function listAvailableCommands(NgramxConfig $config): array
     {
         $commands = [];
         foreach ($config->commands as $name => $cmd) {
@@ -93,7 +93,7 @@ class CommandOrchestrator
         return $result;
     }
 
-    private function runSingle(string $commandName, CortexConfig $config, ?string $projectName = null): float
+    private function runSingle(string $commandName, NgramxConfig $config, ?string $projectName = null): float
     {
         $cmd = $config->commands[$commandName];
         $startTime = microtime(true);
@@ -123,7 +123,7 @@ class CommandOrchestrator
 
         if (!$result->isSuccessful()) {
             if (str_contains($result->errorOutput, 'is not running') || str_contains($result->output, 'is not running')) {
-                $this->formatter->error("Services are not running. Start them with 'cortex up' first.");
+                $this->formatter->error("Services are not running. Start them with 'ngramx up' first.");
             } else {
                 $this->formatter->error("Command failed with exit code {$result->exitCode}");
             }
@@ -141,7 +141,7 @@ class CommandOrchestrator
         array $commands,
         int $timeout,
         string $description,
-        CortexConfig $config,
+        NgramxConfig $config,
         ?string $projectName = null,
     ): float {
         $startTime = microtime(true);

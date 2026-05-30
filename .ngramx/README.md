@@ -1,4 +1,4 @@
-# .cortex Folder
+# .ngramx Folder
 
 This folder contains all contextual documentation and specifications for the project. It serves as the knowledge base for both human developers and AI coding agents.
 
@@ -6,12 +6,12 @@ This folder contains all contextual documentation and specifications for the pro
 
 **Context and documentation lives here. Code lives in the main project.**
 
-Everything in `.cortex/` is about understanding *what* we're building and *why*. The actual implementation code lives in the main source tree.
+Everything in `.ngramx/` is about understanding *what* we're building and *why*. The actual implementation code lives in the main source tree.
 
 ## Folder Structure
 
 ```
-.cortex/
+.ngramx/
 ├── tickets/          # Per-ticket context and planning
 ├── specs/            # Cucumber/Gherkin feature specifications
 ├── meetings/         # Meeting notes and discussions
@@ -132,7 +132,7 @@ The `shared/` folder contains reusable step definitions that appear across multi
 
 Your test framework (Behat/Cucumber) configuration should:
 
-* Read feature files from: `.cortex/specs/**/*.feature`
+* Read feature files from: `.ngramx/specs/**/*.feature`
 * Execute step definitions from: `tests/features/**/*Context.php`
 
 The specs here define *what* to test. The code in `tests/` defines *how* to test it.
@@ -280,12 +280,12 @@ If you need to archive old tickets:
 
 ## Integration with Main Project
 
-The `.cortex/` folder complements your main project structure:
+The `.ngramx/` folder complements your main project structure:
 
 ```
 project-root/
-├── .cortex/              # This folder - all context
-├── cortex.yml            # Environment configuration
+├── .ngramx/              # This folder - all context
+├── ngramx.yml            # Environment configuration
 ├── src/                  # Application code
 ├── tests/
 │   ├── features/         # Test implementations
@@ -299,16 +299,16 @@ You can build CLI tools to work with this structure:
 
 ```
 # List active tickets
-cortex tickets --status=active
+ngramx tickets --status=active
 
 # Show ticket summary
-cortex ticket CORE-123
+ngramx ticket CORE-123
 
 # List all specs
-cortex specs --list
+ngramx specs --list
 
 # Find meetings about a ticket
-cortex meetings --ticket=CORE-123
+ngramx meetings --ticket=CORE-123
 ```
 
 *(These are examples of potential commands, not currently implemented)*

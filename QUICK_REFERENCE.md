@@ -3,7 +3,7 @@
 ## Command Options
 
 ```bash
-cortex up [OPTIONS]
+ngramx up [OPTIONS]
 
 Options:
   --namespace <id>       Custom container namespace prefix
@@ -17,27 +17,27 @@ Options:
 
 ### Single Developer (Default)
 ```bash
-cortex up
-cortex down
+ngramx up
+ngramx down
 ```
 
 ### Multi-Agent Orchestrator (Simple)
 ```bash
-cortex up --avoid-conflicts
+ngramx up --avoid-conflicts
 ```
 
 ### Multi-Agent Orchestrator (Controlled)
 ```bash
 # Agent 1
-cortex up --namespace agent-1 --port-offset 1000
+ngramx up --namespace agent-1 --port-offset 1000
 
 # Agent 2
-cortex up --namespace agent-2 --port-offset 2000
+ngramx up --namespace agent-2 --port-offset 2000
 ```
 
 ## Lock File
 
-**Location:** `.cortex.lock`
+**Location:** `.ngramx.lock`
 
 **Created when:**
 - Using `--avoid-conflicts`
@@ -46,13 +46,13 @@ cortex up --namespace agent-2 --port-offset 2000
 
 **Prevents:** Duplicate instances in same directory
 
-**Cleaned up:** Automatically by `cortex down`
+**Cleaned up:** Automatically by `ngramx down`
 
 ## Namespace Resolution
 
 **Default:** Directory-based
 ```
-/workspace/agent-1/project/ → cortex-agent-1-project
+/workspace/agent-1/project/ → ngramx-agent-1-project
 ```
 
 **Override:** Use `--namespace` option
@@ -73,18 +73,18 @@ cortex up --namespace agent-2 --port-offset 2000
 # In directory: /workspace/agent-1/project/
 
 # Start with auto-conflicts avoidance
-$ cortex up --avoid-conflicts
+$ ngramx up --avoid-conflicts
 
 # Check status
-$ cortex status
+$ ngramx status
 Environment Status
-Namespace: cortex-agent-1-project
+Namespace: ngramx-agent-1-project
 Port offset: +8000
 
 # Application accessible at http://localhost:8080
 
 # Stop
-$ cortex down
+$ ngramx down
 ```
 
 ## For Orchestrators
@@ -92,17 +92,17 @@ $ cortex down
 ### Reading Port Information
 
 ```bash
-$ cat .cortex.lock | jq -r '.port_offset'
+$ cat .ngramx.lock | jq -r '.port_offset'
 8000
 ```
 
 ### Setting via Environment
 
 ```bash
-export CORTEX_NAMESPACE="agent-${TASK_ID}"
-export CORTEX_PORT_OFFSET=$((1000 * AGENT_NUM))
+export NGRAMX_NAMESPACE="agent-${TASK_ID}"
+export NGRAMX_PORT_OFFSET=$((1000 * AGENT_NUM))
 
-cortex up --namespace "$CORTEX_NAMESPACE" --port-offset "$CORTEX_PORT_OFFSET"
+ngramx up --namespace "$NGRAMX_NAMESPACE" --port-offset "$NGRAMX_PORT_OFFSET"
 ```
 
 ## Troubleshooting
@@ -110,24 +110,24 @@ cortex up --namespace "$CORTEX_NAMESPACE" --port-offset "$CORTEX_PORT_OFFSET"
 ### "Already running" error
 ```bash
 # Solution: Stop existing instance first
-cortex down
-cortex up
+ngramx down
+ngramx up
 ```
 
 ### Port conflicts
 ```bash
 # Solution: Use auto mode or explicit offset
-cortex up --avoid-conflicts
+ngramx up --avoid-conflicts
 # or
-cortex up --port-offset 5000
+ngramx up --port-offset 5000
 ```
 
 ### Finding namespace
 ```bash
 # Check lock file
-cat .cortex.lock | jq -r '.namespace'
+cat .ngramx.lock | jq -r '.namespace'
 
 # Or use status command
-cortex status
+ngramx status
 ```
 

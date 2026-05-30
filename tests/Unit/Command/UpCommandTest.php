@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Command;
+namespace Ngramx\Tests\Unit\Command;
 
-use Cortex\Caddy\CaddyService;
-use Cortex\Command\UpCommand;
-use Cortex\Config\ConfigLoader;
-use Cortex\Config\LockFile;
-use Cortex\Config\LockFileData;
-use Cortex\Config\Schema\CortexConfig;
-use Cortex\Config\Schema\DockerConfig;
-use Cortex\Config\Schema\N8nConfig;
-use Cortex\Config\Schema\SetupConfig;
-use Cortex\Docker\ComposeOverrideGenerator;
-use Cortex\Docker\DockerCompose;
-use Cortex\Docker\NamespaceResolver;
-use Cortex\Docker\PortOffsetManager;
-use Cortex\Herd\HerdService;
-use Cortex\Orchestrator\SetupOrchestrator;
+use Ngramx\Caddy\CaddyService;
+use Ngramx\Command\UpCommand;
+use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\LockFile;
+use Ngramx\Config\LockFileData;
+use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\N8nConfig;
+use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\SetupConfig;
+use Ngramx\Docker\ComposeOverrideGenerator;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\NamespaceResolver;
+use Ngramx\Docker\PortOffsetManager;
+use Ngramx\Herd\HerdService;
+use Ngramx\Orchestrator\SetupOrchestrator;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
@@ -77,7 +77,7 @@ class UpCommandTest extends TestCase
         $exitCode = $tester->execute([]);
 
         $this->assertSame(1, $exitCode);
-        $this->assertStringContainsString('You must start Docker before running cortex up', $tester->getDisplay());
+        $this->assertStringContainsString('You must start Docker before running ngramx up', $tester->getDisplay());
     }
 
     public function test_it_prevents_duplicate_instances(): void
@@ -104,7 +104,7 @@ class UpCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -154,7 +154,7 @@ class UpCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -209,7 +209,7 @@ class UpCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -262,7 +262,7 @@ class UpCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -270,7 +270,7 @@ class UpCommandTest extends TestCase
 
         $this->namespaceResolver->expects($this->once())
             ->method('deriveFromDirectory')
-            ->willReturn('cortex-test-project');
+            ->willReturn('ngramx-test-project');
 
         $this->portOffsetManager->expects($this->once())
             ->method('extractBasePorts')
@@ -284,13 +284,13 @@ class UpCommandTest extends TestCase
         // Should generate override with both port offset and namespace prefix
         $this->overrideGenerator->expects($this->once())
             ->method('generate')
-            ->with('docker-compose.yml', 8000, 'cortex-test-project', false);
+            ->with('docker-compose.yml', 8000, 'ngramx-test-project', false);
 
         $this->setupOrchestrator->expects($this->once())
             ->method('setup')
             ->willReturn([
                 'time' => 1.5,
-                'namespace' => 'cortex-test-project',
+                'namespace' => 'ngramx-test-project',
                 'port_offset' => 8000,
             ]);
 
@@ -314,7 +314,7 @@ class UpCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -358,7 +358,7 @@ class UpCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -416,7 +416,7 @@ class UpCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -424,7 +424,7 @@ class UpCommandTest extends TestCase
 
         $this->namespaceResolver->expects($this->once())
             ->method('deriveFromDirectory')
-            ->willReturn('cortex-test-project');
+            ->willReturn('ngramx-test-project');
 
         // Port offset should not be scanned when no-host-mapping is set
         $this->portOffsetManager->expects($this->never())
@@ -433,20 +433,20 @@ class UpCommandTest extends TestCase
         // Override file should be generated with namespace and noHostMapping=true
         $this->overrideGenerator->expects($this->once())
             ->method('generate')
-            ->with('docker-compose.yml', 0, 'cortex-test-project', true);
+            ->with('docker-compose.yml', 0, 'ngramx-test-project', true);
 
         $this->setupOrchestrator->expects($this->once())
             ->method('setup')
             ->willReturn([
                 'time' => 1.5,
-                'namespace' => 'cortex-test-project',
+                'namespace' => 'ngramx-test-project',
                 'port_offset' => 0,
             ]);
 
         $this->lockFile->expects($this->once())
             ->method('write')
             ->with($this->callback(function (LockFileData $data) {
-                return $data->namespace === 'cortex-test-project' && $data->noHostMapping === true;
+                return $data->namespace === 'ngramx-test-project' && $data->noHostMapping === true;
             }));
 
         $command = $this->createCommand();
@@ -466,7 +466,7 @@ class UpCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -513,7 +513,7 @@ class UpCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -553,7 +553,7 @@ class UpCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -599,7 +599,7 @@ class UpCommandTest extends TestCase
 
         $this->configLoader->expects($this->once())
             ->method('findConfigFile')
-            ->willReturn('/path/to/cortex.yml');
+            ->willReturn('/path/to/ngramx.yml');
 
         $this->configLoader->expects($this->once())
             ->method('load')
@@ -640,7 +640,7 @@ class UpCommandTest extends TestCase
         );
     }
 
-    private function createMockConfig(): CortexConfig
+    private function createMockConfig(): NgramxConfig
     {
         $dockerConfig = new DockerConfig(
             composeFile: 'docker-compose.yml',
@@ -658,7 +658,7 @@ class UpCommandTest extends TestCase
             workflowsDir: './.n8n'
         );
 
-        return new CortexConfig(
+        return new NgramxConfig(
             version: '1.0',
             docker: $dockerConfig,
             setup: $setupConfig,

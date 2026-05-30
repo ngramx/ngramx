@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Config;
+namespace Ngramx\Tests\Unit\Config;
 
-use Cortex\Config\LockFile;
-use Cortex\Config\LockFileData;
+use Ngramx\Config\LockFile;
+use Ngramx\Config\LockFileData;
 use PHPUnit\Framework\TestCase;
 
 class LockFileTest extends TestCase
@@ -15,7 +15,7 @@ class LockFileTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tempDir = sys_get_temp_dir() . '/cortex-test-' . uniqid();
+        $this->tempDir = sys_get_temp_dir() . '/ngramx-test-' . uniqid();
         mkdir($this->tempDir);
         $this->lockFile = new LockFile($this->tempDir);
     }
@@ -23,7 +23,7 @@ class LockFileTest extends TestCase
     protected function tearDown(): void
     {
         // Clean up temp directory
-        $lockPath = $this->tempDir . '/.cortex.lock';
+        $lockPath = $this->tempDir . '/.ngramx.lock';
         if (file_exists($lockPath)) {
             unlink($lockPath);
         }
@@ -121,7 +121,7 @@ class LockFileTest extends TestCase
 
         $this->lockFile->write($data);
 
-        $content = file_get_contents($this->tempDir . '/.cortex.lock');
+        $content = file_get_contents($this->tempDir . '/.ngramx.lock');
         $this->assertNotFalse($content, 'Failed to read lock file');
         $decoded = json_decode($content, true);
 
@@ -155,7 +155,7 @@ class LockFileTest extends TestCase
             'port_offset' => 1000,
             'started_at' => '2025-11-08T10:30:00+00:00',
         ], JSON_PRETTY_PRINT);
-        file_put_contents($this->tempDir . '/.cortex.lock', $legacyContent);
+        file_put_contents($this->tempDir . '/.ngramx.lock', $legacyContent);
 
         $readData = $this->lockFile->read();
 
@@ -187,7 +187,7 @@ class LockFileTest extends TestCase
             'started_at' => '2025-11-08T10:30:00+00:00',
             'herd_stopped' => true,
         ], JSON_PRETTY_PRINT);
-        file_put_contents($this->tempDir . '/.cortex.lock', $legacyContent);
+        file_put_contents($this->tempDir . '/.ngramx.lock', $legacyContent);
 
         $readData = $this->lockFile->read();
 

@@ -5,8 +5,8 @@
 The fastest way to test everything:
 
 ```bash
-cd /home/rob/projects/cortex-cli/tests/fixtures
-../../bin/cortex up
+cd /home/rob/projects/ngramx/tests/fixtures
+../../bin/ngramx up
 ```
 
 You should see:
@@ -20,7 +20,7 @@ You should see:
 ## Clean Up
 
 ```bash
-cd /home/rob/projects/cortex-cli/tests/fixtures
+cd /home/rob/projects/ngramx/tests/fixtures
 docker-compose -f docker-compose.test.yml down -v
 ```
 
@@ -29,7 +29,7 @@ docker-compose -f docker-compose.test.yml down -v
 First, make sure dev dependencies are installed:
 
 ```bash
-cd /home/rob/projects/cortex-cli
+cd /home/rob/projects/ngramx
 composer install  # Install with dev dependencies
 ```
 
@@ -81,7 +81,7 @@ Tests:
 
 ## Test With Your Own Project
 
-1. Create a `cortex.yml` in your project:
+1. Create a `ngramx.yml` in your project:
 
 ```yaml
 version: "1.0"
@@ -105,10 +105,10 @@ setup:
       timeout: 300
 ```
 
-2. Run cortex:
+2. Run ngramx:
 
 ```bash
-/home/rob/projects/cortex-cli/bin/cortex up
+/home/rob/projects/ngramx/bin/ngramx up
 ```
 
 ## Expected Output Colors
@@ -123,11 +123,11 @@ setup:
 
 ### "Service not healthy" error
 - Check if service has healthcheck in docker-compose.yml
-- Increase timeout in cortex.yml
+- Increase timeout in ngramx.yml
 - Check logs: `docker-compose logs <service>`
 
 ### "Command failed" error
-- Check command syntax in cortex.yml
+- Check command syntax in ngramx.yml
 - Try running command manually: `docker-compose exec app <command>`
 - Set `ignore_failure: true` to continue on errors
 
@@ -138,7 +138,7 @@ setup:
 
 ## What To Check
 
-After running `cortex up`:
+After running `ngramx up`:
 
 1. ✅ Pre-start commands executed on host
 2. ✅ Docker containers are running: `docker-compose ps`
@@ -151,7 +151,7 @@ After running `cortex up`:
 ## Test Scenarios
 
 ### Test ignoreFailure flag
-Modify `cortex.yml`:
+Modify `ngramx.yml`:
 ```yaml
 pre_start:
   - command: "exit 1"

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Cortex\Tests\Unit\Config;
+namespace Ngramx\Tests\Unit\Config;
 
-use Cortex\Config\Exception\ConfigException;
-use Cortex\Config\Validator\ConfigValidator;
+use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\Validator\ConfigValidator;
 use PHPUnit\Framework\TestCase;
 
 class ConfigValidatorTest extends TestCase
