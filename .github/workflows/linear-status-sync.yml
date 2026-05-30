@@ -1,0 +1,210 @@
+# Linear Status Sync
+#
+# Syncs a Linear issue's workflow state based on CI check activity on a pull request.
+#
+#   - When the primary CI check STARTS on a PR  -> move the linked Linear issue to "In Progress"
+#   - When the primary CI check COMPLETES with a successful conclusion -> move it to "In Review"
+#   - When CI fails -> leave the status unchanged (see the "Needs Work" note below for an optional tweak)
+#
+# The Linear issue is resolved from the PR head branch name, e.g. a branch called
+# "gbs-123-fix-login" or "feature/GBS-123" links to issue GBS-123.
+#
+# ---------------------------------------------------------------------------
+# Required secrets (set as org-wide or per-repo secrets)
+# ---------------------------------------------------------------------------
+#   LINEAR_API_KEY                - Linear API key (org-wide secret). Used directly as the
+#                                   Authorization header value (Linear does NOT use a "Bearer" prefix).
+#   LINEAR_IN_PROGRESS_STATE_ID   - UUID of the "In Progress" workflow state in Linear.
+#   LINEAR_IN_REVIEW_STATE_ID     - UUID of the "In Review" workflow state in Linear.
+#   PRIMARY_CHECK_NAME            - (optional) Name of the check run to listen to. Defaults to "build".
+#                                   This de-duplicates the noisy check_run events so we only call the
+#                                   Linear API once per push instead of once per CI job.
+#
+# ---------------------------------------------------------------------------
+# Authentication notes
+# ---------------------------------------------------------------------------
+# This workflow can run with either a Personal Access Token (the default GITHUB_TOKEN that
+# actions/github-script uses) or a GitHub App installation token.
+#
+# If you use a GitHub App (e.g. MoltByte) instead of the default token, add a step before the
+# github-script step that mints a short-lived installation token, for example:
+#
+#   - name: Generate GitHub App token
+#     id: app-token
+#     uses: actions/create-github-app-token@v1
+#     with:
+#       app-id: ${{ secrets.MOLTBYTE_APP_ID }}
+#       private-key: ${{ secrets.MOLTBYTE_APP_PRIVATE_KEY }}
+#
+# ...then pass `github-token: ${{ steps.app-token.outputs.token }}` to actions/github-script.
+# The app token is only needed for GitHub API calls (resolving the PR branch); Linear calls
+# always authenticate with secrets.LINEAR_API_KEY regardless of which GitHub auth you use.
+
+name: Linear Status Sync
+
+on:
+  check_run:
+    types: [created, completed]
+
+jobs:
+  update-linear-status:
+    runs-on: ubuntu-latest
+    # A Linear API outage (or any failure in this job) must never block CI for the repo,
+    # so the whole job is best-effort.
+    continue-on-error: true
+    steps:
+      # ---------------------------------------------------------------------
+      # 1. Resolve the PR head branch name from the check_run event.
+      #
+      # check_run events don't carry the PR branch directly, so we use github-script to read
+      # it from the check_run's associated pull request. If a GitHub App token is required,
+      # add `github-token: ${{ steps.app-token.outputs.token }}` below (see auth notes above).
+      # ---------------------------------------------------------------------
+      - name: Resolve PR head branch
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pulls = context.payload.check_run.pull_requests || [];
+            if (pulls.length === 0) {
+              core.info('No pull request is associated with this check run; nothing to sync.');
+              core.setOutput('branch', '');
+              return;
+            }
+            // A check run can be associated with multiple PRs (rare); the first is the head PR.
+            const branch = pulls[0].head.ref;
+            core.info(`Check run is on PR head branch: ${branch}`);
+            core.setOutput('branch', branch);
+
+      # ---------------------------------------------------------------------
+      # 2. Sync the Linear issue status.
+      #
+      # All Linear interaction lives in this single bash step so we can share the
+      # "resolve UUID then update state" logic via a reusable shell function.
+      # ---------------------------------------------------------------------
+      - name: Sync Linear issue status
+        env:
+          # Event context
+          BRANCH: ${{ steps.pr.outputs.branch }}
+          ACTION: ${{ github.event.action }}
+          CHECK_NAME: ${{ github.event.check_run.name }}
+          CONCLUSION: ${{ github.event.check_run.conclusion }}
+          # Configuration
+          PRIMARY_CHECK_NAME: ${{ secrets.PRIMARY_CHECK_NAME || 'build' }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          LINEAR_IN_PROGRESS_STATE_ID: ${{ secrets.LINEAR_IN_PROGRESS_STATE_ID }}
+          LINEAR_IN_REVIEW_STATE_ID: ${{ secrets.LINEAR_IN_REVIEW_STATE_ID }}
+        run: |
+          set -euo pipefail
+
+          LINEAR_API="https://api.linear.app/graphql"
+
+          # Exit gracefully (no failure) if there's no branch to work with.
+          if [ -z "${BRANCH:-}" ]; then
+            echo "ℹ️  No PR branch available; skipping Linear sync."
+            exit 0
+          fi
+
+          # -------------------------------------------------------------------
+          # Extract the Linear issue identifier (e.g. GBS-123) from the branch name.
+          # The regex is case-insensitive; we normalise to uppercase for the API query.
+          # -------------------------------------------------------------------
+          ISSUE_ID=$(echo "$BRANCH" | grep -ioE '[A-Z]+-[0-9]+' | head -n1 | tr '[:lower:]' '[:upper:]' || true)
+          if [ -z "$ISSUE_ID" ]; then
+            echo "ℹ️  No Linear issue ID found in branch '$BRANCH'; skipping."
+            exit 0
+          fi
+          echo "🔎 Found Linear issue ID: $ISSUE_ID"
+
+          if [ -z "${LINEAR_API_KEY:-}" ]; then
+            echo "⚠️  LINEAR_API_KEY is not set; skipping Linear sync."
+            exit 0
+          fi
+
+          # -------------------------------------------------------------------
+          # Helper: POST a GraphQL query/mutation to Linear.
+          # Reads the JSON-encoded body from stdin and prints the raw response.
+          # -------------------------------------------------------------------
+          linear_request() {
+            local query="$1"
+            curl -sS \
+              -X POST "$LINEAR_API" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: ${LINEAR_API_KEY}" \
+              --data "$(jq -nc --arg q "$query" '{query: $q}')"
+          }
+
+          # -------------------------------------------------------------------
+          # Reusable: resolve the issue's internal UUID from its human-readable ID,
+          # then update its workflow state. Logs a warning (never fails) on error.
+          #   $1 = target state UUID
+          #   $2 = human-friendly label for logging
+          # -------------------------------------------------------------------
+          update_issue_state() {
+            local state_id="$1"
+            local label="$2"
+
+            if [ -z "${state_id:-}" ]; then
+              echo "⚠️  No state ID configured for '$label'; skipping."
+              return 0
+            fi
+
+            # Resolve the internal UUID for the human-readable issue ID.
+            local resolve_resp uuid
+            resolve_resp=$(linear_request "query { issue(id: \"$ISSUE_ID\") { id } }")
+            uuid=$(echo "$resolve_resp" | jq -r '.data.issue.id // empty')
+
+            if [ -z "$uuid" ]; then
+              echo "⚠️  Could not resolve UUID for issue $ISSUE_ID. Response: $resolve_resp"
+              return 0
+            fi
+            echo "↪️  Resolved $ISSUE_ID to UUID $uuid"
+
+            # Mutate the issue's workflow state.
+            local update_resp success
+            update_resp=$(linear_request "mutation { issueUpdate(id: \"$uuid\", input: { stateId: \"$state_id\" }) { success } }")
+            success=$(echo "$update_resp" | jq -r '.data.issueUpdate.success // false')
+
+            if [ "$success" = "true" ]; then
+              echo "✅ Moved $ISSUE_ID to '$label'."
+            else
+              echo "⚠️  Failed to move $ISSUE_ID to '$label'. Response: $update_resp"
+            fi
+          }
+
+          # -------------------------------------------------------------------
+          # Decide what to do based on the check_run event.
+          #
+          # De-duplication: check_run fires once per individual CI job, so a single push can
+          # produce many events. We only act on the configured PRIMARY_CHECK_NAME so the Linear
+          # API is hit at most once per push per transition.
+          # -------------------------------------------------------------------
+          if [ "$CHECK_NAME" != "$PRIMARY_CHECK_NAME" ]; then
+            echo "ℹ️  Check '$CHECK_NAME' is not the primary check ('$PRIMARY_CHECK_NAME'); skipping."
+            exit 0
+          fi
+
+          case "$ACTION" in
+            created)
+              # A CI check has started -> work is in progress.
+              echo "▶️  Primary check started; moving $ISSUE_ID to In Progress."
+              update_issue_state "$LINEAR_IN_PROGRESS_STATE_ID" "In Progress"
+              ;;
+            completed)
+              if [ "$CONCLUSION" = "success" ]; then
+                # All required checks passed -> ready for review.
+                echo "✔️  Primary check succeeded; moving $ISSUE_ID to In Review."
+                update_issue_state "$LINEAR_IN_REVIEW_STATE_ID" "In Review"
+              else
+                # CI failed: leave the status unchanged so the assignee keeps working.
+                #
+                # Optional "Needs Work" behaviour: add a LINEAR_NEEDS_WORK_STATE_ID secret and call
+                #   update_issue_state "$LINEAR_NEEDS_WORK_STATE_ID" "Needs Work"
+                # here instead of just logging.
+                echo "ℹ️  Primary check concluded with '$CONCLUSION'; leaving status unchanged."
+              fi
+              ;;
+            *)
+              echo "ℹ️  Unhandled action '$ACTION'; nothing to do."
+              ;;
+          esac

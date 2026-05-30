@@ -27,13 +27,7 @@ class DockerCompose
      */
     public function hasExistingImages(string $composeFile, ?string $projectName = null): bool
     {
-        $command = ['docker-compose', '-f', $composeFile];
-
-        $overrideFile = dirname($composeFile) . '/docker-compose.override.yml';
-        if (file_exists($overrideFile)) {
-            $command[] = '-f';
-            $command[] = $overrideFile;
-        }
+        $command = array_merge(['docker-compose'], ComposeFiles::fileArgs($composeFile));
 
         if ($projectName !== null) {
             $command[] = '-p';
@@ -100,13 +94,7 @@ class DockerCompose
     ): array {
         $lines = max(1, $lines);
 
-        $command = ['docker-compose', '-f', $composeFile];
-
-        $overrideFile = dirname($composeFile) . '/docker-compose.override.yml';
-        if (file_exists($overrideFile)) {
-            $command[] = '-f';
-            $command[] = $overrideFile;
-        }
+        $command = array_merge(['docker-compose'], ComposeFiles::fileArgs($composeFile));
 
         if ($projectName !== null) {
             $command[] = '-p';
@@ -158,14 +146,7 @@ class DockerCompose
         ?int $timeout = null,
         ?callable $outputCallback = null
     ): void {
-        $command = ['docker-compose', '-f', $composeFile];
-
-        // Add override file if it exists
-        $overrideFile = dirname($composeFile) . '/docker-compose.override.yml';
-        if (file_exists($overrideFile)) {
-            $command[] = '-f';
-            $command[] = $overrideFile;
-        }
+        $command = array_merge(['docker-compose'], ComposeFiles::fileArgs($composeFile));
 
         if ($projectName !== null) {
             $command[] = '-p';
@@ -214,13 +195,7 @@ class DockerCompose
         ?string $projectName = null,
         ?callable $outputCallback = null
     ): void {
-        $command = ['docker-compose', '-f', $composeFile];
-
-        $overrideFile = dirname($composeFile) . '/docker-compose.override.yml';
-        if (file_exists($overrideFile)) {
-            $command[] = '-f';
-            $command[] = $overrideFile;
-        }
+        $command = array_merge(['docker-compose'], ComposeFiles::fileArgs($composeFile));
 
         if ($projectName !== null) {
             $command[] = '-p';
@@ -287,13 +262,7 @@ class DockerCompose
         int $timeout,
         string $failureLabel,
     ): void {
-        $command = ['docker-compose', '-f', $composeFile];
-
-        $overrideFile = dirname($composeFile) . '/docker-compose.override.yml';
-        if (file_exists($overrideFile)) {
-            $command[] = '-f';
-            $command[] = $overrideFile;
-        }
+        $command = array_merge(['docker-compose'], ComposeFiles::fileArgs($composeFile));
 
         if ($projectName !== null) {
             $command[] = '-p';
@@ -331,14 +300,7 @@ class DockerCompose
         ?string $projectName = null,
         ?callable $outputCallback = null
     ): void {
-        $command = ['docker-compose', '-f', $composeFile];
-
-        // Add override file if it exists
-        $overrideFile = dirname($composeFile) . '/docker-compose.override.yml';
-        if (file_exists($overrideFile)) {
-            $command[] = '-f';
-            $command[] = $overrideFile;
-        }
+        $command = array_merge(['docker-compose'], ComposeFiles::fileArgs($composeFile));
 
         if ($projectName !== null) {
             $command[] = '-p';
@@ -373,13 +335,7 @@ class DockerCompose
      */
     public function listServices(string $composeFile, ?string $projectName = null): array
     {
-        $command = ['docker-compose', '-f', $composeFile];
-
-        $overrideFile = dirname($composeFile) . '/docker-compose.override.yml';
-        if (file_exists($overrideFile)) {
-            $command[] = '-f';
-            $command[] = $overrideFile;
-        }
+        $command = array_merge(['docker-compose'], ComposeFiles::fileArgs($composeFile));
 
         if ($projectName !== null) {
             $command[] = '-p';
@@ -442,14 +398,7 @@ class DockerCompose
      */
     public function ps(string $composeFile, ?string $projectName = null): array
     {
-        $command = ['docker-compose', '-f', $composeFile];
-
-        // Add override file if it exists
-        $overrideFile = dirname($composeFile) . '/docker-compose.override.yml';
-        if (file_exists($overrideFile)) {
-            $command[] = '-f';
-            $command[] = $overrideFile;
-        }
+        $command = array_merge(['docker-compose'], ComposeFiles::fileArgs($composeFile));
 
         if ($projectName !== null) {
             $command[] = '-p';

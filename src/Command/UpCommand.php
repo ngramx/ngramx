@@ -122,9 +122,11 @@ class UpCommand extends Command
                 $formatter->info('Host port mapping disabled - containers will not expose ports');
             }
 
-            // Generate override file if port offset is needed, using namespace, or no host mapping
-            // (need to prefix explicit container_name fields to avoid conflicts)
-            $needsOverride = $portOffset > 0 || $namespace !== null || $noHostMapping;
+            // Generate override file if port offset is needed, using namespace, no host
+            // mapping, or when running from a linked git worktree (which needs the parent
+            // repo's git dir bind-mounted in so git resolves inside containers).
+            $inWorktree = (new \Ngramx\Worktree\WorktreeGitMount())->resolve(dirname($configPath)) !== null;
+            $needsOverride = $portOffset > 0 || $namespace !== null || $noHostMapping || $inWorktree;
             if ($needsOverride) {
                 $this->overrideGenerator->generate($config->docker->composeFile, $portOffset, $namespace, $noHostMapping);
             }

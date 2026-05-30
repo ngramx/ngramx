@@ -31,18 +31,48 @@ class ComposeOverrideGeneratorTest extends TestCase
         // Restore original directory
         chdir($this->originalDir);
 
-        // Clean up temp directory
-        $files = glob($this->tempDir . '/*');
-        if ($files !== false) {
-            foreach ($files as $file) {
-                if (is_file($file)) {
-                    unlink($file);
-                }
+        // Clean up temp directory (recursively — some tests create subdirs).
+        $this->removeDirectory($this->tempDir);
+    }
+
+    private function removeDirectory(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $items = scandir($dir);
+        if ($items === false) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
             }
+            $path = $dir . '/' . $item;
+            is_dir($path) ? $this->removeDirectory($path) : unlink($path);
         }
-        if (is_dir($this->tempDir)) {
-            rmdir($this->tempDir);
-        }
+
+        rmdir($dir);
+    }
+
+    /**
+     * Lay out the on-disk metadata git produces for a linked worktree rooted at
+     * the test's temp dir, and return the absolute path of the parent repo's
+     * shared git dir that should be bind-mounted into containers.
+     */
+    private function makeWorktreeLayout(): string
+    {
+        $repoGit = $this->tempDir . '/parent-git';
+        $adminDir = $repoGit . '/worktrees/feature';
+        mkdir($adminDir, 0755, true);
+        file_put_contents($adminDir . '/commondir', "../..\n");
+
+        // The worktree's .git is a *file* pointing at the per-worktree admin dir.
+        file_put_contents($this->tempDir . '/.git', 'gitdir: ' . $adminDir . "\n");
+
+        return (string) realpath($repoGit);
     }
 
     public function test_it_does_not_generate_override_for_zero_offset(): void
@@ -451,6 +481,148 @@ class ComposeOverrideGeneratorTest extends TestCase
         $this->assertInstanceOf(\Symfony\Component\Yaml\Tag\TaggedValue::class, $ports);
         $this->assertEquals('reset', $ports->getTag());
         $this->assertEquals([], $ports->getValue());
+    }
+
+    public function test_it_injects_worktree_git_mount_into_build_context_services(): void
+    {
+        $commonDir = $this->makeWorktreeLayout();
+
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'app' => [
+                    'build' => '.',
+                    'ports' => ['80:80'],
+                ],
+                'db' => [
+                    'image' => 'postgres',
+                    'ports' => ['5432:5432'],
+                ],
+            ],
+        ]);
+
+        $this->generator->generate($composeFile, 1000, 'ns');
+
+        $override = $this->parseOverride();
+
+        // The build-context service gets the parent git dir bind-mounted at the
+        // same absolute path plus the safe.directory guard.
+        $this->assertContains(
+            $commonDir . ':' . $commonDir,
+            $override['services']['app']['volumes']
+        );
+        $this->assertSame('1', $override['services']['app']['environment']['GIT_CONFIG_COUNT']);
+        $this->assertSame('safe.directory', $override['services']['app']['environment']['GIT_CONFIG_KEY_0']);
+        $this->assertSame('*', $override['services']['app']['environment']['GIT_CONFIG_VALUE_0']);
+
+        // The image-only service does not run the project entrypoint, so it is
+        // left without the git mount.
+        $this->assertArrayNotHasKey('volumes', $override['services']['db']);
+        $this->assertArrayNotHasKey('environment', $override['services']['db']);
+    }
+
+    public function test_git_mount_resolves_inside_container_at_pointer_path(): void
+    {
+        // The whole point of mounting the common dir at the same absolute path
+        // is that the worktree's gitdir pointer resolves unchanged. Assert the
+        // mounted path is exactly the prefix of the gitdir pointer the .git file
+        // references, so a container that sees the mount can follow the chain.
+        $commonDir = $this->makeWorktreeLayout();
+
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'app' => ['build' => '.'],
+            ],
+        ]);
+
+        $this->generator->generate($composeFile, 0, 'ns');
+
+        $override = $this->parseOverride();
+        $mount = $override['services']['app']['volumes'][0];
+        [$hostPath, $containerPath] = explode(':', $mount, 2);
+
+        $this->assertSame($hostPath, $containerPath, 'mount must be src == dest');
+
+        // gitdir pointer is <commonDir>/worktrees/feature, which lives under the
+        // mounted host path — so it is reachable inside the container.
+        $this->assertStringStartsWith($hostPath . '/worktrees/', $commonDir . '/worktrees/feature');
+    }
+
+    public function test_regeneration_preserves_git_mount_and_never_touches_user_override(): void
+    {
+        $commonDir = $this->makeWorktreeLayout();
+
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'app' => [
+                    'build' => '.',
+                    'ports' => ['80:80'],
+                ],
+            ],
+        ]);
+
+        // A user customisation lives in the separate, never-regenerated file.
+        $userFile = $this->tempDir . '/docker-compose.user.yml';
+        $userContents = "services:\n  app:\n    environment:\n      MY_FLAG: \"1\"\n";
+        file_put_contents($userFile, $userContents);
+
+        // First generation, then a regeneration with a different offset (as a
+        // later `ngramx up` would do).
+        $this->generator->generate($composeFile, 1000, 'ns');
+        $this->generator->generate($composeFile, 2000, 'ns');
+
+        $override = $this->parseOverride();
+
+        // The git mount survives regeneration...
+        $this->assertContains(
+            $commonDir . ':' . $commonDir,
+            $override['services']['app']['volumes']
+        );
+
+        // ...and the user override is left completely untouched.
+        $this->assertFileExists($userFile);
+        $this->assertSame($userContents, file_get_contents($userFile));
+    }
+
+    public function test_it_does_not_inject_git_mount_for_a_normal_checkout(): void
+    {
+        // A normal checkout keeps .git as a directory inside the project.
+        mkdir($this->tempDir . '/.git', 0755, true);
+
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'app' => [
+                    'build' => '.',
+                    'ports' => ['80:80'],
+                ],
+            ],
+        ]);
+
+        $this->generator->generate($composeFile, 1000, 'ns');
+
+        $override = $this->parseOverride();
+        $this->assertArrayNotHasKey('volumes', $override['services']['app']);
+        $this->assertArrayNotHasKey('environment', $override['services']['app']);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseOverride(): array
+    {
+        $contents = file_get_contents($this->tempDir . '/docker-compose.override.yml');
+        $this->assertNotFalse($contents, 'Failed to read override file');
+
+        $parsed = Yaml::parse($contents, Yaml::PARSE_CUSTOM_TAGS);
+
+        // Unwrap !override / !reset tagged port values so assertions can index
+        // service arrays uniformly.
+        foreach ($parsed['services'] ?? [] as $name => $service) {
+            if (isset($service['ports']) && $service['ports'] instanceof \Symfony\Component\Yaml\Tag\TaggedValue) {
+                $parsed['services'][$name]['ports'] = $service['ports']->getValue();
+            }
+        }
+
+        return $parsed;
     }
 
     /**

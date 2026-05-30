@@ -94,13 +94,7 @@ class NetworkAttachmentChecker
      */
     private function getContainerId(string $composeFile, string $service, ?string $namespace): ?string
     {
-        $command = ['docker-compose', '-f', $composeFile];
-
-        $overrideFile = dirname($composeFile) . '/docker-compose.override.yml';
-        if (file_exists($overrideFile)) {
-            $command[] = '-f';
-            $command[] = $overrideFile;
-        }
+        $command = array_merge(['docker-compose'], ComposeFiles::fileArgs($composeFile));
 
         if ($namespace !== null) {
             $command[] = '-p';
