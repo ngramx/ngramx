@@ -546,6 +546,52 @@ class GitRepositoryServiceTest extends TestCase
         $this->runCommand('git push origin ' . escapeshellarg($branch), $clonePath);
     }
 
+    public function test_addWorktree_creates_a_checked_out_worktree(): void
+    {
+        $worktreePath = $this->tempDir . '/wt-456';
+
+        $this->assertFalse($this->service->worktreeExists($this->gitRepoPath, $worktreePath));
+
+        $result = $this->service->addWorktree($this->gitRepoPath, $worktreePath, 'feature/TICKET-456');
+
+        $this->assertTrue($result);
+        $this->assertDirectoryExists($worktreePath);
+        $this->assertFileExists($worktreePath . '/README.md');
+        $this->assertTrue($this->service->worktreeExists($this->gitRepoPath, $worktreePath));
+    }
+
+    public function test_addWorktree_creates_intermediate_directories(): void
+    {
+        $worktreePath = $this->tempDir . '/.cortex/worktrees/ticket-456-repo';
+
+        $result = $this->service->addWorktree($this->gitRepoPath, $worktreePath, 'feature/TICKET-456');
+
+        $this->assertTrue($result);
+        $this->assertDirectoryExists($worktreePath);
+    }
+
+    public function test_removeWorktree_removes_an_existing_worktree(): void
+    {
+        $worktreePath = $this->tempDir . '/wt-remove';
+        $this->service->addWorktree($this->gitRepoPath, $worktreePath, 'feature/TICKET-456');
+
+        // Simulate the untracked files a real worktree env leaves behind.
+        file_put_contents($worktreePath . '/.env', "APP_URL=http://example.test\n");
+
+        $result = $this->service->removeWorktree($this->gitRepoPath, $worktreePath);
+
+        $this->assertTrue($result);
+        $this->assertDirectoryDoesNotExist($worktreePath);
+        $this->assertFalse($this->service->worktreeExists($this->gitRepoPath, $worktreePath));
+    }
+
+    public function test_removeWorktree_returns_false_for_unknown_path(): void
+    {
+        $result = $this->service->removeWorktree($this->gitRepoPath, $this->tempDir . '/does-not-exist');
+
+        $this->assertFalse($result);
+    }
+
     /**
      * Recursively remove a directory
      */

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cortex\Config;
 
 use Cortex\Config\Exception\ConfigException;
+use Cortex\Config\Schema\AgentsConfig;
 use Cortex\Config\Schema\CommandDefinition;
 use Cortex\Config\Schema\CortexConfig;
 use Cortex\Config\Schema\DockerConfig;
@@ -111,6 +112,7 @@ class ConfigLoader
         $setup = $this->buildSetupConfig($config['setup'] ?? []);
         $n8n = $this->buildN8nConfig($config['n8n'] ?? [], $configDir);
         $secrets = $this->buildSecretsConfig($config['secrets'] ?? []);
+        $agents = $this->buildAgentsConfig($config['agents'] ?? []);
         $commands = $this->buildCommandsMap($config['commands'] ?? []);
 
         return new CortexConfig(
@@ -119,6 +121,7 @@ class ConfigLoader
             setup: $setup,
             n8n: $n8n,
             secrets: $secrets,
+            agents: $agents,
             commands: $commands,
         );
     }
@@ -227,6 +230,20 @@ class ConfigLoader
         return new SecretsConfig(
             provider: $provider,
             required: $required,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $agentsConfig
+     */
+    private function buildAgentsConfig(array $agentsConfig): AgentsConfig
+    {
+        $targets = $agentsConfig['targets'] ?? AgentsConfig::DEFAULT_TARGETS;
+        $skills = $agentsConfig['skills'] ?? AgentsConfig::DEFAULT_SKILLS;
+
+        return new AgentsConfig(
+            targets: $targets,
+            skills: $skills,
         );
     }
 

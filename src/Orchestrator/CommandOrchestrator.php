@@ -25,7 +25,7 @@ class CommandOrchestrator
      *
      * @throws \RuntimeException
      */
-    public function run(string $commandName, CortexConfig $config): float
+    public function run(string $commandName, CortexConfig $config, ?string $projectName = null): float
     {
         if (!isset($config->commands[$commandName])) {
             throw new \RuntimeException("Command '$commandName' not found in cortex.yml");
@@ -34,10 +34,10 @@ class CommandOrchestrator
         $cmd = $config->commands[$commandName];
 
         if ($cmd->isParallel()) {
-            return $this->runParallel($commandName, $cmd->commands, $cmd->timeout, $cmd->description, $config);
+            return $this->runParallel($commandName, $cmd->commands, $cmd->timeout, $cmd->description, $config, $projectName);
         }
 
-        return $this->runSingle($commandName, $config);
+        return $this->runSingle($commandName, $config, $projectName);
     }
 
     /**
@@ -93,7 +93,7 @@ class CommandOrchestrator
         return $result;
     }
 
-    private function runSingle(string $commandName, CortexConfig $config): float
+    private function runSingle(string $commandName, CortexConfig $config, ?string $projectName = null): float
     {
         $cmd = $config->commands[$commandName];
         $startTime = microtime(true);
@@ -104,7 +104,8 @@ class CommandOrchestrator
         $containerExecutor = new ContainerCommandExecutor(
             new ContainerExecutor(),
             $config->docker->composeFile,
-            $config->docker->primaryService
+            $config->docker->primaryService,
+            $projectName
         );
 
         $outputCallback = function ($type, $buffer): void {
@@ -141,6 +142,7 @@ class CommandOrchestrator
         int $timeout,
         string $description,
         CortexConfig $config,
+        ?string $projectName = null,
     ): float {
         $startTime = microtime(true);
 
@@ -165,6 +167,7 @@ class CommandOrchestrator
             new ContainerExecutor(),
             $config->docker->composeFile,
             $config->docker->primaryService,
+            $projectName,
         );
 
         $results = $executor->runAll(

@@ -104,6 +104,116 @@ class GitRepositoryService
     }
 
     /**
+     * Check whether a git worktree already exists at the given path.
+     */
+    public function worktreeExists(string $repositoryPath, string $worktreePath): bool
+    {
+        $process = new Process(['git', 'worktree', 'list', '--porcelain'], $repositoryPath);
+        $process->setTimeout(30);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            return false;
+        }
+
+        $target = $this->normalizePath($worktreePath);
+
+        foreach (explode("\n", $process->getOutput()) as $line) {
+            if (str_starts_with($line, 'worktree ')) {
+                $existing = $this->normalizePath(trim(substr($line, strlen('worktree '))));
+                if ($existing === $target) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Create a git worktree at $worktreePath checked out to $branch.
+     *
+     * Uses git's DWIM behaviour so a branch that only exists on origin is created
+     * as a local tracking branch. After creation we best-effort fast-forward to
+     * origin so a re-used branch picks up newly pushed commits.
+     */
+    public function addWorktree(string $repositoryPath, string $worktreePath, string $branch): bool
+    {
+        $parent = dirname($worktreePath);
+        if (!is_dir($parent)) {
+            @mkdir($parent, 0755, true);
+        }
+
+        $addProcess = new Process(
+            ['git', 'worktree', 'add', $worktreePath, $branch],
+            $repositoryPath
+        );
+        $addProcess->setTimeout(120);
+        $addProcess->run();
+
+        if (!$addProcess->isSuccessful()) {
+            return false;
+        }
+
+        // Best-effort: bring the worktree up to date with origin. A diverged or
+        // already-current branch makes this a no-op/failure we can safely ignore.
+        $ffProcess = new Process(
+            ['git', '-C', $worktreePath, 'merge', '--ff-only', 'origin/' . $branch],
+            $repositoryPath
+        );
+        $ffProcess->setTimeout(60);
+        $ffProcess->run();
+
+        return true;
+    }
+
+    /**
+     * Remove a git worktree and prune its administrative entry.
+     *
+     * Uses --force because the worktree will usually contain untracked files
+     * (a copied .env, a generated docker-compose.override.yml) that would
+     * otherwise make git refuse to remove it.
+     */
+    public function removeWorktree(string $repositoryPath, string $worktreePath): bool
+    {
+        $removeProcess = new Process(
+            ['git', 'worktree', 'remove', '--force', $worktreePath],
+            $repositoryPath
+        );
+        $removeProcess->setTimeout(60);
+        $removeProcess->run();
+
+        if (!$removeProcess->isSuccessful()) {
+            return false;
+        }
+
+        $this->pruneWorktrees($repositoryPath);
+
+        return true;
+    }
+
+    /**
+     * Prune administrative entries for worktrees whose directories have been removed.
+     */
+    public function pruneWorktrees(string $repositoryPath): void
+    {
+        $pruneProcess = new Process(['git', 'worktree', 'prune'], $repositoryPath);
+        $pruneProcess->setTimeout(30);
+        $pruneProcess->run();
+    }
+
+    /**
+     * Normalise a filesystem path for comparison, resolving it via realpath when
+     * it exists and otherwise collapsing trailing slashes.
+     */
+    private function normalizePath(string $path): string
+    {
+        $resolved = realpath($path);
+
+        return $resolved !== false ? $resolved : rtrim($path, '/');
+    }
+
+    /**
      * Find the most recent branch by checking commit dates
      *
      * @param array<string> $branches

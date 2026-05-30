@@ -9,8 +9,6 @@ services:
       - .:/app
       # Cache composer dependencies
       - composer-cache:/root/.composer
-    environment:
-      - XDEBUG_MODE=coverage
     tty: true
     stdin_open: true
     healthcheck:

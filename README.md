@@ -223,6 +223,9 @@ Prepare the environment for reviewing a ticket by checking out its branch and re
 ```bash
 cortex review GIG-1234           # Checks out the branch and runs `fresh`
 cortex review GIG-1234 --quick   # Checks out the branch and runs `clear` instead
+cortex review GIG-1234 --worktree # Reviews in an isolated worktree + parallel env
+cortex review GIG-1234 --cursor   # Same as --worktree, then opens a new Cursor window
+cortex review GIG-1234 --cleanup  # Tears down + removes that ticket's worktree env
 ```
 
 This command:
@@ -235,6 +238,20 @@ This command:
 **Options:**
 
 - `--quick` — Run the `clear` command instead of `fresh`. This skips the database reset and only installs deps and clears caches, so it's much faster. **Only use `--quick` on branches that don't change your database schema or seed data** — otherwise you'll be reviewing against stale data. When in doubt, use the default (`fresh`).
+- `--worktree` / `-w` — Review in an **isolated git worktree with its own parallel dev environment** instead of checking the branch out in your main working directory. This lets you review (or fix) several tickets at once without your editor and Docker stack fighting over a single branch.
+- `--cursor` — Everything `--worktree` does, then opens the worktree in a **new Cursor window**. Implies `--worktree`.
+- `--cleanup` — Stop the worktree's Docker stack (including its volumes) and remove the git worktree for this ticket. Use this when you're done reviewing. (If the container left root-owned files behind, cleanup removes them via a short-lived helper container.)
+
+**How worktree mode works:**
+
+- Creates a git worktree at `.cortex/worktrees/<ticket>-<repo>/` (e.g. `.cortex/worktrees/gig-178-ill-kendrick/`). The folder name is the ticket slug + repository name, so it reads clearly in the Cursor title bar.
+- Brings up a **separate Docker stack** with its own namespace and an automatically-chosen port offset, so it never conflicts with your main `cortex up` or other worktrees.
+- Generates a ticket-prefixed dev URL like `http://gig-178-ill-kendrick.localhost:8080`. Browsers resolve `*.localhost` to loopback automatically — no `/etc/hosts` edits or `sudo` required.
+- Copies your **parent `.env`** into the worktree and patches `APP_URL` to the worktree URL. Other values (DB creds, etc.) are safe to share because each worktree gets its own namespaced containers and volumes.
+- **Reuses your already-built Docker image** (re-tags the main checkout's image for the worktree's Compose project) instead of rebuilding from scratch, and **copies `vendor/` and `node_modules/`** from the parent so `composer install` / `npm ci` is a near-instant no-op. In practice this turns a multi-minute cold start into seconds.
+- Adds `/.cortex/worktrees/` to `.git/info/exclude` and `.cursorignore` so the parent checkout neither tracks nor indexes the nested worktrees.
+
+When you're done, run `cortex review <ticket> --cleanup` to stop the stack (and remove its volumes) and delete the worktree in one step.
 
 **Requires:** `fresh` and (for `--quick`) `clear` defined in `cortex.yml` — see [Recommended commands](#recommended-commands). If the relevant command isn't defined, review falls back to a generic Laravel reset (`optimize:clear` + `migrate:fresh --seed`).
 

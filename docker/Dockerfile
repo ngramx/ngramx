@@ -6,16 +6,7 @@ RUN apk add --no-cache \
     git \
     zip \
     unzip \
-    curl \
-    linux-headers \
-    $PHPIZE_DEPS
-
-# Install Xdebug for code coverage
-RUN pecl install xdebug-3.4.5 \
-    && docker-php-ext-enable xdebug
-
-# Configure Xdebug for coverage (not debugging)
-RUN echo "xdebug.mode=coverage" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+    curl
 
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

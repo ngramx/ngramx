@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Cortex\Command;
 
-use Cortex\Agents\AgentsMdSynchronizer;
+use Cortex\Agents\AgentsSyncOrchestrator;
+use Cortex\Config\ConfigLoader;
+use Cortex\Config\Exception\ConfigException;
+use Cortex\Config\Schema\AgentsConfig;
+use Cortex\Config\Validator\ConfigValidator;
 use Cortex\Output\OutputFormatter;
-use Cortex\Support\TicketInstructionsMarkdownCompiler;
 use Cortex\Templates\TemplateDirectory;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -43,29 +46,21 @@ class InitCommand extends Command
             $formatter->welcome('Initializing Cortex');
             $formatter->section('Setting up directory structure');
 
-            // Create .cortex directory structure (handles "already exists" internally)
             $this->createCortexDirectory($cwd, $formatter);
 
-            // Create cortex.yml (unless --skip-yaml)
             if (!$skipYaml) {
                 $this->createCortexYml($cwd, $formatter, $force);
             }
 
-            // Create/update ~/.claude files (unless --skip-claude)
             if (!$skipClaude) {
-                // Create/update ~/.claude/rules/cortex.md (user-wide rules)
-                $this->createClaudeRules($homeDir, $formatter, $force);
-
-                // Create/update ~/.claude/CLAUDE.md (user-wide memory)
-                $this->createClaudeMd($homeDir, $formatter);
+                $this->createClaudeUserFiles($homeDir, $formatter);
             } else {
                 $formatter->info('⊘ Skipped ~/.claude files (--skip-claude)');
             }
 
-            $agentsSync = new AgentsMdSynchronizer();
-            $agentsSync->sync($cwd);
+            // Sync agent instructions to all configured targets
+            $this->syncAgentTargets($cwd, $formatter);
 
-            // Show success message
             $this->showSuccessMessage($formatter, $skipYaml, $skipClaude);
 
             return Command::SUCCESS;
@@ -75,11 +70,39 @@ class InitCommand extends Command
         }
     }
 
+    private function syncAgentTargets(string $projectRoot, OutputFormatter $formatter): void
+    {
+        try {
+            $configLoader = new ConfigLoader(new ConfigValidator());
+            $config = $configLoader->load($projectRoot . '/cortex.yml');
+            $agentsConfig = $config->agents;
+        } catch (ConfigException) {
+            $agentsConfig = new AgentsConfig();
+        }
+
+        $orchestrator = new AgentsSyncOrchestrator();
+        $result = $orchestrator->sync($projectRoot, $agentsConfig);
+
+        $targetsChanged = $result['targets_changed'];
+        $skillsChanged = $result['skills_changed'];
+
+        if ($targetsChanged !== []) {
+            foreach ($targetsChanged as $target) {
+                $formatter->info("✓ Synced agent target: $target");
+            }
+        } else {
+            $formatter->info('✓ Agent targets already up to date');
+        }
+
+        if ($skillsChanged) {
+            $formatter->info('✓ Skills synchronized');
+        }
+    }
+
     private function getHomeDirectory(): string
     {
         $home = getenv('HOME');
         if ($home === false || $home === '') {
-            // Fallback for Windows or if HOME is not set
             $home = getenv('USERPROFILE');
         }
         if ($home === false || $home === '') {
@@ -92,7 +115,6 @@ class InitCommand extends Command
     {
         $cortexDir = $cwd . '/.cortex';
 
-        // Create main .cortex directory
         if (!is_dir($cortexDir)) {
             if (!mkdir($cortexDir, 0755, true)) {
                 throw new \RuntimeException("Failed to create directory: $cortexDir");
@@ -102,7 +124,6 @@ class InitCommand extends Command
             $formatter->info('✓ .cortex/ directory already exists');
         }
 
-        // Create subdirectories
         $subdirectories = [
             'tickets',
             'specs',
@@ -119,12 +140,10 @@ class InitCommand extends Command
             }
         }
 
-        // Create .gitkeep in all subdirectories
         foreach ($subdirectories as $subdir) {
             $this->createGitkeep($cortexDir . '/' . $subdir, $formatter, $subdir);
         }
 
-        // Create README.md in .cortex
         $this->createCortexReadme($cortexDir, $formatter);
     }
 
@@ -165,7 +184,6 @@ class InitCommand extends Command
     {
         $cortexYmlPath = $cwd . '/cortex.yml';
 
-        // Check if file exists and force is not set
         if (file_exists($cortexYmlPath) && !$force) {
             $formatter->warning('⚠ cortex.yml already exists (use --force to overwrite)');
             return;
@@ -189,145 +207,60 @@ class InitCommand extends Command
         $formatter->info('✓ Created cortex.yml');
     }
 
-    private function createClaudeRules(string $homeDir, OutputFormatter $formatter, bool $force): void
+    /**
+     * Creates user-wide ~/.claude/ files (rules and CLAUDE.md).
+     * These are personal/global — distinct from the project-level CLAUDE.md target.
+     */
+    private function createClaudeUserFiles(string $homeDir, OutputFormatter $formatter): void
     {
         $claudeDir = $homeDir . '/.claude';
         $rulesDir = $claudeDir . '/rules';
-        $cortexMdPath = $rulesDir . '/cortex.md';
 
-        // Compile templates into cortex.md
-        $newContent = $this->compileClaudeRulesContent();
+        if (!is_dir($claudeDir) && !mkdir($claudeDir, 0755, true)) {
+            throw new \RuntimeException("Failed to create directory: $claudeDir");
+        }
 
-        // Check if file exists and compare content
-        if (file_exists($cortexMdPath) && !$force) {
-            $existingContent = file_get_contents($cortexMdPath);
-            if ($existingContent !== false && md5($existingContent) === md5($newContent)) {
-                $formatter->info('✓ ~/.claude/rules/cortex.md is up to date');
-                return;
+        if (!is_dir($rulesDir) && !mkdir($rulesDir, 0755, true)) {
+            throw new \RuntimeException("Failed to create directory: $rulesDir");
+        }
+
+        // Write ~/.claude/CLAUDE.md
+        $claudeMdPath = $claudeDir . '/CLAUDE.md';
+        $templatePath = $this->getTemplatePath('CLAUDE.md.template');
+
+        if (file_exists($templatePath)) {
+            $templateContent = file_get_contents($templatePath);
+            if ($templateContent !== false) {
+                $this->writeClaudeMdWithMarkers($claudeMdPath, $templateContent, $formatter);
             }
         }
 
-        // Create ~/.claude directory if it doesn't exist
-        if (!is_dir($claudeDir)) {
-            if (!mkdir($claudeDir, 0755, true)) {
-                throw new \RuntimeException("Failed to create directory: $claudeDir");
-            }
-            $formatter->info('✓ Created ~/.claude/ directory');
-        }
-
-        // Create ~/.claude/rules directory if it doesn't exist
-        if (!is_dir($rulesDir)) {
-            if (!mkdir($rulesDir, 0755, true)) {
-                throw new \RuntimeException("Failed to create directory: $rulesDir");
-            }
-            $formatter->info('✓ Created ~/.claude/rules/ directory');
-        }
-
-        $isUpdate = file_exists($cortexMdPath);
-
-        if (file_put_contents($cortexMdPath, $newContent) === false) {
-            throw new \RuntimeException('Failed to create ~/.claude/rules/cortex.md');
-        }
-
-        if ($isUpdate) {
-            $formatter->info('✓ Updated ~/.claude/rules/cortex.md');
-        } else {
-            $formatter->info('✓ Created ~/.claude/rules/cortex.md');
-        }
+        $formatter->info('✓ ~/.claude/ files updated');
     }
 
     private const CORTEX_MARKER_START = '<!-- CORTEX START -->';
     private const CORTEX_MARKER_END = '<!-- CORTEX END -->';
 
-    private function createClaudeMd(string $homeDir, OutputFormatter $formatter): void
+    private function writeClaudeMdWithMarkers(string $path, string $templateContent, OutputFormatter $formatter): void
     {
-        $claudeDir = $homeDir . '/.claude';
-        $claudeMdPath = $claudeDir . '/CLAUDE.md';
-
-        // Create ~/.claude directory if it doesn't exist
-        if (!is_dir($claudeDir)) {
-            if (!mkdir($claudeDir, 0755, true)) {
-                throw new \RuntimeException("Failed to create directory: $claudeDir");
-            }
-            $formatter->info('✓ Created ~/.claude/ directory');
-        }
-
-        // Get the cortex content wrapped in markers
-        $templatePath = $this->getTemplatePath('CLAUDE.md.template');
-        if (!file_exists($templatePath)) {
-            throw new \RuntimeException("Template file not found: $templatePath");
-        }
-
-        $templateContent = file_get_contents($templatePath);
-        if ($templateContent === false) {
-            throw new \RuntimeException("Failed to read template: $templatePath");
-        }
-
         $cortexSection = self::CORTEX_MARKER_START . "\n" . $templateContent . "\n" . self::CORTEX_MARKER_END;
 
-        if (file_exists($claudeMdPath)) {
-            // File exists - check if it already has cortex section
-            $existingContent = file_get_contents($claudeMdPath);
-            if ($existingContent === false) {
-                throw new \RuntimeException('Failed to read existing CLAUDE.md');
-            }
-
-            if (str_contains($existingContent, self::CORTEX_MARKER_START)) {
-                // Extract existing cortex section and compare
-                $existingCortexSection = $this->extractCortexSection($existingContent);
-                if ($existingCortexSection !== null && md5($existingCortexSection) === md5($cortexSection)) {
-                    $formatter->info('✓ ~/.claude/CLAUDE.md Cortex section is up to date');
-                    return;
-                }
-
-                // Replace existing cortex section with new one
-                $newContent = $this->replaceCortexSection($existingContent, $cortexSection);
-                if (file_put_contents($claudeMdPath, $newContent) === false) {
-                    throw new \RuntimeException('Failed to update ~/.claude/CLAUDE.md');
-                }
-
-                $formatter->info('✓ Updated Cortex section in ~/.claude/CLAUDE.md');
+        if (file_exists($path)) {
+            $existing = file_get_contents($path);
+            if ($existing === false) {
                 return;
             }
 
-            // Append cortex section to existing content
-            $newContent = $existingContent . "\n\n" . $cortexSection;
-            if (file_put_contents($claudeMdPath, $newContent) === false) {
-                throw new \RuntimeException('Failed to update ~/.claude/CLAUDE.md');
+            if (str_contains($existing, self::CORTEX_MARKER_START)) {
+                $pattern = '/' . preg_quote(self::CORTEX_MARKER_START, '/') . '.*?' . preg_quote(self::CORTEX_MARKER_END, '/') . '/s';
+                $newContent = preg_replace($pattern, $cortexSection, $existing) ?? $existing;
+                file_put_contents($path, $newContent);
+            } else {
+                file_put_contents($path, $existing . "\n\n" . $cortexSection);
             }
-
-            $formatter->info('✓ Appended Cortex section to ~/.claude/CLAUDE.md');
         } else {
-            // Create new file with cortex section
-            if (file_put_contents($claudeMdPath, $cortexSection) === false) {
-                throw new \RuntimeException('Failed to create ~/.claude/CLAUDE.md');
-            }
-
-            $formatter->info('✓ Created ~/.claude/CLAUDE.md');
+            file_put_contents($path, $cortexSection);
         }
-    }
-
-    private function extractCortexSection(string $content): ?string
-    {
-        $startPos = strpos($content, self::CORTEX_MARKER_START);
-        $endPos = strpos($content, self::CORTEX_MARKER_END);
-
-        if ($startPos === false || $endPos === false) {
-            return null;
-        }
-
-        return substr($content, $startPos, $endPos - $startPos + strlen(self::CORTEX_MARKER_END));
-    }
-
-    private function replaceCortexSection(string $content, string $newSection): string
-    {
-        $pattern = '/' . preg_quote(self::CORTEX_MARKER_START, '/') . '.*?' . preg_quote(self::CORTEX_MARKER_END, '/') . '/s';
-        return preg_replace($pattern, $newSection, $content) ?? $content;
-    }
-
-    private function compileClaudeRulesContent(): string
-    {
-        return (new TicketInstructionsMarkdownCompiler())->compile(TemplateDirectory::resolve());
     }
 
     private function getTemplatePath(string $templateName): string
@@ -344,22 +277,17 @@ class InitCommand extends Command
         $formatter->info('');
         $formatter->info('Created (project):');
         $formatter->info('  ✓ .cortex/ directory structure');
-        $formatter->info('  ✓ .cortex/README.md');
-        $formatter->info('  ✓ .cortex/tickets/.gitkeep');
-        $formatter->info('  ✓ .cortex/specs/.gitkeep');
-        $formatter->info('  ✓ .cortex/meetings/.gitkeep');
 
         if (!$skipYaml) {
             $formatter->info('  ✓ cortex.yml');
         }
 
-        $formatter->info('  ✓ AGENTS.md (Cortex-managed section updated if present)');
+        $formatter->info('  ✓ Agent instructions synced to configured targets');
 
         if (!$skipClaude) {
             $formatter->info('');
             $formatter->info('Created (user-wide):');
             $formatter->info('  ✓ ~/.claude/CLAUDE.md');
-            $formatter->info('  ✓ ~/.claude/rules/cortex.md');
         }
 
         $formatter->info('');
@@ -367,16 +295,16 @@ class InitCommand extends Command
 
         if (!$skipYaml) {
             $formatter->info('  1. Review and customize cortex.yml for your project');
-            $formatter->info('  2. Ensure docker-compose.yml exists in your project');
+            $formatter->info('  2. Add `agents:` section to configure targets and skills');
             $formatter->info('  3. Run: cortex up');
         } else {
             $formatter->info('  1. Create a cortex.yml file (see cortex.example.yml)');
             $formatter->info('  2. Run: cortex up');
         }
 
-        $formatter->info('  4. Read .cortex/README.md for documentation');
         $formatter->info('');
-        $formatter->info('AGENTS.md: the Cortex-managed block is refreshed when you run cortex commands in this project (or use `cortex sync-agents`). Per-repo `.cursor/rules` and `.claude` files are not removed by Cortex.');
+        $formatter->info('Agent sync: the Cortex-managed sections are refreshed on every cortex command.');
+        $formatter->info('Configure targets in cortex.yml under `agents.targets` and `agents.skills`.');
         $formatter->info('');
         $formatter->info('For help: cortex --help');
     }

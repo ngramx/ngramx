@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cortex\Config\Validator;
 
 use Cortex\Config\Exception\ConfigException;
+use Cortex\Config\Schema\AgentsConfig;
 
 class ConfigValidator
 {
@@ -27,6 +28,10 @@ class ConfigValidator
 
         if (isset($config['secrets'])) {
             $this->validateSecretsSection($config['secrets']);
+        }
+
+        if (isset($config['agents'])) {
+            $this->validateAgentsSection($config['agents']);
         }
     }
 
@@ -201,6 +206,51 @@ class ConfigValidator
             foreach ($secrets['required'] as $index => $name) {
                 if (!is_string($name) || $name === '') {
                     throw new ConfigException("secrets.required[$index] must be a non-empty string");
+                }
+            }
+        }
+    }
+
+    /**
+     * @param mixed $agents
+     * @throws ConfigException
+     */
+    private function validateAgentsSection(mixed $agents): void
+    {
+        if (!is_array($agents)) {
+            throw new ConfigException('agents must be an array');
+        }
+
+        if (isset($agents['targets'])) {
+            if (!is_array($agents['targets'])) {
+                throw new ConfigException('agents.targets must be an array');
+            }
+
+            foreach ($agents['targets'] as $index => $target) {
+                if (!is_string($target) || $target === '') {
+                    throw new ConfigException("agents.targets[$index] must be a non-empty string");
+                }
+                if (!in_array($target, AgentsConfig::VALID_TARGETS, true)) {
+                    throw new ConfigException(
+                        "agents.targets[$index]: unknown target '$target'. Valid targets: " . implode(', ', AgentsConfig::VALID_TARGETS)
+                    );
+                }
+            }
+        }
+
+        if (isset($agents['skills'])) {
+            if (!is_array($agents['skills'])) {
+                throw new ConfigException('agents.skills must be an array');
+            }
+
+            foreach ($agents['skills'] as $index => $skill) {
+                if (!is_string($skill) || $skill === '') {
+                    throw new ConfigException("agents.skills[$index] must be a non-empty string");
+                }
+                if (!in_array($skill, AgentsConfig::VALID_SKILLS, true)) {
+                    throw new ConfigException(
+                        "agents.skills[$index]: unknown skill target '$skill'. Valid targets: " . implode(', ', AgentsConfig::VALID_SKILLS)
+                    );
                 }
             }
         }

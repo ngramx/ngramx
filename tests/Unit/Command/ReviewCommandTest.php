@@ -63,6 +63,15 @@ class ReviewCommandTest extends TestCase
         $this->assertTrue($command->getDefinition()->hasArgument('ticket'));
     }
 
+    public function test_command_has_worktree_options(): void
+    {
+        $definition = $this->createCommand()->getDefinition();
+
+        $this->assertTrue($definition->hasOption('worktree'));
+        $this->assertTrue($definition->hasOption('cursor'));
+        $this->assertTrue($definition->getOption('worktree')->getShortcut() === 'w');
+    }
+
     public function test_it_fails_when_services_not_running(): void
     {
         $this->dockerCompose = $this->createMock(DockerCompose::class);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cortex;
 
 use Cortex\Agents\AgentsMdSynchronizer;
+use Cortex\Agents\AgentsSyncOrchestrator;
 use Cortex\Caddy\CaddyService;
 use Cortex\Command\DownCommand;
 use Cortex\Command\DynamicCommand;
@@ -33,9 +34,11 @@ use Cortex\Docker\ComposeOverrideGenerator;
 use Cortex\Docker\ContainerExecutor;
 use Cortex\Docker\DockerCompose;
 use Cortex\Docker\HealthChecker;
+use Cortex\Docker\ImageReuser;
 use Cortex\Docker\NamespaceResolver;
 use Cortex\Docker\PortOffsetManager;
 use Cortex\Executor\HostCommandExecutor;
+use Cortex\Git\GitExcludeManager;
 use Cortex\Git\GitRepositoryService;
 use Cortex\Herd\HerdService;
 use Cortex\Laravel\LaravelLogParser;
@@ -177,7 +180,11 @@ class Application extends BaseApplication
             $lockFile,
             $gitRepositoryService,
             $laravelService,
-            $commandOrchestrator
+            $commandOrchestrator,
+            $portOffsetManager,
+            new GitExcludeManager(),
+            $namespaceResolver,
+            new ImageReuser()
         ));
         $this->add(new StatusCommand(
             $configLoader,
@@ -316,10 +323,20 @@ class Application extends BaseApplication
     {
         try {
             $configLoader = new ConfigLoader(new ConfigValidator());
-            $projectRoot = dirname($configLoader->findConfigFile());
-            (new AgentsMdSynchronizer())->sync($projectRoot);
+            $configPath = $configLoader->findConfigFile();
+            $projectRoot = dirname($configPath);
+            $config = $configLoader->load($configPath);
+            (new AgentsSyncOrchestrator())->sync($projectRoot, $config->agents);
         } catch (ConfigException) {
-            // No cortex.yml in cwd or parents
+            // No cortex.yml in cwd or parents — fall back to AGENTS.md only
+            try {
+                $cwd = getcwd();
+                if ($cwd !== false) {
+                    (new AgentsMdSynchronizer())->sync($cwd);
+                }
+            } catch (\Throwable) {
+                // Silently skip
+            }
         }
     }
 }

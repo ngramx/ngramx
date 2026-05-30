@@ -15,6 +15,7 @@ readonly class CortexConfig
         public SetupConfig $setup,
         public N8nConfig $n8n,
         public SecretsConfig $secrets = new SecretsConfig(),
+        public AgentsConfig $agents = new AgentsConfig(),
         public array $commands = [],
     ) {
     }

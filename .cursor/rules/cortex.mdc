@@ -1,13 +1,6 @@
-# Agent instructions
-
-Add project-specific notes for AI assistants above the Cortex-managed section.
-
-<!-- CORTEX_AGENTS_MANAGED_BEGIN -->
 ---
-### Cortex-managed agent rules
-
-Cortex CLI replaces everything between the HTML comment markers below. Add project-specific instructions **above** `CORTEX_AGENTS_MANAGED_BEGIN`. Do not edit between the markers.
-
+description: "Cortex project conventions (architecture, DB, dev environment, ticket workflow)"
+alwaysApply: true
 ---
 
 # Development environment
@@ -112,4 +105,3 @@ When work on the ticket is complete, add `.cortex/tickets/[ticket-id]/completion
 - **Never open draft PRs.** CI and automated review should run against the PR from the moment it is created.
 - **Never add a `cursor/` (or any other tool-specific) prefix to branch names.** The branch name should describe the work, not the tool that produced it.
 - One ticket = one branch = one PR.
-<!-- CORTEX_AGENTS_MANAGED_END -->

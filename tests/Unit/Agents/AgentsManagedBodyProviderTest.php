@@ -28,15 +28,27 @@ class AgentsManagedBodyProviderTest extends TestCase
         $this->assertStringNotContainsString('# Ticket Types', $markdown);
     }
 
-    public function test_get_markdown_includes_branch_pr_and_completion_conventions(): void
+    public function test_get_markdown_includes_ticket_conventions(): void
     {
         $provider = new AgentsManagedBodyProvider();
         $markdown = $provider->getMarkdown();
 
-        $this->assertStringContainsString('Branch naming', $markdown);
         $this->assertStringContainsString('Never open draft PRs', $markdown);
         $this->assertStringContainsString('completion.md', $markdown);
         $this->assertStringContainsString('Click to Test', $markdown);
+    }
+
+    public function test_get_markdown_does_not_include_skill_content(): void
+    {
+        $provider = new AgentsManagedBodyProvider();
+        $markdown = $provider->getMarkdown();
+
+        // Linear ticket creation is now a skill
+        $this->assertStringNotContainsString('Linear Ticket Conventions', $markdown);
+        // Branch naming is now in start-ticket skill
+        $this->assertStringNotContainsString('Branch naming', $markdown);
+        // PR risk labels are now in create-pr skill
+        $this->assertStringNotContainsString('risk:low', $markdown);
     }
 
     public function test_ticket_folder_path_is_under_dot_cortex(): void
@@ -45,20 +57,6 @@ class AgentsManagedBodyProviderTest extends TestCase
         $markdown = $provider->getMarkdown();
 
         $this->assertStringContainsString('.cortex/tickets/[ticket-id]/', $markdown);
-        $this->assertStringNotContainsString('`tickets/[ticket-id]/', $markdown);
-    }
-
-    public function test_get_markdown_includes_linear_ticket_conventions(): void
-    {
-        $provider = new AgentsManagedBodyProvider();
-        $markdown = $provider->getMarkdown();
-
-        $this->assertStringContainsString('Linear Ticket Conventions', $markdown);
-        $this->assertStringContainsString('Dependencies and ordering', $markdown);
-
-        $this->assertStringNotContainsString('Routing labels', $markdown);
-        $this->assertStringNotContainsString('sub-issue', $markdown);
-        $this->assertStringNotContainsString('Parent branch creation', $markdown);
     }
 
     /**

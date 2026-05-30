@@ -1,6 +1,13 @@
-# Linear Ticket Conventions
+---
+name: create-linear-tickets
+description: >-
+  Create Linear tickets following Gigabyte conventions: team selection, priorities,
+  estimates, milestones, sizing, dependency ordering, and description format.
+  Use when the user asks to create a ticket, plan work, break down a feature,
+  draft issues, or mentions Linear.
+---
 
-Guidance for creating Linear tickets from this project (via Cursor, Claude Code, or any tool using the Linear MCP). Follow these conventions so tickets created here stay consistent with the Gigabyte Planning Agent.
+# Create Linear Tickets
 
 ## Teams
 

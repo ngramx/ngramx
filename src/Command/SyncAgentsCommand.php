@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cortex\Command;
 
 use Cortex\Agents\AgentsMdSynchronizer;
+use Cortex\Agents\AgentsSyncOrchestrator;
 use Cortex\Config\ConfigLoader;
 use Cortex\Config\Exception\ConfigException;
 use Cortex\Config\Validator\ConfigValidator;
@@ -19,7 +20,7 @@ class SyncAgentsCommand extends Command
     {
         $this
             ->setName('sync-agents')
-            ->setDescription('Update the Cortex-managed section in AGENTS.md for the current Cortex project');
+            ->setDescription('Update Cortex-managed agent instructions for all configured targets');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -30,6 +31,7 @@ class SyncAgentsCommand extends Command
             $configLoader = new ConfigLoader(new ConfigValidator());
             $configPath = $configLoader->findConfigFile();
             $projectRoot = dirname($configPath);
+            $config = $configLoader->load($configPath);
         } catch (ConfigException) {
             $formatter->error('No cortex.yml found in this directory or parent directories.');
 
@@ -37,14 +39,6 @@ class SyncAgentsCommand extends Command
         }
 
         $sync = new AgentsMdSynchronizer();
-        $changed = $sync->sync($projectRoot);
-
-        if ($changed) {
-            $formatter->success('✓ AGENTS.md updated.');
-
-            return Command::SUCCESS;
-        }
-
         if ($sync->hasMalformedManagedMarkers($projectRoot)) {
             $formatter->warning(
                 'AGENTS.md contains malformed CORTEX_AGENTS_MANAGED markers (e.g. END before BEGIN, '
@@ -55,7 +49,27 @@ class SyncAgentsCommand extends Command
             return Command::FAILURE;
         }
 
-        $formatter->info('AGENTS.md is already up to date (or CORTEX_SKIP_AGENTS_SYNC is set).');
+        $orchestrator = new AgentsSyncOrchestrator();
+        $result = $orchestrator->sync($projectRoot, $config->agents);
+
+        $targetsChanged = $result['targets_changed'];
+        $skillsChanged = $result['skills_changed'];
+
+        if ($targetsChanged === [] && !$skillsChanged) {
+            $formatter->info('All agent targets are already up to date.');
+
+            return Command::SUCCESS;
+        }
+
+        if ($targetsChanged !== []) {
+            foreach ($targetsChanged as $target) {
+                $formatter->success("✓ Updated: $target");
+            }
+        }
+
+        if ($skillsChanged) {
+            $formatter->success('✓ Skills synchronized to: ' . implode(', ', $config->agents->skills));
+        }
 
         return Command::SUCCESS;
     }
