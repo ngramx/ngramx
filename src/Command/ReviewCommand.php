@@ -280,6 +280,8 @@ class ReviewCommand extends Command
             if ($resetResult !== Command::SUCCESS) {
                 return $resetResult;
             }
+
+            $this->reconcileWorktreeOwnership($worktreePath, $formatter);
         } finally {
             chdir($originalCwd);
         }
@@ -514,6 +516,59 @@ class ReviewCommand extends Command
         $upInput->setInteractive(false);
 
         return $upCommand->run($upInput, $output);
+    }
+
+    /**
+     * Restore ownership of the worktree's bind-mounted files to the host user.
+     *
+     * A fresh worktree starts with an empty storage tree, so the first process
+     * to write runtime files is whatever runs as root inside the container: the
+     * project entrypoint (`php artisan migrate`, `composer install`, ...) and the
+     * review reset both run as root via `docker compose exec`. Those files land
+     * root-owned, and the container's non-root runtime user (e.g. www-data) can
+     * no longer write them. The most visible symptom is a 500 from Laravel —
+     * "storage/logs/laravel.log could not be opened in append mode: Permission
+     * denied". The parent checkout avoids this only because its files were
+     * created by the host user long ago and persist on the bind mount.
+     *
+     * Hand the worktree back to the host user's uid/gid — the invariant a healthy
+     * parent checkout already has, and the uid dev images conventionally map their
+     * runtime user to (e.g. this stack's `usermod -u 1000 www-data`). Giving away
+     * ownership of root-owned files requires root, so do it from a short-lived
+     * root helper container with the worktree bind-mounted; the host user running
+     * Ngramx cannot chown files it does not own.
+     */
+    private function reconcileWorktreeOwnership(string $worktreePath, OutputFormatter $formatter): void
+    {
+        $uid = getmyuid();
+        $gid = getmygid();
+
+        // Non-POSIX host (e.g. native Windows): there is no host uid/gid to map
+        // back to and the bind-mount permission model differs, so skip silently.
+        if ($uid === false || $gid === false) {
+            return;
+        }
+
+        $process = new Process([
+            'docker', 'run', '--rm',
+            '-v', $worktreePath . ':/worktree',
+            'alpine', 'chown', '-R', $uid . ':' . $gid, '/worktree',
+        ]);
+        $process->setTimeout(120);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            // Non-fatal: the environment is still usable. Point at the manual fix
+            // so a later "Permission denied" writing storage is easy to resolve.
+            $formatter->warning(
+                'Could not normalise worktree file ownership. If you hit a "Permission denied" '
+                . "writing storage/logs, run:\n  sudo chown -R {$uid}:{$gid} {$worktreePath}"
+            );
+
+            return;
+        }
+
+        $formatter->info('Reconciled worktree file ownership to the host user');
     }
 
     /**
