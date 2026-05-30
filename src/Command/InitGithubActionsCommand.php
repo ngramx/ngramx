@@ -196,13 +196,21 @@ class InitGithubActionsCommand extends Command
             if ($written === []) {
                 $formatter->info('No files were written.');
             } else {
+                $formatter->section('Required organisation secrets');
+                $formatter->info('These workflows authenticate using organisation-level secrets (Settings → Secrets and variables → Actions, at the org level). Set them once for the whole org so every repo inherits them — the workflows cannot log in without these:');
+                $formatter->info('  • LINEAR_API_KEY — Linear API key used to log in and update issue status');
+                $formatter->info('  • LINEAR_IN_PROGRESS_STATE_ID — UUID of the "In Progress" Linear state');
+                $formatter->info('  • LINEAR_IN_REVIEW_STATE_ID — UUID of the "In Review" Linear state');
+                $formatter->info('  • CLAUDE_FIXER_APP_ID, CLAUDE_FIXER_APP_PRIVATE_KEY, ANTHROPIC_API_KEY — Claude automation');
+                $formatter->info('  • COMPOSER_GITHUB_TOKEN — optional, for private Composer packages');
+                $formatter->warning('⚠ Without LINEAR_API_KEY and the two Linear state IDs set at the org (or repo) level, the Linear status sync will skip silently.');
+
                 $formatter->section('Next steps');
-                $formatter->info('1. Ensure repository secrets exist: CLAUDE_FIXER_APP_ID, CLAUDE_FIXER_APP_PRIVATE_KEY, ANTHROPIC_API_KEY');
-                $formatter->info('2. Optionally add COMPOSER_GITHUB_TOKEN for private Composer packages');
-                $formatter->info('3. For Linear status sync, set secrets: LINEAR_API_KEY, LINEAR_IN_PROGRESS_STATE_ID, LINEAR_IN_REVIEW_STATE_ID (and confirm primary-check-name: ' . $primaryCheckName . ')');
-                $formatter->info('4. Confirm the CI workflow name matches --ci-workflow-name (currently: ' . $ciName . ')');
-                $formatter->info('5. Pin --ref to a tag or SHA in production rather than a moving branch');
-                $formatter->info('6. See shared repo README: https://github.com/' . $sharedRepo);
+                $formatter->info('1. Set the organisation secrets listed above (or per-repo if you are not using org-wide secrets)');
+                $formatter->info('2. Confirm the Linear primary check name matches your CI (currently --primary-check-name: ' . $primaryCheckName . ')');
+                $formatter->info('3. Confirm the CI workflow name matches --ci-workflow-name (currently: ' . $ciName . ')');
+                $formatter->info('4. Pin --ref to a tag or SHA in production rather than a moving branch');
+                $formatter->info('5. See shared repo README: https://github.com/' . $sharedRepo);
             }
 
             return Command::SUCCESS;
