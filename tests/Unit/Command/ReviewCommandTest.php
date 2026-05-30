@@ -384,6 +384,53 @@ class ReviewCommandTest extends TestCase
         $this->assertStringNotContainsString('➜', $tester->getDisplay());
     }
 
+    public function test_it_surfaces_git_error_when_checkout_fails(): void
+    {
+        $this->gitRepositoryService = $this->createMock(GitRepositoryService::class);
+        $this->gitRepositoryService->expects($this->any())->method('fetchFromOrigin')->willReturn(true);
+        $this->gitRepositoryService->expects($this->any())->method('findBranchesContaining')->willReturn(['GIG-123-feature']);
+        $this->gitRepositoryService->expects($this->any())->method('selectBranch')->willReturn('GIG-123-feature');
+        $this->gitRepositoryService->expects($this->once())->method('checkoutBranch')->willReturn(false);
+        $this->gitRepositoryService->expects($this->any())->method('lastCheckoutError')->willReturn(
+            "error: Your local changes to the following files would be overwritten by checkout:\n\tsrc/Foo.php"
+        );
+
+        $config = $this->createMockConfig([]);
+        $this->setupConfigLoader($config);
+
+        $this->commandOrchestrator->expects($this->never())->method('run');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('Failed to check out branch', $display);
+        $this->assertStringContainsString('would be overwritten by checkout', $display);
+        $this->assertStringContainsString('src/Foo.php', $display);
+    }
+
+    public function test_it_gives_a_hint_when_checkout_fails_without_git_output(): void
+    {
+        $this->gitRepositoryService = $this->createMock(GitRepositoryService::class);
+        $this->gitRepositoryService->expects($this->any())->method('fetchFromOrigin')->willReturn(true);
+        $this->gitRepositoryService->expects($this->any())->method('findBranchesContaining')->willReturn(['GIG-123-feature']);
+        $this->gitRepositoryService->expects($this->any())->method('selectBranch')->willReturn('GIG-123-feature');
+        $this->gitRepositoryService->expects($this->once())->method('checkoutBranch')->willReturn(false);
+        $this->gitRepositoryService->expects($this->any())->method('lastCheckoutError')->willReturn('');
+
+        $config = $this->createMockConfig([]);
+        $this->setupConfigLoader($config);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('Failed to check out branch', $display);
+        $this->assertStringContainsString('uncommitted changes', $display);
+    }
+
     private function createCommand(): ReviewCommand
     {
         return new ReviewCommand(

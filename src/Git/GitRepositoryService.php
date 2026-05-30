@@ -14,6 +14,13 @@ use Symfony\Component\Process\Process;
 class GitRepositoryService
 {
     /**
+     * The combined git stderr/stdout from the most recent failed checkout, kept so
+     * callers can surface the underlying reason (e.g. a dirty working tree) instead
+     * of a generic failure message. Empty when the last checkout succeeded.
+     */
+    private string $lastCheckoutError = '';
+
+    /**
      * Fetch from origin, pruning remote-tracking refs for branches that no longer exist
      * on the remote so the candidate branch list stays in sync with origin.
      */
@@ -100,7 +107,26 @@ class GitRepositoryService
         $checkoutProcess->setTimeout(60);
         $checkoutProcess->run();
 
-        return $checkoutProcess->isSuccessful();
+        if ($checkoutProcess->isSuccessful()) {
+            $this->lastCheckoutError = '';
+
+            return true;
+        }
+
+        $this->lastCheckoutError = trim(
+            $checkoutProcess->getErrorOutput() . "\n" . $checkoutProcess->getOutput()
+        );
+
+        return false;
+    }
+
+    /**
+     * The git output explaining why the most recent checkoutBranch() call failed,
+     * or an empty string if the last checkout succeeded or never ran.
+     */
+    public function lastCheckoutError(): string
+    {
+        return $this->lastCheckoutError;
     }
 
     /**

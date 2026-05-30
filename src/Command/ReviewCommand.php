@@ -150,7 +150,18 @@ class ReviewCommand extends Command
 
             $formatter->info("Checking out branch: $selectedBranch");
             if (!$this->gitRepositoryService->checkoutBranch($repositoryPath, $selectedBranch)) {
-                $formatter->error('Failed to checkout branch');
+                $message = "Failed to check out branch '$selectedBranch'.";
+
+                $details = trim($this->gitRepositoryService->lastCheckoutError());
+                if ($details !== '') {
+                    $message .= "\n\n" . OutputFormatter::escape($details);
+                } else {
+                    $message .= "\n\nThis usually means your working tree has uncommitted changes or "
+                        . 'the local branch has diverged from origin. Commit, stash, or discard your '
+                        . 'changes and try again.';
+                }
+
+                $formatter->error($message);
                 return Command::FAILURE;
             }
 

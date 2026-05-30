@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ngramx\Output;
 
 use Ngramx\Config\Schema\CommandDefinition;
+use Symfony\Component\Console\Formatter\OutputFormatter as ConsoleFormatter;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleSectionOutput;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -110,9 +111,32 @@ class OutputFormatter
         $this->output->writeln('<fg=' . self::COLOR_PURPLE . ">$message</>");
     }
 
+    /**
+     * Render an error, prefixed with a ✗ icon and followed by a blank line so it
+     * stands out from surrounding output. Multi-line messages (e.g. captured git
+     * output) keep their continuation lines indented to align under the first line.
+     */
     public function error(string $message): void
     {
-        $this->output->writeln("<fg=red>$message</>");
+        $lines = explode("\n", $message);
+        $first = array_shift($lines) ?? '';
+
+        $this->output->writeln("<fg=red>✗ {$first}</>");
+
+        foreach ($lines as $line) {
+            $this->output->writeln("<fg=red>  {$line}</>");
+        }
+
+        $this->output->writeln('');
+    }
+
+    /**
+     * Escape text that may contain characters the console formatter would
+     * otherwise interpret as style tags (e.g. arbitrary git output).
+     */
+    public static function escape(string $text): string
+    {
+        return ConsoleFormatter::escape($text);
     }
 
     public function warning(string $message): void

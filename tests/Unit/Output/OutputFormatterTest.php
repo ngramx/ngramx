@@ -208,6 +208,37 @@ class OutputFormatterTest extends TestCase
         $this->assertStringContainsString('Something went wrong', $output->fetch());
     }
 
+    public function test_error_is_prefixed_with_icon_and_trailing_blank_line(): void
+    {
+        $output = new BufferedOutput();
+        $formatter = new OutputFormatter($output);
+
+        $formatter->error('Boom');
+
+        $display = $output->fetch();
+        $this->assertStringContainsString('✗ Boom', $display);
+        $this->assertStringEndsWith("\n\n", $display);
+    }
+
+    public function test_error_keeps_multiline_details_aligned(): void
+    {
+        $output = new BufferedOutput();
+        $formatter = new OutputFormatter($output);
+
+        $formatter->error("Failed to check out branch.\nYour local changes would be overwritten.");
+
+        $display = $output->fetch();
+        $this->assertStringContainsString('✗ Failed to check out branch.', $display);
+        $this->assertStringContainsString('  Your local changes would be overwritten.', $display);
+    }
+
+    public function test_escape_neutralises_console_tags(): void
+    {
+        $escaped = OutputFormatter::escape('value <not-a-tag>');
+
+        $this->assertStringNotContainsString('<not-a-tag>', $escaped);
+    }
+
     public function test_info_outputs_message(): void
     {
         $output = new BufferedOutput();
