@@ -20,6 +20,8 @@ use Ngramx\Http\UrlPortOffset;
 use Ngramx\Orchestrator\SetupOrchestrator;
 use Ngramx\Output\OutputFormatter;
 use Ngramx\Tls\CertInspector;
+use Ngramx\Worktree\WorktreeGitMount;
+use Ngramx\Worktree\WorktreeOwnershipReconciler;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -32,6 +34,7 @@ use Symfony\Component\Process\Process;
 class UpCommand extends Command
 {
     private readonly CertInspector $certInspector;
+    private readonly WorktreeOwnershipReconciler $ownershipReconciler;
 
     public function __construct(
         private readonly ConfigLoader $configLoader,
@@ -44,9 +47,11 @@ class UpCommand extends Command
         private readonly HerdService $herdService,
         private readonly CaddyService $caddyService,
         ?CertInspector $certInspector = null,
+        ?WorktreeOwnershipReconciler $ownershipReconciler = null,
     ) {
         parent::__construct();
         $this->certInspector = $certInspector ?? new CertInspector();
+        $this->ownershipReconciler = $ownershipReconciler ?? new WorktreeOwnershipReconciler();
     }
 
     protected function configure(): void
@@ -125,7 +130,8 @@ class UpCommand extends Command
             // Generate override file if port offset is needed, using namespace, no host
             // mapping, or when running from a linked git worktree (which needs the parent
             // repo's git dir bind-mounted in so git resolves inside containers).
-            $inWorktree = (new \Ngramx\Worktree\WorktreeGitMount())->resolve(dirname($configPath)) !== null;
+            $worktreeRoot = dirname($configPath);
+            $inWorktree = (new WorktreeGitMount())->resolve($worktreeRoot) !== null;
             $needsOverride = $portOffset > 0 || $namespace !== null || $noHostMapping || $inWorktree;
             if ($needsOverride) {
                 $this->overrideGenerator->generate($config->docker->composeFile, $portOffset, $namespace, $noHostMapping);
@@ -168,6 +174,18 @@ class UpCommand extends Command
                 !$input->getOption('no-verify'),
             );
 
+            // In a linked worktree the container's root entrypoint (composer
+            // install, migrations, ...) has just written runtime files as root,
+            // leaving storage/ and bootstrap/cache un-writable for the non-root
+            // runtime user — which surfaces as Laravel "Permission denied" on
+            // storage or the tempnam() fallback notice from Filesystem::replace().
+            // Hand those files back to the developer's uid now that the entrypoint
+            // has finished. `review` does this too, but plain `up` (and every
+            // restart) must as well, or ownership drifts back to root.
+            if ($inWorktree) {
+                $this->reconcileWorktreeOwnership($worktreeRoot, $formatter);
+            }
+
             // Write lock file if we generated an override file or stopped Herd/Caddy
             if ($needsOverride || $herdStopped || $caddyStopped) {
                 $lockData = new LockFileData(
@@ -201,6 +219,32 @@ class UpCommand extends Command
         } catch (\Exception $e) {
             $formatter->error("Error: {$e->getMessage()}");
             return Command::FAILURE;
+        }
+    }
+
+    /**
+     * Hand the worktree's bind-mounted files back to the developer's uid/gid so
+     * the container's non-root runtime user can write storage/ and
+     * bootstrap/cache. See {@see WorktreeOwnershipReconciler} for why this is
+     * keyed off the developer's checkout rather than the Ngramx process uid.
+     */
+    private function reconcileWorktreeOwnership(string $worktreeRoot, OutputFormatter $formatter): void
+    {
+        $result = $this->ownershipReconciler->reconcile($worktreeRoot);
+
+        if ($result->isReconciled()) {
+            $formatter->info('Reconciled worktree file ownership to the developer user');
+
+            return;
+        }
+
+        if ($result->isFailed()) {
+            // Non-fatal: the environment is still usable. Point at the manual fix
+            // so a later "Permission denied" writing storage is easy to resolve.
+            $formatter->warning(
+                'Could not normalise worktree file ownership. If you hit a "Permission denied" '
+                . "writing storage/logs, run:\n  sudo chown -R {$result->uid}:{$result->gid} {$worktreeRoot}"
+            );
         }
     }
 
