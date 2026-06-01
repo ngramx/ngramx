@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.23.13](https://github.com/ngramx/ngramx/compare/v2.23.12...v2.23.13) (2026-06-01)
+
+
+### Bug Fixes
+
+* **github-actions:** drive Linear In Progress from pull_request, watch broad CI list for In Review ([066b663](https://github.com/ngramx/ngramx/commit/066b663d1f524fc1059569d1c31ddc45c3695a85))
+
 ## [2.23.12](https://github.com/ngramx/ngramx/compare/v2.23.11...v2.23.12) (2026-05-30)
 
 
