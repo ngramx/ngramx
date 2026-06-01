@@ -35,7 +35,7 @@ class InitGithubActionsCommand extends Command
                 'ci-workflow-name',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'Name of the CI workflow to watch for claude-auto-fix (workflow_run.workflows)',
+                'Name of this project\'s primary CI workflow. Used by claude-auto-fix (workflow_run.workflows) and added to the linear-status-sync watch list so the "In Review" move always covers your CI even if it is not one of the common names.',
                 'Tests'
             )
             ->addOption(
@@ -215,7 +215,7 @@ class InitGithubActionsCommand extends Command
 
                 $formatter->section('Next steps');
                 $formatter->info('1. Set the organisation secrets listed above (or per-repo if you are not using org-wide secrets)');
-                $formatter->info('2. Confirm the CI workflow name matches --ci-workflow-name (currently: ' . $ciName . '). Linear status sync watches this workflow, then waits for the PR\'s full check rollup before moving to "' . $linearInReviewStateName . '".');
+                $formatter->info('2. Linear status sync moves issues to "' . $linearInProgressStateName . '" from the generic pull_request trigger (no workflow-name matching needed). For the "' . $linearInReviewStateName . '" move it watches a broad list of common CI workflow names plus --ci-workflow-name (currently: ' . $ciName . '); if your CI workflow has an unusual name and is not in that list, add its name to workflows: in .github/workflows/linear-status-sync.yml.');
                 $formatter->info('3. Pin --ref to a tag or SHA in production rather than a moving branch');
                 $formatter->info('4. See shared repo README: https://github.com/' . $sharedRepo);
             }

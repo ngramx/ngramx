@@ -60,7 +60,13 @@ class InitGithubActionsCommandTest extends TestCase
             $linear = file_get_contents($this->testDir . '/.github/workflows/linear-status-sync.yml');
             $this->assertIsString($linear);
             $this->assertStringContainsString('acme/shared-workflows/.github/workflows/linear-status-sync.yml@v1', $linear);
-            $this->assertStringContainsString('workflows: ["CI"]', $linear);
+            // In Progress is driven by the generic pull_request trigger (no workflow-name matching).
+            $this->assertStringContainsString('pull_request:', $linear);
+            $this->assertStringContainsString('types: [opened, reopened, synchronize, ready_for_review]', $linear);
+            // In Review is driven by workflow_run; the project's CI name is added to the watch list.
+            $this->assertStringContainsString('workflow_run:', $linear);
+            $this->assertStringContainsString('- "CI"', $linear);
+            $this->assertStringContainsString('types: [completed]', $linear);
             $this->assertStringContainsString("in-progress-state-name: 'In Progress'", $linear);
             $this->assertStringContainsString("in-review-state-name: 'In Review'", $linear);
             $this->assertStringContainsString('secrets: inherit', $linear);
