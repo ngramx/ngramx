@@ -45,10 +45,14 @@ commands:
     command: "php artisan migrate:fresh --seed"
     description: "Reset database with fresh data"
 
-  # Providing a list under `command:` runs every entry concurrently inside
-  # the container. A live panel shows `<label>: <last log line>` for each
-  # running command; each row disappears when that command finishes. The
-  # overall command succeeds only if all sub-commands succeed.
+  # Providing a list under `command:` runs every entry CONCURRENTLY inside the
+  # container (this is the default). A live panel shows `<label>: <last log
+  # line>` for each running command; each row disappears when that command
+  # finishes. The overall command succeeds only if all sub-commands succeed.
+  #
+  # Only use the parallel (default) form for INDEPENDENT commands. If the steps
+  # depend on each other — e.g. install deps, then migrate, then clear caches —
+  # set `parallel: false` so they run one at a time in order (see `fresh` below).
   validate:
     command:
       - "composer validate --strict"
@@ -56,6 +60,21 @@ commands:
       - "vendor/bin/phpunit"
     description: "Run composer, phpstan and phpunit in parallel"
     timeout: 180
+
+  # `parallel: false` runs the list SEQUENTIALLY, stopping at the first failure.
+  # Use this whenever steps have ordering dependencies. Running these
+  # concurrently races (e.g. `cache:clear` on the database driver hits a
+  # "relation \"cache\" does not exist" error while `migrate:fresh` is mid-flight
+  # dropping/recreating tables, and a build can fail against half-installed deps).
+  fresh:
+    command:
+      - "composer install --no-interaction"
+      - "npm install && npm run build"
+      - "php artisan migrate:fresh --seed --force"
+      - "php artisan optimize:clear"
+    description: "Install deps, build assets, rebuild the database, clear caches"
+    parallel: false
+    timeout: 600
 
 # Optional: control where Ngramx writes its managed agent instructions and skills.
 # `ngramx sync-agents` (and `ngramx up`) regenerate these from the bundled templates.

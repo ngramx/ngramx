@@ -126,6 +126,40 @@ class ConfigValidatorTest extends TestCase
         $this->assertTrue(true);
     }
 
+    public function test_it_validates_verify_timeout(): void
+    {
+        $config = [
+            'version' => '1.0',
+            'docker' => [
+                'compose_file' => 'docker-compose.yml',
+                'primary_service' => 'app',
+                'app_url' => 'http://localhost:8080',
+                'verify_timeout' => 120,
+            ],
+        ];
+
+        $this->validator->validate($config);
+        $this->assertTrue(true);
+    }
+
+    public function test_it_throws_exception_for_invalid_verify_timeout(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('docker.verify_timeout must be a positive integer');
+
+        $config = [
+            'version' => '1.0',
+            'docker' => [
+                'compose_file' => 'docker-compose.yml',
+                'primary_service' => 'app',
+                'app_url' => 'http://localhost:8080',
+                'verify_timeout' => 0,
+            ],
+        ];
+
+        $this->validator->validate($config);
+    }
+
     public function test_it_throws_exception_for_invalid_timeout(): void
     {
         $this->expectException(ConfigException::class);
@@ -372,6 +406,79 @@ class ConfigValidatorTest extends TestCase
             'commands' => [
                 'validate' => [
                     'command' => ['   '],
+                    'description' => 'bad',
+                ],
+            ],
+        ];
+
+        $this->validator->validate($config);
+    }
+
+    public function test_it_accepts_parallel_false_on_a_command_list(): void
+    {
+        $config = [
+            'version' => '1.0',
+            'docker' => [
+                'compose_file' => 'docker-compose.yml',
+                'primary_service' => 'app',
+                'app_url' => 'http://localhost:8080',
+            ],
+            'commands' => [
+                'fresh' => [
+                    'command' => [
+                        'composer install',
+                        'php artisan migrate:fresh --seed',
+                    ],
+                    'parallel' => false,
+                    'description' => 'Run steps in order',
+                ],
+            ],
+        ];
+
+        $this->validator->validate($config);
+        $this->assertTrue(true);
+    }
+
+    public function test_it_rejects_non_boolean_parallel_flag(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('commands.fresh.parallel must be a boolean');
+
+        $config = [
+            'version' => '1.0',
+            'docker' => [
+                'compose_file' => 'docker-compose.yml',
+                'primary_service' => 'app',
+                'app_url' => 'http://localhost:8080',
+            ],
+            'commands' => [
+                'fresh' => [
+                    'command' => ['composer install', 'php artisan migrate'],
+                    'parallel' => 'no',
+                    'description' => 'bad',
+                ],
+            ],
+        ];
+
+        $this->validator->validate($config);
+    }
+
+    public function test_it_rejects_parallel_flag_on_a_single_command(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('commands.fresh.parallel only applies to a list of commands');
+
+        $config = [
+            'version' => '1.0',
+            'docker' => [
+                'compose_file' => 'docker-compose.yml',
+                'primary_service' => 'app',
+                'app_url' => 'http://localhost:8080',
+            ],
+            'commands' => [
+                'fresh' => [
+                    'command' => 'php artisan migrate',
+                    'parallel' => false,
                     'description' => 'bad',
                 ],
             ],

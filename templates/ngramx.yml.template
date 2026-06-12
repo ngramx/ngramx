@@ -4,6 +4,10 @@ docker:
   compose_file: "docker-compose.yml"
   primary_service: "app"
   app_url: "http://localhost:8080"
+  # How long (seconds) `ngramx up` keeps probing app_url for a non-5xx
+  # response before failing. Defaults to ~60s. Raise it for stacks whose
+  # cold boot (composer install / cache warm) reliably 502s past the default.
+  # verify_timeout: 120
   wait_for:
     - service: "db"
       timeout: 60

@@ -208,12 +208,24 @@ class SetupOrchestrator
         // app's host port is no longer the scheme default — probe the
         // actually-bound port, not the original ngramx.yml URL.
         $url = UrlPortOffset::apply($config->docker->appUrl, $portOffset);
+
+        // A project may declare `docker.verify_timeout` (seconds) to widen the
+        // probe budget — useful for stacks whose cold boot reliably outlasts the
+        // ~60s default and 502s until php-fpm/Laravel finishes its entrypoint.
+        // We keep the fixed retry cadence and derive the attempt count from it.
+        $retrySeconds = $this->appUrlProbeRetrySeconds;
+        $attempts = $this->appUrlProbeAttempts;
+        $verifyTimeout = $config->docker->verifyTimeout;
+        if ($verifyTimeout !== null && $verifyTimeout > 0 && $retrySeconds > 0) {
+            $attempts = max(1, (int) ceil($verifyTimeout / $retrySeconds));
+        }
+
         $this->formatter->info("Probing {$url} ...");
 
         $result = $this->appUrlProbe->probe(
             $url,
-            attempts: $this->appUrlProbeAttempts,
-            retrySeconds: $this->appUrlProbeRetrySeconds,
+            attempts: $attempts,
+            retrySeconds: $retrySeconds,
         );
 
         if ($result->isHealthy()) {

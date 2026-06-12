@@ -17,3 +17,12 @@ commands:
       - "vendor/bin/phpunit"
     description: "Run all validation checks in parallel"
     timeout: 180
+
+  fresh:
+    command:
+      - "composer install --no-interaction"
+      - "php artisan migrate:fresh --seed --force"
+      - "php artisan cache:clear"
+    description: "Rebuild from scratch, one ordered step at a time"
+    parallel: false
+    timeout: 300

@@ -68,6 +68,12 @@ class ConfigValidator
             throw new ConfigException('Missing required field: docker.app_url');
         }
 
+        if (isset($docker['verify_timeout'])) {
+            if (!is_int($docker['verify_timeout']) || $docker['verify_timeout'] <= 0) {
+                throw new ConfigException('docker.verify_timeout must be a positive integer (seconds)');
+            }
+        }
+
         if (isset($docker['wait_for']) && !is_array($docker['wait_for'])) {
             throw new ConfigException('docker.wait_for must be an array');
         }
@@ -196,6 +202,15 @@ class ConfigValidator
 
         if (isset($command['ignore_failure']) && !is_bool($command['ignore_failure'])) {
             throw new ConfigException("$path.ignore_failure must be a boolean");
+        }
+
+        if (isset($command['parallel'])) {
+            if (!is_bool($command['parallel'])) {
+                throw new ConfigException("$path.parallel must be a boolean");
+            }
+            if (!is_array($command['command'])) {
+                throw new ConfigException("$path.parallel only applies to a list of commands");
+            }
         }
     }
 

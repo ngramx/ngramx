@@ -175,6 +175,9 @@ class ConfigLoader
             appUrl: $dockerConfig['app_url'],
             waitFor: $waitFor,
             sslPath: $dockerConfig['ssl_path'] ?? 'docker/nginx/ssl',
+            verifyTimeout: isset($dockerConfig['verify_timeout'])
+                ? (int) $dockerConfig['verify_timeout']
+                : null,
         );
     }
 
@@ -301,10 +304,13 @@ class ConfigLoader
     private function buildCommandDefinition(array $command): CommandDefinition
     {
         $rawCommand = $command['command'];
+        $parallel = (bool) ($command['parallel'] ?? true);
 
         if (is_array($rawCommand)) {
             $commands = array_values(array_map(static fn ($c) => (string) $c, $rawCommand));
-            $displayCommand = implode(' & ', $commands);
+            // Mirror shell semantics in the human-readable summary: ` & ` for
+            // concurrent lists, ` && ` for sequential (stop-on-failure) lists.
+            $displayCommand = implode($parallel ? ' & ' : ' && ', $commands);
         } else {
             $commands = [(string) $rawCommand];
             $displayCommand = (string) $rawCommand;
@@ -317,6 +323,7 @@ class ConfigLoader
             retry: $command['retry'] ?? 0,
             ignoreFailure: $command['ignore_failure'] ?? false,
             commands: $commands,
+            parallel: $parallel,
         );
     }
 }

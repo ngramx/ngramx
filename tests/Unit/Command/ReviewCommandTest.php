@@ -257,10 +257,13 @@ class ReviewCommandTest extends TestCase
         $this->assertStringContainsString('Open an invoice', $display);
         $this->assertStringContainsString('Click Download PDF', $display);
         $this->assertStringContainsString('Verify the PDF content', $display);
-        // Links at the bottom
+        // Links at the bottom — PR/Linear are external and left untouched.
         $this->assertStringContainsString('https://github.com/org/repo/pull/42', $display);
         $this->assertStringContainsString('https://linear.app/team/GIG-123', $display);
-        $this->assertStringContainsString('https://app.example.com/invoices', $display);
+        // The app deep-link is localised onto the running environment's origin
+        // (config app_url http://localhost:80), not the stored canonical host.
+        $this->assertStringContainsString('http://localhost:80/invoices', $display);
+        $this->assertStringNotContainsString('https://app.example.com/invoices', $display);
         // Test plan appears before links
         $testPlanPos = strpos($display, 'How to Test');
         $prPos = strpos($display, 'https://github.com/org/repo/pull/42');
@@ -444,8 +447,11 @@ class ReviewCommandTest extends TestCase
         $display = $tester->getDisplay();
         $this->assertSame(0, $exitCode);
         $this->assertStringContainsString('https://github.com/org/repo/pull/99', $display);
-        $this->assertStringContainsString('https://app.localhost/dashboard', $display);
-        $this->assertStringContainsString('https://pwa.localhost/dashboard', $display);
+        // Both app deep-links are localised onto the running environment's origin
+        // (config app_url http://localhost:80), preserving their paths.
+        $this->assertStringContainsString('http://localhost:80/dashboard', $display);
+        $this->assertStringNotContainsString('https://app.localhost/dashboard', $display);
+        $this->assertStringNotContainsString('https://pwa.localhost/dashboard', $display);
     }
 
     public function test_it_falls_back_to_legacy_completion_md(): void

@@ -386,6 +386,27 @@ If any sub-command fails or times out, every sub-command still runs to completio
 
 The list form is only supported for entries under `commands:`. Setup steps in `setup.pre_start` / `setup.initialize` continue to run sequentially, one `command:` string per entry.
 
+#### Sequential lists (`parallel: false`)
+
+The parallel default is only safe for **independent** sub-commands. When steps have ordering dependencies — install deps, then migrate, then clear caches — running them concurrently races. For example, on the database cache/session driver, `php artisan cache:clear` issues `delete from "cache"` and intermittently fails with `relation "cache" does not exist` because a concurrent `migrate:fresh` is mid-flight dropping and recreating tables; likewise an asset build can fail against half-installed dependencies.
+
+Set `parallel: false` to run the list **one step at a time, in declaration order, stopping at the first failure**:
+
+```yaml
+commands:
+  fresh:
+    command:
+      - "composer install --no-interaction"
+      - "npm install && npm run build"
+      - "php artisan migrate:fresh --seed --force"
+      - "php artisan optimize:clear"
+    description: "Install deps, build assets, rebuild the database, clear caches"
+    parallel: false
+    timeout: 600
+```
+
+Each step is printed as `[n/total] <command>` with its output streamed live; if a step fails, the remaining steps are skipped and the command exits non-zero. `parallel` only applies to the list form (it's an error to set it on a single-string `command:`).
+
 ### Recommended commands
 
 Ngramx expects two lifecycle commands to be defined in every project so that `ngramx rebuild` and `ngramx review` can drive your environment consistently. If either is missing, Ngramx prints a warning on every invocation.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ngramx\Orchestrator;
 
+use Ngramx\Config\Schema\CommandDefinition;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Schema\ServiceWaitConfig;
 use Ngramx\Docker\ContainerExecutor;
@@ -60,6 +61,10 @@ class CommandOrchestrator
 
         if ($cmd->isParallel()) {
             return $this->runParallel($commandName, $cmd->commands, $cmd->timeout, $cmd->description, $config, $projectName);
+        }
+
+        if ($cmd->isSequentialList()) {
+            return $this->runSequentialList($commandName, $cmd, $config, $projectName);
         }
 
         return $this->runSingle($commandName, $config, $projectName);
@@ -185,6 +190,74 @@ class CommandOrchestrator
                 $this->formatter->error("Command failed with exit code {$result->exitCode}");
             }
             throw new \RuntimeException("Command '$commandName' failed");
+        }
+
+        return microtime(true) - $startTime;
+    }
+
+    /**
+     * Run a multi-command entry one step at a time, in declaration order,
+     * stopping at the first failure. This is the right mode for steps that have
+     * ordering dependencies (e.g. install deps, then migrate, then clear caches)
+     * which would race against each other if run concurrently.
+     */
+    private function runSequentialList(
+        string $commandName,
+        CommandDefinition $cmd,
+        NgramxConfig $config,
+        ?string $projectName = null,
+    ): float {
+        $startTime = microtime(true);
+
+        $this->formatter->section("Running: $commandName");
+        $this->formatter->info($cmd->description);
+
+        $containerExecutor = new ContainerCommandExecutor(
+            new ContainerExecutor(),
+            $config->docker->composeFile,
+            $config->docker->primaryService,
+            $projectName,
+        );
+
+        $total = count($cmd->commands);
+
+        foreach ($cmd->commands as $index => $command) {
+            $step = $index + 1;
+            $this->formatter->getOutput()->writeln(sprintf(
+                '  <fg=%s>[%d/%d]</> %s',
+                OutputFormatter::COLOR_TEAL,
+                $step,
+                $total,
+                $command,
+            ));
+
+            $outputCallback = function ($type, $buffer): void {
+                if ($type === Process::OUT || $type === Process::ERR) {
+                    $lines = explode("\n", rtrim($buffer));
+                    foreach ($lines as $line) {
+                        if (!empty(trim($line))) {
+                            $this->formatter->commandOutput($line);
+                        }
+                    }
+                }
+            };
+
+            $stepCmd = new CommandDefinition(
+                command: $command,
+                description: '',
+                timeout: $cmd->timeout,
+            );
+
+            $result = $containerExecutor->execute($stepCmd, $outputCallback);
+
+            if (!$result->isSuccessful()) {
+                if (str_contains($result->errorOutput, 'is not running') || str_contains($result->output, 'is not running')) {
+                    $this->formatter->error("Services are not running. Start them with 'ngramx up' first.");
+                } else {
+                    $this->formatter->error("Step $step of $total failed with exit code {$result->exitCode}: $command");
+                }
+                throw new \RuntimeException("Command '$commandName' failed at step $step of $total: $command");
+            }
         }
 
         return microtime(true) - $startTime;

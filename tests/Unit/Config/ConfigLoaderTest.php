@@ -86,6 +86,30 @@ class ConfigLoaderTest extends TestCase
         $this->assertEquals('http://localhost:8080', $config->docker->appUrl);
     }
 
+    public function test_it_defaults_verify_timeout_to_null_when_omitted(): void
+    {
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
+
+        $this->assertNull($config->docker->verifyTimeout);
+    }
+
+    public function test_it_parses_verify_timeout(): void
+    {
+        $root = $this->makeTempDir();
+        file_put_contents($root . '/ngramx.yml', <<<YAML
+            version: "1.0"
+            docker:
+              compose_file: "docker-compose.yml"
+              primary_service: "app"
+              app_url: "http://localhost:8080"
+              verify_timeout: 120
+            YAML);
+
+        $config = $this->loader->load($root . '/ngramx.yml');
+
+        $this->assertSame(120, $config->docker->verifyTimeout);
+    }
+
     public function test_it_parses_command_definitions(): void
     {
         $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
@@ -137,6 +161,40 @@ class ConfigLoaderTest extends TestCase
         $this->assertStringContainsString('composer validate --strict', $validate->command);
         $this->assertStringContainsString(' & ', $validate->command);
         $this->assertSame(180, $validate->timeout);
+    }
+
+    public function test_parallel_list_defaults_to_concurrent(): void
+    {
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx-parallel.yml');
+
+        $validate = $config->commands['validate'];
+        $this->assertTrue($validate->parallel);
+        $this->assertTrue($validate->isParallel());
+        $this->assertFalse($validate->isSequentialList());
+    }
+
+    public function test_it_parses_sequential_command_list(): void
+    {
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx-parallel.yml');
+
+        $fresh = $config->commands['fresh'];
+        $this->assertCount(3, $fresh->commands);
+        $this->assertFalse($fresh->parallel);
+        $this->assertFalse($fresh->isParallel());
+        $this->assertTrue($fresh->isSequentialList());
+        // Sequential lists render with `&&` to mirror stop-on-failure shell semantics.
+        $this->assertStringContainsString(' && ', $fresh->command);
+        $this->assertStringNotContainsString(' & php', $fresh->command);
+        $this->assertSame(300, $fresh->timeout);
+    }
+
+    public function test_single_command_is_neither_parallel_nor_sequential_list(): void
+    {
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx-parallel.yml');
+
+        $single = $config->commands['single'];
+        $this->assertFalse($single->isParallel());
+        $this->assertFalse($single->isSequentialList());
     }
 
     public function test_it_loads_secrets_config(): void

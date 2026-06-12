@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Ngramx\Tests\Unit\Command;
 
 use Ngramx\Command\DynamicCommand;
+use Ngramx\Config\LockFile;
+use Ngramx\Config\LockFileData;
 use Ngramx\Config\Schema\CommandDefinition;
 use Ngramx\Config\Schema\DockerConfig;
 use Ngramx\Config\Schema\N8nConfig;
@@ -108,15 +110,57 @@ class DynamicCommandTest extends TestCase
 
         $this->orchestrator->expects($this->once())
             ->method('run')
-            ->with('test', $config)
+            ->with('test', $config, null)
             ->willReturn(2.5);
 
-        $command = new DynamicCommand('test', $commandDef, $config, $this->orchestrator);
+        $command = new DynamicCommand('test', $commandDef, $config, $this->orchestrator, $this->lockFileIn($this->emptyDir()));
         $tester = new CommandTester($command);
         $exitCode = $tester->execute([]);
 
         $this->assertSame(0, $exitCode);
         $this->assertStringContainsString('completed successfully', $tester->getDisplay());
+    }
+
+    public function test_passes_worktree_namespace_from_lock_file_to_orchestrator(): void
+    {
+        $commandDef = new CommandDefinition(
+            command: 'php artisan migrate:fresh',
+            description: 'Reset the database',
+        );
+
+        $config = $this->createMockConfig(['clear' => $commandDef]);
+
+        $dir = $this->emptyDir();
+        $lockFile = $this->lockFileIn($dir);
+        $lockFile->write(new LockFileData(
+            namespace: 'ngramx-737-virginland',
+            portOffset: null,
+            startedAt: date('c'),
+        ));
+
+        $this->orchestrator->expects($this->once())
+            ->method('run')
+            ->with('clear', $config, 'ngramx-737-virginland')
+            ->willReturn(1.0);
+
+        $command = new DynamicCommand('clear', $commandDef, $config, $this->orchestrator, $lockFile);
+        $tester = new CommandTester($command);
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(0, $exitCode);
+    }
+
+    private function emptyDir(): string
+    {
+        $dir = sys_get_temp_dir() . '/ngramx-dyn-' . uniqid('', true);
+        mkdir($dir, 0777, true);
+
+        return $dir;
+    }
+
+    private function lockFileIn(string $dir): LockFile
+    {
+        return new LockFile($dir);
     }
 
     /**

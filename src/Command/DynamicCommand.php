@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ngramx\Command;
 
+use Ngramx\Config\LockFile;
 use Ngramx\Config\RecommendedCommands;
 use Ngramx\Config\Schema\CommandDefinition;
 use Ngramx\Config\Schema\NgramxConfig;
@@ -15,13 +16,17 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class DynamicCommand extends Command
 {
+    private readonly LockFile $lockFile;
+
     public function __construct(
         string $name,
         private readonly CommandDefinition $commandDef,
         private readonly NgramxConfig $config,
         private readonly CommandOrchestrator $orchestrator,
+        ?LockFile $lockFile = null,
     ) {
         parent::__construct($name);
+        $this->lockFile = $lockFile ?? new LockFile();
     }
 
     protected function configure(): void
@@ -44,7 +49,16 @@ class DynamicCommand extends Command
                 return Command::FAILURE;
             }
 
-            $executionTime = $this->orchestrator->run($commandName, $this->config);
+            // Resolve the Docker namespace the environment was started with so
+            // custom commands target the right containers. Without this, running
+            // a command from a per-ticket worktree (whose `ngramx up` wrote a
+            // namespaced project name to .ngramx.lock) would look for containers
+            // under the default project name and wrongly report "not running".
+            $namespace = $this->lockFile->exists()
+                ? $this->lockFile->read()?->namespace
+                : null;
+
+            $executionTime = $this->orchestrator->run($commandName, $this->config, $namespace);
 
             $output->writeln('');
             $output->writeln(sprintf(

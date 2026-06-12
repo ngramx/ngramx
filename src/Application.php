@@ -280,7 +280,8 @@ class Application extends BaseApplication
                         $name,
                         $cmdDef,
                         $config,
-                        $commandOrchestrator
+                        $commandOrchestrator,
+                        $lockFile
                     ));
                 }
 

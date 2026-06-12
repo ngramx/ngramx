@@ -16,6 +16,7 @@ use Ngramx\Docker\NetworkAttachmentChecker;
 use Ngramx\Docker\NetworkAttachmentIssue;
 use Ngramx\Executor\HostCommandExecutor;
 use Ngramx\Http\AppUrlProbe;
+use Ngramx\Http\ProbeResult;
 use Ngramx\Orchestrator\SetupOrchestrator;
 use Ngramx\Output\OutputFormatter;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -184,6 +185,49 @@ class SetupOrchestratorTest extends TestCase
 
         $this->assertNotEmpty($probedUrls, 'Probe should fire at least once with offset applied.');
         $this->assertStringContainsString(':8180', $probedUrls[0], 'http://localhost:80 + offset 8100 = :8180');
+    }
+
+    public function test_setup_derives_probe_attempts_from_configured_verify_timeout(): void
+    {
+        // 120s budget at the fixed 2s retry cadence => 60 attempts.
+        $config = $this->createConfig(verifyTimeout: 120);
+
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+        $this->dockerCompose->expects($this->once())->method('up');
+
+        $probe = $this->createMock(AppUrlProbe::class);
+        $probe->expects($this->once())
+            ->method('probe')
+            ->with($this->anything(), 60, 2)
+            ->willReturn(ProbeResult::fromResponse('http://localhost:80', new Response(200)));
+
+        $orchestrator = $this->createOrchestrator(
+            appUrlProbe: $probe,
+            appUrlProbeAttempts: 30,
+            appUrlProbeRetrySeconds: 2,
+        );
+        $orchestrator->setup($config, skipWait: true);
+    }
+
+    public function test_setup_uses_default_probe_budget_when_verify_timeout_not_set(): void
+    {
+        $config = $this->createConfig();
+
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+        $this->dockerCompose->expects($this->once())->method('up');
+
+        $probe = $this->createMock(AppUrlProbe::class);
+        $probe->expects($this->once())
+            ->method('probe')
+            ->with($this->anything(), 30, 2)
+            ->willReturn(ProbeResult::fromResponse('http://localhost:80', new Response(200)));
+
+        $orchestrator = $this->createOrchestrator(
+            appUrlProbe: $probe,
+            appUrlProbeAttempts: 30,
+            appUrlProbeRetrySeconds: 2,
+        );
+        $orchestrator->setup($config, skipWait: true);
     }
 
     public function test_setup_returns_probe_result_when_app_url_is_healthy(): void
@@ -431,6 +475,8 @@ class SetupOrchestratorTest extends TestCase
     private function createOrchestrator(
         ?AppUrlProbe $appUrlProbe = null,
         ?NetworkAttachmentChecker $checker = null,
+        int $appUrlProbeAttempts = 1,
+        int $appUrlProbeRetrySeconds = 0,
     ): SetupOrchestrator {
         return new SetupOrchestrator(
             $this->dockerCompose,
@@ -440,10 +486,10 @@ class SetupOrchestratorTest extends TestCase
             readinessWaiter: null,
             appUrlProbe: $appUrlProbe ?? $this->disabledProbe(),
             networkAttachmentChecker: $checker ?? $this->cleanChecker(),
-            // Tests use 1 attempt with no retry sleep so failure-path tests
-            // don't sit blocked on the 60s production retry budget.
-            appUrlProbeAttempts: 1,
-            appUrlProbeRetrySeconds: 0,
+            // Tests default to 1 attempt with no retry sleep so failure-path
+            // tests don't sit blocked on the 60s production retry budget.
+            appUrlProbeAttempts: $appUrlProbeAttempts,
+            appUrlProbeRetrySeconds: $appUrlProbeRetrySeconds,
         );
     }
 
@@ -472,7 +518,7 @@ class SetupOrchestratorTest extends TestCase
     /**
      * @param ServiceWaitConfig[] $waitFor
      */
-    private function createConfig(array $waitFor = []): NgramxConfig
+    private function createConfig(array $waitFor = [], ?int $verifyTimeout = null): NgramxConfig
     {
         return new NgramxConfig(
             version: '1.0',
@@ -481,6 +527,7 @@ class SetupOrchestratorTest extends TestCase
                 primaryService: 'app',
                 appUrl: 'http://localhost:80',
                 waitFor: $waitFor,
+                verifyTimeout: $verifyTimeout,
             ),
             setup: new SetupConfig(preStart: [], initialize: []),
             n8n: new N8nConfig(workflowsDir: './.n8n'),

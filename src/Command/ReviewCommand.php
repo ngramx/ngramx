@@ -15,6 +15,8 @@ use Ngramx\Docker\NamespaceResolver;
 use Ngramx\Docker\PortOffsetManager;
 use Ngramx\Git\GitExcludeManager;
 use Ngramx\Git\GitRepositoryService;
+use Ngramx\Http\CompletionUrlRewriter;
+use Ngramx\Http\UrlPortOffset;
 use Ngramx\Laravel\LaravelService;
 use Ngramx\Orchestrator\CommandOrchestrator;
 use Ngramx\Output\OutputFormatter;
@@ -182,8 +184,13 @@ class ReviewCommand extends Command
             }
 
             $namespace = null;
+            $portOffset = 0;
             if ($this->lockFile->exists()) {
-                $namespace = $this->lockFile->read()?->namespace;
+                $lockData = $this->lockFile->read();
+                if ($lockData !== null) {
+                    $namespace = $lockData->namespace;
+                    $portOffset = $lockData->portOffset ?? 0;
+                }
             }
 
             $resetResult = $this->runReset($input, $formatter, $config, $composeFile, $primaryService, $namespace);
@@ -193,7 +200,8 @@ class ReviewCommand extends Command
 
             $formatter->success("✓ Successfully prepared for ticket $ticketNumber review on branch $selectedBranch");
 
-            $this->displayCompletionUrls($repositoryPath, $ticketNumber, $formatter);
+            $environmentUrl = UrlPortOffset::apply($config->docker->appUrl, $portOffset);
+            $this->displayCompletionUrls($repositoryPath, $ticketNumber, $formatter, $environmentUrl);
 
             $output->writeln('');
 
@@ -308,7 +316,7 @@ class ReviewCommand extends Command
         $formatter->url('Application', $worktreeUrl);
         $formatter->url('Worktree', $worktreePath);
 
-        $this->displayCompletionUrls($worktreePath, $ticketNumber, $formatter);
+        $this->displayCompletionUrls($worktreePath, $ticketNumber, $formatter, $worktreeUrl);
 
         if ((bool) $input->getOption('cursor')) {
             $this->openCursorWindow($worktreePath, $formatter);
@@ -789,7 +797,7 @@ class ReviewCommand extends Command
      * Look for completion.json (preferred) or completion.md (legacy fallback) in
      * .ngramx/tickets/<ticket>/ and display the completion info.
      */
-    private function displayCompletionUrls(string $repositoryPath, string $ticketNumber, OutputFormatter $formatter): void
+    private function displayCompletionUrls(string $repositoryPath, string $ticketNumber, OutputFormatter $formatter, ?string $environmentUrl = null): void
     {
         $ticketDir = $this->findTicketDirectory($repositoryPath, $ticketNumber);
 
@@ -799,7 +807,7 @@ class ReviewCommand extends Command
 
         $jsonFile = $this->findFileInDirectory($ticketDir, 'completion.json');
         if ($jsonFile !== null) {
-            $this->displayCompletionJson($jsonFile, $formatter);
+            $this->displayCompletionJson($jsonFile, $formatter, $environmentUrl);
 
             return;
         }
@@ -812,11 +820,30 @@ class ReviewCommand extends Command
                 if ($urls !== []) {
                     $formatter->getOutput()->writeln('');
                     foreach ($urls as $label => $url) {
+                        // Legacy md mixes app deep-links with external links (PR,
+                        // Linear) under one flat list, so we can't safely rewrite
+                        // hosts here — only the JSON `test_urls` field is
+                        // unambiguously application deep-links.
                         $formatter->url($label, $url);
                     }
                 }
             }
         }
+    }
+
+    /**
+     * Rewrite a completion deep-link onto the environment this command is
+     * operating against (worktree or main checkout) so the printed link opens
+     * the correct host/port. Falls back to the stored URL when no environment
+     * URL is known. See {@see CompletionUrlRewriter} for the rules.
+     */
+    private function localiseTestUrl(string $url, ?string $environmentUrl): string
+    {
+        if ($environmentUrl === null || $environmentUrl === '') {
+            return $url;
+        }
+
+        return CompletionUrlRewriter::rewrite($url, $environmentUrl);
     }
 
     private const COMPLETION_RULE_WIDTH = 78;
@@ -828,7 +855,7 @@ class ReviewCommand extends Command
      * Parse and display the full completion.json with title, description,
      * test plan (with active/stale status), and links.
      */
-    private function displayCompletionJson(string $filePath, OutputFormatter $formatter): void
+    private function displayCompletionJson(string $filePath, OutputFormatter $formatter, ?string $environmentUrl = null): void
     {
         $contents = file_get_contents($filePath);
         if ($contents === false) {
@@ -914,7 +941,7 @@ class ReviewCommand extends Command
         if (isset($data['test_urls']) && is_array($data['test_urls'])) {
             foreach ($data['test_urls'] as $entry) {
                 if (is_array($entry) && isset($entry['label'], $entry['url']) && is_string($entry['label']) && is_string($entry['url'])) {
-                    $formatter->url($entry['label'], $entry['url']);
+                    $formatter->url($entry['label'], $this->localiseTestUrl($entry['url'], $environmentUrl));
                 }
             }
         }
