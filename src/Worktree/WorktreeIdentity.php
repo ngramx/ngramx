@@ -63,30 +63,4 @@ class WorktreeIdentity
 
         return $namespace;
     }
-
-    /**
-     * Build the per-branch dev URL from the project's app_url by swapping the
-     * host for "<folder>.localhost" (which browsers resolve to loopback with no
-     * /etc/hosts entry) and applying the port offset used for the worktree env.
-     */
-    public static function buildUrl(string $appUrl, string $folderName, int $portOffset): string
-    {
-        $parts = parse_url($appUrl);
-        $scheme = is_array($parts) && isset($parts['scheme']) ? (string) $parts['scheme'] : 'http';
-        $path = is_array($parts) && isset($parts['path']) ? (string) $parts['path'] : '';
-
-        $host = self::sanitizeSegment($folderName) . '.localhost';
-
-        $basePort = is_array($parts) && isset($parts['port']) ? (int) $parts['port'] : null;
-
-        $portSegment = '';
-        if ($portOffset > 0) {
-            $base = $basePort ?? ($scheme === 'https' ? 443 : 80);
-            $portSegment = ':' . ($base + $portOffset);
-        } elseif ($basePort !== null) {
-            $portSegment = ':' . $basePort;
-        }
-
-        return $scheme . '://' . $host . $portSegment . $path;
-    }
 }

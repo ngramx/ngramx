@@ -44,11 +44,22 @@ class AppUrlProbe
      */
     public function probe(string $url, int $attempts = 1, int $retrySeconds = 2): ProbeResult
     {
+        return $this->probeWithHost($url, null, $attempts, $retrySeconds);
+    }
+
+    /**
+     * Like {@see probe()} but sends an explicit `Host` header while still
+     * connecting to the URL's host:port. Used to ask "does the app serve this
+     * (invented) hostname?" against a loopback address, which is how the worktree
+     * URL resolver distinguishes host-agnostic apps from host-routed ones.
+     */
+    public function probeWithHost(string $url, ?string $hostHeader, int $attempts = 1, int $retrySeconds = 2): ProbeResult
+    {
         $attempts = max(1, $attempts);
 
         $last = ProbeResult::failure($url, 'No probe attempt was made.');
         for ($i = 0; $i < $attempts; $i++) {
-            $last = $this->probeOnce($url);
+            $last = $this->probeOnce($url, $hostHeader);
             if ($last->isHealthy()) {
                 return $last;
             }
@@ -60,8 +71,13 @@ class AppUrlProbe
         return $last;
     }
 
-    private function probeOnce(string $url): ProbeResult
+    private function probeOnce(string $url, ?string $hostHeader = null): ProbeResult
     {
+        $headers = ['User-Agent' => 'ngramx/AppUrlProbe'];
+        if ($hostHeader !== null) {
+            $headers['Host'] = $hostHeader;
+        }
+
         try {
             $response = ($this->httpRequester ?? $this->defaultRequester())(
                 'GET',
@@ -72,7 +88,7 @@ class AppUrlProbe
                     'timeout' => $this->requestTimeout,
                     'verify' => false,
                     'http_errors' => false,
-                    'headers' => ['User-Agent' => 'ngramx/AppUrlProbe'],
+                    'headers' => $headers,
                 ]
             );
 

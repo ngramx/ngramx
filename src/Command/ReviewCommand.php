@@ -15,6 +15,7 @@ use Ngramx\Docker\NamespaceResolver;
 use Ngramx\Docker\PortOffsetManager;
 use Ngramx\Git\GitExcludeManager;
 use Ngramx\Git\GitRepositoryService;
+use Ngramx\Host\EtcHostsHint;
 use Ngramx\Http\CompletionUrlRewriter;
 use Ngramx\Http\UrlPortOffset;
 use Ngramx\Laravel\LaravelService;
@@ -22,6 +23,7 @@ use Ngramx\Orchestrator\CommandOrchestrator;
 use Ngramx\Output\OutputFormatter;
 use Ngramx\Worktree\WorktreeIdentity;
 use Ngramx\Worktree\WorktreeOwnershipReconciler;
+use Ngramx\Worktree\WorktreeUrlResolver;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputArgument;
@@ -49,6 +51,7 @@ class ReviewCommand extends Command
     private readonly NamespaceResolver $namespaceResolver;
     private readonly ImageReuser $imageReuser;
     private readonly WorktreeOwnershipReconciler $ownershipReconciler;
+    private readonly WorktreeUrlResolver $worktreeUrlResolver;
 
     public function __construct(
         private readonly ConfigLoader $configLoader,
@@ -62,6 +65,7 @@ class ReviewCommand extends Command
         ?NamespaceResolver $namespaceResolver = null,
         ?ImageReuser $imageReuser = null,
         ?WorktreeOwnershipReconciler $ownershipReconciler = null,
+        ?WorktreeUrlResolver $worktreeUrlResolver = null,
     ) {
         parent::__construct();
         $this->portOffsetManager = $portOffsetManager ?? new PortOffsetManager();
@@ -69,6 +73,7 @@ class ReviewCommand extends Command
         $this->namespaceResolver = $namespaceResolver ?? new NamespaceResolver();
         $this->imageReuser = $imageReuser ?? new ImageReuser();
         $this->ownershipReconciler = $ownershipReconciler ?? new WorktreeOwnershipReconciler();
+        $this->worktreeUrlResolver = $worktreeUrlResolver ?? new WorktreeUrlResolver();
     }
 
     protected function configure(): void
@@ -236,11 +241,18 @@ class ReviewCommand extends Command
         $namespace = WorktreeIdentity::namespaceFor($folderName);
         $worktreePath = $repositoryPath . '/' . self::WORKTREE_DIR . '/' . $folderName;
 
-        // Compute the port offset up-front (from the shared compose file) so we can
-        // bake the final URL into the worktree .env before the env is brought up.
-        $basePorts = $this->portOffsetManager->extractBasePorts($config->docker->composeFile);
-        $portOffset = $this->portOffsetManager->findAvailableOffset($basePorts);
-        $worktreeUrl = WorktreeIdentity::buildUrl($config->docker->appUrl, $folderName, $portOffset);
+        // Resolve the port offset up-front so we can bake the final URL into the
+        // worktree .env before the env is brought up. A worktree that is already
+        // running reuses the offset its lock file recorded, so the URL never drifts
+        // from the live stack; a fresh one allocates a free offset from the shared
+        // compose file.
+        $portOffset = $this->resolveWorktreePortOffset($worktreePath, $config);
+
+        // Seed .env with the app's own host + offset port before startup — always a
+        // valid origin. Once the stack is up we may upgrade this to the prettier
+        // "<folder>.localhost" subdomain if the app turns out to be host-agnostic
+        // (see the post-start resolver below).
+        $worktreeUrl = UrlPortOffset::apply($config->docker->appUrl, $portOffset);
 
         if ($this->gitRepositoryService->worktreeExists($repositoryPath, $worktreePath)) {
             $formatter->info("Reusing existing worktree: $worktreePath");
@@ -267,7 +279,8 @@ class ReviewCommand extends Command
         }
 
         try {
-            $alreadyRunning = file_exists($worktreePath . '/.ngramx.lock');
+            $worktreeLock = new LockFile($worktreePath);
+            $alreadyRunning = $worktreeLock->exists();
 
             if ($alreadyRunning) {
                 $formatter->info('Worktree environment is already running — skipping startup.');
@@ -290,6 +303,29 @@ class ReviewCommand extends Command
                     $formatter->error('Failed to start the worktree environment.');
                     return $upExit;
                 }
+            }
+
+            // The lock file is the single source of truth for the offset that is
+            // actually live, so derive everything from it — this is what kills URL
+            // drift when a previous run picked a different offset.
+            $liveLock = $worktreeLock->read();
+            if ($liveLock !== null && $liveLock->portOffset !== null) {
+                $portOffset = $liveLock->portOffset;
+            }
+
+            // Now the app is up, decide the final URL: the pretty
+            // "<folder>.localhost" subdomain for host-agnostic apps (typical
+            // Laravel), or the app's own host for host-routed ones (e.g. apache
+            // vhosts). Re-seed .env so the app's self-generated links match what we
+            // print; the reset step below boots/clears with the corrected APP_URL.
+            $resolvedUrl = $this->worktreeUrlResolver->resolve(
+                $config->docker->appUrl,
+                $folderName,
+                $portOffset
+            );
+            if ($resolvedUrl !== $worktreeUrl) {
+                $worktreeUrl = $resolvedUrl;
+                $this->seedWorktreeEnv($repositoryPath, $worktreePath, $worktreeUrl, $formatter);
             }
 
             $worktreeConfig = $this->configLoader->load($worktreePath . '/ngramx.yml');
@@ -315,6 +351,16 @@ class ReviewCommand extends Command
         $output->writeln('');
         $formatter->url('Application', $worktreeUrl);
         $formatter->url('Worktree', $worktreePath);
+
+        // Option A keeps the app's own host, which (unlike a *.localhost name) may
+        // not resolve on the developer's machine — point them at the /etc/hosts fix.
+        $hostsLine = EtcHostsHint::suggestedHostsLine($worktreeUrl);
+        if ($hostsLine !== null) {
+            $output->writeln('');
+            $formatter->warning('This hostname does not resolve on your machine yet (normal for made-up dev domains).');
+            $formatter->info('Add this line to /etc/hosts so your browser can open the URL:');
+            $formatter->info('  ' . $hostsLine);
+        }
 
         $this->displayCompletionUrls($worktreePath, $ticketNumber, $formatter, $worktreeUrl);
 
@@ -611,6 +657,24 @@ class ReviewCommand extends Command
         $upInput->setInteractive(false);
 
         return $upCommand->run($upInput, $output);
+    }
+
+    /**
+     * Resolve the port offset for a worktree. A worktree that is already running
+     * reuses the offset recorded in its lock file (the single source of truth for
+     * the live stack), so the printed URL and APP_URL never drift; otherwise a
+     * free offset is allocated from the shared compose file's exposed ports.
+     */
+    private function resolveWorktreePortOffset(string $worktreePath, NgramxConfig $config): int
+    {
+        $existing = (new LockFile($worktreePath))->read();
+        if ($existing !== null) {
+            return $existing->portOffset ?? 0;
+        }
+
+        $basePorts = $this->portOffsetManager->extractBasePorts($config->docker->composeFile);
+
+        return $this->portOffsetManager->findAvailableOffset($basePorts);
     }
 
     /**
