@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.24.3](https://github.com/ngramx/ngramx/compare/v2.24.2...v2.24.3) (2026-06-27)
+
+
+### Bug Fixes
+
+* auto-start the environment in `ngramx review` instead of refusing ([725bfaf](https://github.com/ngramx/ngramx/commit/725bfafca90bcd63b7fa9404b0f86587ff6539ca))
+
 ## [2.24.2](https://github.com/ngramx/ngramx/compare/v2.24.1...v2.24.2) (2026-06-27)
 
 
