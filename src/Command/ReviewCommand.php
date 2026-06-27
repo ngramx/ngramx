@@ -123,14 +123,32 @@ class ReviewCommand extends Command
 
             if (!$worktreeMode) {
                 $namespace = null;
+                $portOffset = 0;
                 if ($this->lockFile->exists()) {
                     $lockData = $this->lockFile->read();
                     $namespace = $lockData?->namespace;
+                    $portOffset = $lockData->portOffset ?? 0;
                 }
 
+                // Rather than refusing when the stack is down, start it for the
+                // developer — `review` already knows how to bring an environment
+                // up, so making them run `ngramx up` first is needless friction.
+                // Reuse the namespace/offset the lock recorded so the URL and
+                // container names stay stable across the restart.
                 if (!$this->dockerCompose->isRunning($composeFile, $namespace)) {
-                    $formatter->error('Services are not running. Please run "ngramx up" first.');
-                    return Command::FAILURE;
+                    $formatter->info('Services are not running — starting them first...');
+
+                    // A leftover lock (containers gone, lock left behind) would
+                    // make `up` refuse with "already running", so clear it first.
+                    if ($this->lockFile->exists()) {
+                        $this->lockFile->delete();
+                    }
+
+                    $upExit = $this->runUpCommand($output, $namespace, $portOffset);
+                    if ($upExit !== Command::SUCCESS) {
+                        $formatter->error('Failed to start the environment. Run `ngramx up` manually to see the full output.');
+                        return $upExit;
+                    }
                 }
             }
 
@@ -280,12 +298,27 @@ class ReviewCommand extends Command
 
         try {
             $worktreeLock = new LockFile($worktreePath);
-            $alreadyRunning = $worktreeLock->exists();
+
+            // Decide "already running?" from the actual container state rather
+            // than the mere presence of a lock file. A lock left behind by a
+            // previous run (machine reboot, `docker compose down` elsewhere, a
+            // crash) makes the worktree *look* running while its containers are
+            // long gone — we'd then skip startup and fail downstream in the reset
+            // step with "Service 'app' is not running". Probing the containers is
+            // the only reliable signal.
+            $alreadyRunning = $this->dockerCompose->isRunning($config->docker->composeFile, $namespace);
 
             if ($alreadyRunning) {
                 $formatter->info('Worktree environment is already running — skipping startup.');
             } else {
                 $formatter->section('Starting isolated environment');
+
+                // A leftover lock would make `up` refuse with "already running",
+                // so clear it first: the containers it pointed at are not up.
+                if ($worktreeLock->exists()) {
+                    $formatter->info('Clearing a stale lock from a previous run...');
+                    $worktreeLock->delete();
+                }
 
                 // Reuse the main checkout's already-built image so the worktree
                 // doesn't rebuild it from scratch under its own project name.
@@ -634,12 +667,14 @@ class ReviewCommand extends Command
     }
 
     /**
-     * Bring up the worktree environment by invoking the `up` command in-process,
-     * with an explicit namespace + port offset so it never collides with the main
-     * checkout. Verification and the secure-cert prompt are skipped to keep it
-     * non-interactive and avoid false failures against the swapped host URL.
+     * Bring up an environment by invoking the `up` command in-process. Used for
+     * both the worktree review (an explicit namespace + port offset keeps it from
+     * colliding with the main checkout) and the in-place review (namespace null,
+     * offset reused from the lock). Verification and the secure-cert prompt are
+     * skipped to keep it non-interactive and avoid false failures against the
+     * swapped host URL.
      */
-    private function runUpCommand(OutputInterface $output, string $namespace, int $portOffset): int
+    private function runUpCommand(OutputInterface $output, ?string $namespace, int $portOffset): int
     {
         $application = $this->getApplication();
         if ($application === null) {
@@ -648,12 +683,20 @@ class ReviewCommand extends Command
 
         $upCommand = $application->find('up');
 
-        $upInput = new ArrayInput([
-            '--namespace' => $namespace,
+        // Only pass --namespace when we actually have one: the default
+        // (non-worktree) checkout runs without namespace isolation, and `up`
+        // treats a null namespace option as "no isolation". Passing an explicit
+        // null through ArrayInput for a VALUE_REQUIRED option is invalid.
+        $arguments = [
             '--port-offset' => (string) $portOffset,
             '--no-verify' => true,
             '--no-prompt-secure' => true,
-        ]);
+        ];
+        if ($namespace !== null) {
+            $arguments['--namespace'] = $namespace;
+        }
+
+        $upInput = new ArrayInput($arguments);
         $upInput->setInteractive(false);
 
         return $upCommand->run($upInput, $output);

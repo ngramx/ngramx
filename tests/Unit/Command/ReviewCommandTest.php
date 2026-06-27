@@ -72,7 +72,7 @@ class ReviewCommandTest extends TestCase
         $this->assertTrue($definition->getOption('worktree')->getShortcut() === 'w');
     }
 
-    public function test_it_fails_when_services_not_running(): void
+    public function test_it_starts_services_when_not_running_instead_of_refusing(): void
     {
         $this->dockerCompose = $this->createMock(DockerCompose::class);
         $this->dockerCompose->expects($this->once())->method('isRunning')->willReturn(false);
@@ -80,10 +80,15 @@ class ReviewCommandTest extends TestCase
         $this->setupConfigLoader($this->createMockConfig([]));
 
         $tester = new CommandTester($this->createCommand());
-        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+        $tester->execute(['ticket' => 'GIG-123']);
 
-        $this->assertSame(1, $exitCode);
-        $this->assertStringContainsString('not running', $tester->getDisplay());
+        // The command no longer hard-stops with "run ngramx up first" — it brings
+        // the environment up itself. (The auto-up cannot complete here because the
+        // bare CommandTester has no `up` command registered, but the attempt is
+        // what we assert.)
+        $display = $tester->getDisplay();
+        $this->assertStringContainsString('starting them first', $display);
+        $this->assertStringNotContainsString('Please run "ngramx up" first', $display);
     }
 
     public function test_it_uses_fresh_command_when_defined(): void
