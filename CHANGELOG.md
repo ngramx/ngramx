@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.24.1](https://github.com/ngramx/ngramx/compare/v2.24.0...v2.24.1) (2026-06-27)
+
+
+### Bug Fixes
+
+* write docker-compose.override.yml next to the base compose file ([5278a82](https://github.com/ngramx/ngramx/commit/5278a82f15e5e4f29bfc58b502be7ca3f76d1f58))
+
 # [2.24.0](https://github.com/ngramx/ngramx/compare/v2.23.13...v2.24.0) (2026-06-12)
 
 
