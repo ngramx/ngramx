@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.24.2](https://github.com/ngramx/ngramx/compare/v2.24.1...v2.24.2) (2026-06-27)
+
+
+### Bug Fixes
+
+* choose worktree review URL by probing the app, and stop port drift ([cdcfa10](https://github.com/ngramx/ngramx/commit/cdcfa1065136e8ecd97f1e1a134c25b40ebb6553))
+
 ## [2.24.1](https://github.com/ngramx/ngramx/compare/v2.24.0...v2.24.1) (2026-06-27)
 
 
