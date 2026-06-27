@@ -20,14 +20,29 @@ class ComposeFilesTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach (glob($this->tempDir . '/*') ?: [] as $file) {
-            if (is_file($file)) {
-                unlink($file);
+        $this->removeDirectory($this->tempDir);
+    }
+
+    private function removeDirectory(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $items = scandir($dir);
+        if ($items === false) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
             }
+            $path = $dir . '/' . $item;
+            is_dir($path) ? $this->removeDirectory($path) : unlink($path);
         }
-        if (is_dir($this->tempDir)) {
-            rmdir($this->tempDir);
-        }
+
+        rmdir($dir);
     }
 
     public function test_only_base_file_when_no_overrides_exist(): void
@@ -72,6 +87,39 @@ class ComposeFilesTest extends TestCase
 
         $this->assertSame(
             ['-f', $compose, '-f', $user],
+            ComposeFiles::fileArgs($compose)
+        );
+    }
+
+    public function test_override_discovered_in_subdirectory(): void
+    {
+        $subDir = $this->tempDir . '/docker';
+        mkdir($subDir);
+
+        $compose = $subDir . '/docker-compose.yml';
+        $override = $subDir . '/' . ComposeFiles::OVERRIDE_FILE;
+        file_put_contents($compose, "services: {}\n");
+        file_put_contents($override, "services: {}\n");
+
+        $this->assertSame(
+            ['-f', $compose, '-f', $override],
+            ComposeFiles::fileArgs($compose)
+        );
+    }
+
+    public function test_override_at_root_not_picked_up_for_subdirectory_compose(): void
+    {
+        $subDir = $this->tempDir . '/docker';
+        mkdir($subDir);
+
+        $compose = $subDir . '/docker-compose.yml';
+        file_put_contents($compose, "services: {}\n");
+
+        // Override wrongly placed at root (not next to compose file)
+        file_put_contents($this->tempDir . '/' . ComposeFiles::OVERRIDE_FILE, "services: {}\n");
+
+        $this->assertSame(
+            ['-f', $compose],
             ComposeFiles::fileArgs($compose)
         );
     }

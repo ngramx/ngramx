@@ -462,7 +462,7 @@ class UpCommand extends Command
                 if (file_exists($overrideFile)) {
                     // Use the existing override file if present
                     $this->dockerCompose->down($config->docker->composeFile, false, $namespace);
-                    $this->overrideGenerator->cleanup();
+                    $this->overrideGenerator->cleanup($config->docker->composeFile);
                 } else {
                     // Just remove containers without override file
                     $this->dockerCompose->down($config->docker->composeFile, false, $namespace);

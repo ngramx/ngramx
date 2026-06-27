@@ -66,7 +66,7 @@ class DownCommand extends Command
             $this->dockerCompose->down($config->docker->composeFile, $removeVolumes, $namespace);
 
             // Clean up override file
-            $this->overrideGenerator->cleanup();
+            $this->overrideGenerator->cleanup($config->docker->composeFile);
 
             // Delete lock file
             $this->lockFile->delete();

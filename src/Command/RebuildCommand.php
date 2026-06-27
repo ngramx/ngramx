@@ -98,7 +98,7 @@ class RebuildCommand extends Command
             }
 
             // Clean up override file from previous run
-            $this->overrideGenerator->cleanup();
+            $this->overrideGenerator->cleanup($config->docker->composeFile);
 
             // Phase 2: Rebuild images and start containers
             $formatter->section('Rebuilding images and starting containers');

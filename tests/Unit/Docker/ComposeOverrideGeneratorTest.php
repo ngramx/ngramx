@@ -307,15 +307,18 @@ class ComposeOverrideGeneratorTest extends TestCase
         $this->generator->generate($composeFile, 1000, null);
         $this->assertFileExists($this->tempDir . '/docker-compose.override.yml');
 
-        $this->generator->cleanup();
+        $this->generator->cleanup($composeFile);
         $this->assertFileDoesNotExist($this->tempDir . '/docker-compose.override.yml');
     }
 
     public function test_it_handles_cleanup_when_no_override_exists(): void
     {
+        $composeFile = $this->tempDir . '/docker-compose.yml';
+        file_put_contents($composeFile, "services: {}\n");
+
         $this->assertFileDoesNotExist($this->tempDir . '/docker-compose.override.yml');
 
-        $this->generator->cleanup(); // Should not throw
+        $this->generator->cleanup($composeFile); // Should not throw
 
         $this->assertFileDoesNotExist($this->tempDir . '/docker-compose.override.yml');
     }
@@ -602,6 +605,71 @@ class ComposeOverrideGeneratorTest extends TestCase
         $override = $this->parseOverride();
         $this->assertArrayNotHasKey('volumes', $override['services']['app']);
         $this->assertArrayNotHasKey('environment', $override['services']['app']);
+    }
+
+    public function test_it_writes_override_next_to_compose_file_in_subdirectory(): void
+    {
+        $subDir = $this->tempDir . '/docker';
+        mkdir($subDir);
+
+        $composeFile = $subDir . '/docker-compose.yml';
+        file_put_contents($composeFile, Yaml::dump([
+            'services' => [
+                'redis' => [
+                    'image' => 'redis',
+                    'ports' => ['6379:6379'],
+                ],
+            ],
+        ]));
+
+        $this->generator->generate($composeFile, 8300, 'ngramx-projects-hydra');
+
+        $this->assertFileExists($subDir . '/docker-compose.override.yml');
+        $this->assertFileDoesNotExist($this->tempDir . '/docker-compose.override.yml');
+    }
+
+    public function test_it_cleans_up_override_from_subdirectory(): void
+    {
+        $subDir = $this->tempDir . '/docker';
+        mkdir($subDir);
+
+        $composeFile = $subDir . '/docker-compose.yml';
+        file_put_contents($composeFile, Yaml::dump([
+            'services' => [
+                'redis' => [
+                    'image' => 'redis',
+                    'ports' => ['6379:6379'],
+                ],
+            ],
+        ]));
+
+        $this->generator->generate($composeFile, 8300, null);
+        $this->assertFileExists($subDir . '/docker-compose.override.yml');
+
+        $this->generator->cleanup($composeFile);
+        $this->assertFileDoesNotExist($subDir . '/docker-compose.override.yml');
+    }
+
+    public function test_override_path_matches_compose_files_layered_files(): void
+    {
+        $subDir = $this->tempDir . '/docker';
+        mkdir($subDir);
+
+        $composeFile = $subDir . '/docker-compose.yml';
+        file_put_contents($composeFile, Yaml::dump([
+            'services' => [
+                'app' => [
+                    'image' => 'nginx',
+                    'ports' => ['80:80'],
+                ],
+            ],
+        ]));
+
+        $this->generator->generate($composeFile, 1000, null);
+
+        $layered = \Ngramx\Docker\ComposeFiles::layeredFiles($composeFile);
+        $this->assertNotEmpty($layered);
+        $this->assertSame($subDir . '/docker-compose.override.yml', $layered[0]);
     }
 
     /**

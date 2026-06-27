@@ -127,9 +127,9 @@ YAML;
             }
         }
 
-        // Write override file
+        // Write override file next to the base compose file
         if (!empty($override['services'])) {
-            $this->writeOverrideFile($override, $servicesWithPorts);
+            $this->writeOverrideFile($override, $servicesWithPorts, $composeFile);
         }
     }
 
@@ -175,11 +175,11 @@ YAML;
     }
 
     /**
-     * Delete the override file
+     * Delete the override file from the same directory as the base compose file.
      */
-    public function cleanup(): void
+    public function cleanup(string $composeFile): void
     {
-        $overridePath = getcwd() . '/' . self::OVERRIDE_FILE;
+        $overridePath = $this->overridePath($composeFile);
         if (file_exists($overridePath)) {
             unlink($overridePath);
         }
@@ -219,12 +219,26 @@ YAML;
     }
 
     /**
+     * Resolve the path where the override file should live — always in the same
+     * directory as the base compose file so that Docker Compose auto-discovery
+     * and {@see ComposeFiles::layeredFiles()} both find it.
+     */
+    private function overridePath(string $composeFile): string
+    {
+        $dir = realpath($composeFile) !== false
+            ? dirname((string) realpath($composeFile))
+            : dirname($composeFile);
+
+        return $dir . '/' . self::OVERRIDE_FILE;
+    }
+
+    /**
      * Write the override file to disk
      *
      * @param array<string, mixed> $override
      * @param string[] $servicesWithEmptyPorts Services that need ports completely removed
      */
-    private function writeOverrideFile(array $override, array $servicesWithEmptyPorts = []): void
+    private function writeOverrideFile(array $override, array $servicesWithEmptyPorts, string $composeFile): void
     {
         // Docker Compose v2 merges arrays by default
         // Use !override tag to force replacement instead of merging
@@ -241,7 +255,7 @@ YAML;
 
         $content = self::HEADER_COMMENT . $yaml;
 
-        $overridePath = getcwd() . '/' . self::OVERRIDE_FILE;
+        $overridePath = $this->overridePath($composeFile);
         file_put_contents($overridePath, $content);
     }
 }
