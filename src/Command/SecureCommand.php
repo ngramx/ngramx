@@ -57,6 +57,10 @@ class SecureCommand extends Command
 
         $formatter->section('Installing local CA');
         $this->ensureCertutil($formatter);
+        // mkcert only writes the CA into the browser (NSS) store if that store
+        // already exists, so create it first — otherwise Chrome/Chromium never
+        // trust the cert even though the system store has the CA.
+        $this->ensureNssStore($formatter);
         // Non-fatal: even if the CA can't be trusted (e.g. no TTY for sudo), we
         // still generate the cert so nginx can serve HTTPS. The user is told how
         // to finish trusting it.
@@ -82,6 +86,10 @@ class SecureCommand extends Command
         if (!$this->runMkcertGenerate($hostname, $certFile, $keyFile, $formatter)) {
             return Command::FAILURE;
         }
+
+        // On WSL the browser usually runs on Windows, which has its own trust
+        // store. Bridge the CA across so the Windows browser trusts it too.
+        $this->trustCaOnWindowsIfWsl($formatter);
 
         $formatter->section('Done');
         $formatter->success('✓ SSL certificate generated!');
@@ -156,6 +164,146 @@ class SecureCommand extends Command
             $this->isInstalled('zypper') => 'sudo zypper install -y mozilla-nss-tools',
             default => null,
         };
+    }
+
+    /**
+     * Chrome/Chromium (and Playwright) read CAs from the per-user NSS store at
+     * ~/.pki/nssdb. mkcert only writes there if the store already exists — it
+     * won't create it — so a fresh machine gets the CA in the system store but
+     * not the browser store. Initialise an empty NSS store so mkcert can
+     * populate it on the `-install` that follows.
+     */
+    private function ensureNssStore(OutputFormatter $formatter): void
+    {
+        if (PHP_OS_FAMILY !== 'Linux' || !$this->isInstalled('certutil')) {
+            return;
+        }
+
+        $home = getenv('HOME');
+        if ($home === false || $home === '') {
+            return;
+        }
+
+        $nssDir = $home . '/.pki/nssdb';
+        if (is_file($nssDir . '/cert9.db') || is_file($nssDir . '/cert8.db')) {
+            return; // already initialised
+        }
+
+        if (!is_dir($nssDir) && !mkdir($nssDir, 0700, true) && !is_dir($nssDir)) {
+            return;
+        }
+
+        $process = new Process(['certutil', '-N', '--empty-password', '-d', 'sql:' . $nssDir]);
+        $process->run();
+
+        if ($process->isSuccessful()) {
+            $formatter->info('✓ Initialised the browser certificate store (~/.pki/nssdb)');
+        }
+    }
+
+    /**
+     * Under WSL the browser normally runs on Windows, whose trust store is
+     * separate from the Linux one mkcert just updated. Copy the mkcert root CA
+     * to a Windows-visible path and import it into the current user's Windows
+     * trust store (Cert:\CurrentUser\Root — no admin needed) so Chrome/Edge on
+     * Windows trust the cert too. Best-effort and non-fatal.
+     */
+    private function trustCaOnWindowsIfWsl(OutputFormatter $formatter): void
+    {
+        if (!$this->isWsl() || !$this->isInstalled('powershell.exe') || !$this->isInstalled('wslpath')) {
+            return;
+        }
+
+        $caRoot = $this->mkcertCaRoot();
+        if ($caRoot === null) {
+            return;
+        }
+
+        $rootCa = $caRoot . '/rootCA.pem';
+        if (!is_file($rootCa)) {
+            return;
+        }
+
+        $formatter->section('Trusting the CA on Windows (WSL detected)');
+
+        $winTemp = $this->capture(['powershell.exe', '-NoProfile', '-Command', 'Write-Output $env:TEMP']);
+        if ($winTemp === null || $winTemp === '') {
+            $formatter->warning('Could not resolve the Windows temp directory; skipping Windows trust.');
+            return;
+        }
+
+        $wslTemp = $this->capture(['wslpath', '-u', $winTemp]);
+        if ($wslTemp === null || $wslTemp === '') {
+            $formatter->warning('Could not translate the Windows temp path; skipping Windows trust.');
+            return;
+        }
+
+        $wslDest = rtrim($wslTemp, '/') . '/ngramx-rootCA.pem';
+        if (!@copy($rootCa, $wslDest)) {
+            $formatter->warning('Could not stage the CA for Windows; skipping Windows trust.');
+            return;
+        }
+
+        $winPath = rtrim($winTemp, '\\') . '\\ngramx-rootCA.pem';
+        $psCommand = "Import-Certificate -FilePath '" . $winPath . "' "
+            . '-CertStoreLocation Cert:\CurrentUser\Root | Out-Null';
+
+        $process = new Process(['powershell.exe', '-NoProfile', '-Command', $psCommand]);
+        $process->setTimeout(60);
+        $process->run();
+
+        @unlink($wslDest);
+
+        if (!$process->isSuccessful()) {
+            $formatter->warning('Could not add the CA to the Windows trust store automatically.');
+            $error = trim($process->getErrorOutput());
+            if ($error !== '') {
+                $formatter->info($error);
+            }
+            return;
+        }
+
+        $formatter->info('✓ CA added to the Windows user trust store (Cert:\CurrentUser\Root)');
+        $formatter->info('Fully restart your Windows browser for it to take effect.');
+    }
+
+    private function isWsl(): bool
+    {
+        if (PHP_OS_FAMILY !== 'Linux') {
+            return false;
+        }
+
+        if (getenv('WSL_DISTRO_NAME') !== false) {
+            return true;
+        }
+
+        $version = @file_get_contents('/proc/version');
+
+        return $version !== false && stripos($version, 'microsoft') !== false;
+    }
+
+    private function mkcertCaRoot(): ?string
+    {
+        $caRoot = $this->capture(['mkcert', '-CAROOT']);
+
+        return ($caRoot === null || $caRoot === '') ? null : $caRoot;
+    }
+
+    /**
+     * Run a command and return its trimmed stdout, or null if it failed.
+     *
+     * @param list<string> $command
+     */
+    private function capture(array $command): ?string
+    {
+        $process = new Process($command);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            return null;
+        }
+
+        return trim($process->getOutput());
     }
 
     /**
