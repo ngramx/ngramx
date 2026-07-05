@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.24.5](https://github.com/ngramx/ngramx/compare/v2.24.4...v2.24.5) (2026-07-05)
+
+
+### Bug Fixes
+
+* **secure:** create nss store and trust the ca on windows under wsl ([00ffa49](https://github.com/ngramx/ngramx/commit/00ffa494b4e9a6f8e3f6dea7f5987ff0729875de))
+
 ## [2.24.4](https://github.com/ngramx/ngramx/compare/v2.24.3...v2.24.4) (2026-07-05)
 
 
