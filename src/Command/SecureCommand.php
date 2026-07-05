@@ -56,9 +56,11 @@ class SecureCommand extends Command
         }
 
         $formatter->section('Installing local CA');
-        if (!$this->runMkcertInstall($formatter)) {
-            return Command::FAILURE;
-        }
+        $this->ensureCertutil($formatter);
+        // Non-fatal: even if the CA can't be trusted (e.g. no TTY for sudo), we
+        // still generate the cert so nginx can serve HTTPS. The user is told how
+        // to finish trusting it.
+        $caInstalled = $this->runMkcertInstall($formatter);
 
         $sslDir = $configDir . '/' . $config->docker->sslPath;
         if (!is_dir($sslDir)) {
@@ -82,9 +84,14 @@ class SecureCommand extends Command
         }
 
         $formatter->section('Done');
-        $formatter->success('✓ Browser-trusted SSL certificate generated!');
+        $formatter->success('✓ SSL certificate generated!');
         $formatter->info('');
-        $formatter->info('Your browser will now trust https://' . $hostname);
+        if ($caInstalled) {
+            $formatter->info('Your browser will now trust https://' . $hostname);
+        } else {
+            $formatter->info('The certificate is in place, but the local CA is not trusted yet.');
+            $formatter->info('Re-run `ngramx secure` from an interactive terminal to finish trusting it.');
+        }
         $formatter->info('Run `ngramx up` to start your environment with SSL.');
 
         return Command::SUCCESS;
@@ -92,10 +99,80 @@ class SecureCommand extends Command
 
     private function isMkcertInstalled(): bool
     {
-        $process = new Process(['which', 'mkcert']);
+        return $this->isInstalled('mkcert');
+    }
+
+    private function isInstalled(string $binary): bool
+    {
+        $process = new Process(['which', $binary]);
         $process->run();
 
         return $process->isSuccessful();
+    }
+
+    /**
+     * On Linux, mkcert needs `certutil` (from libnss3-tools / nss-tools) to add
+     * the CA to the NSS store that Chrome, Chromium and Playwright read. Without
+     * it `mkcert -install` silently skips browser trust, so certs never turn
+     * green in the browser. Install it automatically when it's missing.
+     *
+     * No-op on macOS/Windows, where mkcert trusts the CA via the native store.
+     */
+    private function ensureCertutil(OutputFormatter $formatter): void
+    {
+        if (PHP_OS_FAMILY !== 'Linux' || $this->isInstalled('certutil')) {
+            return;
+        }
+
+        $installCommand = $this->certutilInstallCommand();
+        if ($installCommand === null) {
+            $formatter->warning('certutil is missing and no known package manager was detected.');
+            $formatter->info('Install libnss3-tools (Debian/Ubuntu), nss-tools (Fedora) or nss (Arch), then re-run.');
+            return;
+        }
+
+        $formatter->info('Installing certutil so browsers can trust the CA (may prompt for your password)...');
+
+        $process = Process::fromShellCommandline($installCommand);
+        $process->setTimeout(300);
+        $this->enableTtyIfAvailable($process);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            $formatter->warning('Could not install certutil automatically.');
+            $formatter->info('Install it manually and re-run: ' . $installCommand);
+            return;
+        }
+
+        $formatter->info('✓ certutil installed');
+    }
+
+    private function certutilInstallCommand(): ?string
+    {
+        return match (true) {
+            $this->isInstalled('apt-get') => 'sudo apt-get update && sudo apt-get install -y libnss3-tools',
+            $this->isInstalled('dnf') => 'sudo dnf install -y nss-tools',
+            $this->isInstalled('pacman') => 'sudo pacman -Sy --noconfirm nss',
+            $this->isInstalled('zypper') => 'sudo zypper install -y mozilla-nss-tools',
+            default => null,
+        };
+    }
+
+    /**
+     * Attach the current TTY so interactive prompts (the sudo password mkcert
+     * and the package manager ask for) actually reach the user. Silently skipped
+     * when there is no TTY (CI, piped output); callers degrade gracefully.
+     */
+    private function enableTtyIfAvailable(Process $process): void
+    {
+        try {
+            if (Process::isTtySupported() && \defined('STDIN') && @stream_isatty(\STDIN)) {
+                $process->setTty(true);
+            }
+        } catch (\Throwable) {
+            // Some environments report TTY support inaccurately; fall back to a
+            // non-interactive run rather than crashing.
+        }
     }
 
     private function printInstallInstructions(OutputFormatter $formatter): void
@@ -152,17 +229,21 @@ class SecureCommand extends Command
     private function runMkcertInstall(OutputFormatter $formatter): bool
     {
         $process = new Process(['mkcert', '-install']);
-        $process->setTimeout(60);
+        $process->setTimeout(120);
+        // mkcert shells out to `sudo` to write the system trust store; give it a
+        // TTY so it can prompt for the password instead of failing outright.
+        $this->enableTtyIfAvailable($process);
         $process->run();
 
         if (!$process->isSuccessful()) {
-            $errorOutput = $process->getErrorOutput();
-            // mkcert -install may write to stderr even on success (e.g. "The local CA is already installed")
-            if ($process->getExitCode() !== 0) {
-                $formatter->error('Failed to install local CA: ' . $errorOutput);
-                $formatter->info('You may need to run this with admin privileges.');
-                return false;
+            $formatter->warning('Could not install the local CA into the trust store.');
+            $errorOutput = trim($process->getErrorOutput());
+            if ($errorOutput !== '') {
+                $formatter->info($errorOutput);
             }
+            $formatter->info('The certificate will still be generated, but browsers may not trust it yet.');
+            $formatter->info('Re-run `ngramx secure` from an interactive terminal so mkcert can prompt for sudo.');
+            return false;
         }
 
         $formatter->info('✓ Local CA is installed and trusted');
