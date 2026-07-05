@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.24.4](https://github.com/ngramx/ngramx/compare/v2.24.3...v2.24.4) (2026-07-05)
+
+
+### Bug Fixes
+
+* **secure:** install certutil and don't abort when trust needs sudo ([00c93b9](https://github.com/ngramx/ngramx/commit/00c93b97ed49021766b38fdc364272f6df54715d))
+
 ## [2.24.3](https://github.com/ngramx/ngramx/compare/v2.24.2...v2.24.3) (2026-06-27)
 
 
