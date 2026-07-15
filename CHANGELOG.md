@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.25.0](https://github.com/ngramx/ngramx/compare/v2.24.5...v2.25.0) (2026-07-15)
+
+
+### Bug Fixes
+
+* auto-retry failed parallel sub-commands instead of failing the run (COR-269) ([26ad61b](https://github.com/ngramx/ngramx/commit/26ad61b0d3f4f850c1b43870cec2f885a75d4613))
+* ignore checkout hooks and verify registration when creating worktrees (COR-275) ([f8463b3](https://github.com/ngramx/ngramx/commit/f8463b3815c604a33e2544a2540e5c9049fb8179))
+
+
+### Features
+
+* add ngramx worktree command for standalone per-ticket environments (COR-268) ([58e21df](https://github.com/ngramx/ngramx/commit/58e21df211cf034d94034f194d5edad4f125732c))
+* detect and resolve individual port conflicts during ngramx up (COR-267) ([7715848](https://github.com/ngramx/ngramx/commit/771584807b56fbfa69e76c6f4957c210652565c0))
+* follow per-port remaps when localising review URLs and completion deep-links ([c07ae10](https://github.com/ngramx/ngramx/commit/c07ae10fda7ecfe0d9be0c3c24c2c534ead27ab4))
+* overlap worktree dependency priming with environment startup (COR-257) ([bc94132](https://github.com/ngramx/ngramx/commit/bc94132da176f24811477aeabf5c6b6db39828bd))
+
 ## [2.24.5](https://github.com/ngramx/ngramx/compare/v2.24.4...v2.24.5) (2026-07-05)
 
 
