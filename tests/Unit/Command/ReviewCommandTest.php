@@ -16,6 +16,11 @@ use Ngramx\Docker\DockerCompose;
 use Ngramx\Git\GitRepositoryService;
 use Ngramx\Laravel\LaravelService;
 use Ngramx\Orchestrator\CommandOrchestrator;
+use Ngramx\Worktree\OwnershipReconcileResult;
+use Ngramx\Worktree\WorktreeDependencyPrimer;
+use Ngramx\Worktree\WorktreeIdentity;
+use Ngramx\Worktree\WorktreeOwnershipReconciler;
+use Ngramx\Worktree\WorktreeUrlResolver;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
@@ -601,6 +606,92 @@ class ReviewCommandTest extends TestCase
         $this->assertStringContainsString('uncommitted changes', $display);
     }
 
+    public function test_worktree_review_awaits_priming_before_the_reset_step(): void
+    {
+        // Pre-create the worktree directory the command derives so chdir succeeds.
+        $repoName = WorktreeIdentity::sanitizeSegment(basename($this->tmpDir));
+        $folderName = WorktreeIdentity::folderName('gig-123', $repoName);
+        $worktreePath = $this->tmpDir . '/.ngramx/worktrees/' . $folderName;
+        mkdir($worktreePath, 0755, true);
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn($this->tmpDir . '/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(false);
+        $this->gitRepositoryService->expects($this->once())->method('addWorktree')->willReturn(true);
+
+        $events = [];
+
+        $primer = $this->createMock(WorktreeDependencyPrimer::class);
+        $primer->expects($this->once())
+            ->method('start')
+            ->willReturnCallback(function () use (&$events): void {
+                $events[] = 'prime-start';
+            });
+        $primer->expects($this->atLeastOnce())
+            ->method('await')
+            ->willReturnCallback(function () use (&$events): void {
+                $events[] = 'prime-await';
+            });
+
+        $this->commandOrchestrator->expects($this->once())
+            ->method('run')
+            ->willReturnCallback(function () use (&$events): float {
+                $events[] = 'reset';
+                return 1.0;
+            });
+
+        $urlResolver = $this->createMock(WorktreeUrlResolver::class);
+        $urlResolver->expects($this->any())->method('resolve')->willReturn('http://localhost:80');
+
+        $reconciler = $this->createMock(WorktreeOwnershipReconciler::class);
+        $reconciler->expects($this->any())
+            ->method('reconcile')
+            ->willReturn(OwnershipReconcileResult::skipped('unit test'));
+
+        $tester = new CommandTester($this->createCommand(primer: $primer, urlResolver: $urlResolver, reconciler: $reconciler));
+        $exitCode = $tester->execute(['ticket' => 'GIG-123', '--worktree' => true]);
+
+        $this->assertSame(0, $exitCode, $tester->getDisplay());
+
+        $startPos = array_search('prime-start', $events, true);
+        $awaitPos = array_search('prime-await', $events, true);
+        $resetPos = array_search('reset', $events, true);
+        $this->assertNotFalse($startPos, 'Priming must be started');
+        $this->assertNotFalse($awaitPos, 'Priming must be awaited');
+        $this->assertNotFalse($resetPos, 'Reset must run');
+        $this->assertLessThan($awaitPos, $startPos, 'Priming starts before it is awaited');
+        $this->assertLessThan($resetPos, $awaitPos, 'Priming must be awaited before the reset step reads vendor/node_modules');
+    }
+
+    public function test_worktree_review_awaits_priming_when_entering_the_worktree_fails(): void
+    {
+        // Do NOT create the worktree directory: addWorktree is mocked, so chdir
+        // into the (missing) worktree fails — an early-return path that must
+        // still await the started copies so none are leaked.
+        $config = $this->createMockConfig([]);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn($this->tmpDir . '/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(false);
+        $this->gitRepositoryService->expects($this->once())->method('addWorktree')->willReturn(true);
+
+        $primer = $this->createMock(WorktreeDependencyPrimer::class);
+        $primer->expects($this->once())->method('start');
+        $primer->expects($this->atLeastOnce())->method('await');
+
+        $this->commandOrchestrator->expects($this->never())->method('run');
+
+        $tester = new CommandTester($this->createCommand(primer: $primer));
+        $exitCode = $tester->execute(['ticket' => 'GIG-123', '--worktree' => true]);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('Failed to switch into the worktree directory', $tester->getDisplay());
+    }
+
     public function test_it_errors_when_no_ticket_and_not_cleanup(): void
     {
         $config = $this->createMockConfig([]);
@@ -666,8 +757,11 @@ class ReviewCommandTest extends TestCase
         $this->assertDirectoryExists($worktreesDir . '/gig-2-bar');
     }
 
-    private function createCommand(): ReviewCommand
-    {
+    private function createCommand(
+        ?WorktreeDependencyPrimer $primer = null,
+        ?WorktreeUrlResolver $urlResolver = null,
+        ?WorktreeOwnershipReconciler $reconciler = null,
+    ): ReviewCommand {
         return new ReviewCommand(
             $this->configLoader,
             $this->dockerCompose,
@@ -675,6 +769,9 @@ class ReviewCommandTest extends TestCase
             $this->gitRepositoryService,
             $this->laravelService,
             $this->commandOrchestrator,
+            ownershipReconciler: $reconciler,
+            worktreeUrlResolver: $urlResolver,
+            dependencyPrimer: $primer,
         );
     }
 

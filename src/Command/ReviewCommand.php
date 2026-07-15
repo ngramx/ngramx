@@ -21,6 +21,7 @@ use Ngramx\Http\UrlPortOffset;
 use Ngramx\Laravel\LaravelService;
 use Ngramx\Orchestrator\CommandOrchestrator;
 use Ngramx\Output\OutputFormatter;
+use Ngramx\Worktree\WorktreeDependencyPrimer;
 use Ngramx\Worktree\WorktreeIdentity;
 use Ngramx\Worktree\WorktreeOwnershipReconciler;
 use Ngramx\Worktree\WorktreeUrlResolver;
@@ -37,21 +38,13 @@ class ReviewCommand extends Command
     private const WORKTREE_DIR = '.ngramx/worktrees';
     private const EXCLUDE_ENTRY = '/.ngramx/worktrees/';
 
-    /**
-     * Dependency directories copied from the parent checkout into a fresh worktree
-     * so the install step (composer install / npm ci) is a near-instant no-op
-     * instead of a cold download. Git ignores these, so the copy is safe.
-     *
-     * @var list<string>
-     */
-    private const DEPENDENCY_DIRS = ['vendor', 'node_modules'];
-
     private readonly PortOffsetManager $portOffsetManager;
     private readonly GitExcludeManager $gitExcludeManager;
     private readonly NamespaceResolver $namespaceResolver;
     private readonly ImageReuser $imageReuser;
     private readonly WorktreeOwnershipReconciler $ownershipReconciler;
     private readonly WorktreeUrlResolver $worktreeUrlResolver;
+    private readonly WorktreeDependencyPrimer $dependencyPrimer;
 
     public function __construct(
         private readonly ConfigLoader $configLoader,
@@ -66,6 +59,7 @@ class ReviewCommand extends Command
         ?ImageReuser $imageReuser = null,
         ?WorktreeOwnershipReconciler $ownershipReconciler = null,
         ?WorktreeUrlResolver $worktreeUrlResolver = null,
+        ?WorktreeDependencyPrimer $dependencyPrimer = null,
     ) {
         parent::__construct();
         $this->portOffsetManager = $portOffsetManager ?? new PortOffsetManager();
@@ -74,6 +68,7 @@ class ReviewCommand extends Command
         $this->imageReuser = $imageReuser ?? new ImageReuser();
         $this->ownershipReconciler = $ownershipReconciler ?? new WorktreeOwnershipReconciler();
         $this->worktreeUrlResolver = $worktreeUrlResolver ?? new WorktreeUrlResolver();
+        $this->dependencyPrimer = $dependencyPrimer ?? new WorktreeDependencyPrimer();
     }
 
     protected function configure(): void
@@ -288,10 +283,18 @@ class ReviewCommand extends Command
 
         $this->seedWorktreeConfig($repositoryPath, $worktreePath, $formatter);
         $this->seedWorktreeEnv($repositoryPath, $worktreePath, $worktreeUrl, $formatter);
-        $this->primeWorktreeDependencies($repositoryPath, $worktreePath, $formatter);
+
+        // Start the dependency copies but don't wait: image reuse and `up` only
+        // need the worktree directory, .env and ngramx.yml (seeded above), so
+        // the copy latency hides behind the (typically slower) Docker startup.
+        // The copies use absolute paths, so starting before chdir is safe.
+        $this->dependencyPrimer->start($repositoryPath, $worktreePath, $formatter);
 
         $originalCwd = getcwd();
-        if ($originalCwd === false || chdir($worktreePath) === false) {
+        // @ suppresses the PHP warning for a missing directory — the failure is
+        // handled explicitly with a clearer message just below.
+        if ($originalCwd === false || @chdir($worktreePath) === false) {
+            $this->dependencyPrimer->await($formatter);
             $formatter->error("Failed to switch into the worktree directory: $worktreePath");
             return Command::FAILURE;
         }
@@ -361,6 +364,10 @@ class ReviewCommand extends Command
                 $this->seedWorktreeEnv($repositoryPath, $worktreePath, $worktreeUrl, $formatter);
             }
 
+            // The reset/install step is the first thing that reads vendor and
+            // node_modules, so the priming copies must have landed by now.
+            $this->dependencyPrimer->await($formatter);
+
             $worktreeConfig = $this->configLoader->load($worktreePath . '/ngramx.yml');
 
             $resetResult = $this->runReset(
@@ -377,6 +384,9 @@ class ReviewCommand extends Command
 
             $this->reconcileWorktreeOwnership($worktreePath, $formatter);
         } finally {
+            // Idempotent re-await covering the early-return paths (`up` failure
+            // etc.), so a still-running copy is never leaked or torn down under.
+            $this->dependencyPrimer->await($formatter);
             chdir($originalCwd);
         }
 
@@ -744,51 +754,6 @@ class ReviewCommand extends Command
                 'Could not normalise worktree file ownership. If you hit a "Permission denied" '
                 . "writing storage/logs, run:\n  sudo chown -R {$result->uid}:{$result->gid} {$worktreePath}"
             );
-        }
-    }
-
-    /**
-     * Copy dependency directories (vendor, node_modules) from the parent checkout
-     * into a fresh worktree so the install step is near-instant instead of a cold
-     * download. Skipped per-directory when the parent lacks it or the worktree
-     * already has it (e.g. a reused worktree).
-     *
-     * The copies are started concurrently and waited on together: priming both
-     * vendor and node_modules is one of the slowest steps of a worktree review,
-     * and the two trees are independent, so running them in parallel roughly
-     * halves the wall-clock cost on the common path.
-     */
-    private function primeWorktreeDependencies(string $repositoryPath, string $worktreePath, OutputFormatter $formatter): void
-    {
-        /** @var array<string, Process> $processes */
-        $processes = [];
-
-        foreach (self::DEPENDENCY_DIRS as $dir) {
-            $source = $repositoryPath . '/' . $dir;
-            $target = $worktreePath . '/' . $dir;
-
-            if (!is_dir($source) || file_exists($target)) {
-                continue;
-            }
-
-            $formatter->info("Priming $dir from parent checkout...");
-
-            // -a preserves symlinks/permissions; reflink=auto is a fast copy-on-write
-            // clone on supporting filesystems and falls back to a normal copy otherwise.
-            $process = new Process(['cp', '-a', '--reflink=auto', $source, $target]);
-            $process->setTimeout(300);
-            $process->start();
-
-            $processes[$dir] = $process;
-        }
-
-        foreach ($processes as $dir => $process) {
-            $process->wait();
-
-            if (!$process->isSuccessful()) {
-                // Non-fatal: the install step will simply repopulate it.
-                $formatter->warning("Could not copy $dir into the worktree — the install step will fetch it instead.");
-            }
         }
     }
 
