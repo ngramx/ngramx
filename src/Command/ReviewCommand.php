@@ -21,6 +21,7 @@ use Ngramx\Http\UrlPortOffset;
 use Ngramx\Laravel\LaravelService;
 use Ngramx\Orchestrator\CommandOrchestrator;
 use Ngramx\Output\OutputFormatter;
+use Ngramx\Worktree\WorktreeCertSeeder;
 use Ngramx\Worktree\WorktreeDependencyPrimer;
 use Ngramx\Worktree\WorktreeIdentity;
 use Ngramx\Worktree\WorktreeOwnershipReconciler;
@@ -45,6 +46,7 @@ class ReviewCommand extends Command
     private readonly WorktreeOwnershipReconciler $ownershipReconciler;
     private readonly WorktreeUrlResolver $worktreeUrlResolver;
     private readonly WorktreeDependencyPrimer $dependencyPrimer;
+    private readonly WorktreeCertSeeder $certSeeder;
 
     public function __construct(
         protected readonly ConfigLoader $configLoader,
@@ -60,6 +62,7 @@ class ReviewCommand extends Command
         ?WorktreeOwnershipReconciler $ownershipReconciler = null,
         ?WorktreeUrlResolver $worktreeUrlResolver = null,
         ?WorktreeDependencyPrimer $dependencyPrimer = null,
+        ?WorktreeCertSeeder $certSeeder = null,
     ) {
         parent::__construct();
         $this->portOffsetManager = $portOffsetManager ?? new PortOffsetManager();
@@ -69,6 +72,7 @@ class ReviewCommand extends Command
         $this->ownershipReconciler = $ownershipReconciler ?? new WorktreeOwnershipReconciler();
         $this->worktreeUrlResolver = $worktreeUrlResolver ?? new WorktreeUrlResolver();
         $this->dependencyPrimer = $dependencyPrimer ?? new WorktreeDependencyPrimer();
+        $this->certSeeder = $certSeeder ?? new WorktreeCertSeeder();
     }
 
     protected function configure(): void
@@ -300,6 +304,20 @@ class ReviewCommand extends Command
         $this->seedWorktreeConfig($repositoryPath, $worktreePath, $formatter);
         $this->seedWorktreeEnv($repositoryPath, $worktreePath, $worktreeUrl, $formatter);
 
+        // For https apps, make sure the worktree's cert covers both hostnames
+        // the environment may advertise (the app's own host and the
+        // "<folder>.localhost" subdomain) BEFORE the stack starts, so the proxy
+        // boots with the right cert. Any pre_start cert hook then sees the
+        // files already present and leaves them alone.
+        $certChanged = $this->certSeeder->seed(
+            $repositoryPath,
+            $worktreePath,
+            $config->docker->appUrl,
+            $config->docker->sslPath,
+            $folderName,
+            $formatter
+        );
+
         // Start the dependency copies but don't wait: image reuse and `up` only
         // need the worktree directory, .env and ngramx.yml (seeded above), so
         // the copy latency hides behind the (typically slower) Docker startup.
@@ -329,6 +347,18 @@ class ReviewCommand extends Command
 
             if ($alreadyRunning) {
                 $formatter->info('Worktree environment is already running — skipping startup.');
+
+                // The proxy read the old cert at startup; restart in place so
+                // it serves the one that now covers the worktree hostname.
+                if ($certChanged) {
+                    $formatter->info('Restarting services so the proxy picks up the updated TLS certificate...');
+                    try {
+                        $this->dockerCompose->restart($config->docker->composeFile, $namespace);
+                    } catch (Exception $e) {
+                        $formatter->warning('Could not restart services automatically: ' . $e->getMessage());
+                        $formatter->info('Restart them manually so HTTPS uses the new certificate.');
+                    }
+                }
             } else {
                 $formatter->section('Starting isolated environment');
 

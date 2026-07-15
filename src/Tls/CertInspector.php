@@ -84,7 +84,34 @@ class CertInspector
             issuerOrg: $issuerOrg,
             isSelfSigned: $isSelfSigned,
             isMkcert: $isMkcert,
+            subjectAltNames: $this->parseSubjectAltNames($parsed),
         );
+    }
+
+    /**
+     * Extract the DNS names from the parsed cert's subjectAltName extension
+     * (openssl formats it as "DNS:a.localhost, DNS:b.localhost, IP Address:…").
+     *
+     * @param array<string, mixed> $parsed
+     * @return list<string>
+     */
+    private function parseSubjectAltNames(array $parsed): array
+    {
+        $extensions = $parsed['extensions'] ?? null;
+        $san = is_array($extensions) ? ($extensions['subjectAltName'] ?? null) : null;
+        if (!is_string($san) || $san === '') {
+            return [];
+        }
+
+        $names = [];
+        foreach (explode(',', $san) as $entry) {
+            $entry = trim($entry);
+            if (str_starts_with($entry, 'DNS:')) {
+                $names[] = substr($entry, 4);
+            }
+        }
+
+        return $names;
     }
 
     private function extractHostname(string $url): ?string

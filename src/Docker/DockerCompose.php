@@ -329,6 +329,26 @@ class DockerCompose
     }
 
     /**
+     * Restart the project's services in place (docker-compose restart).
+     *
+     * Containers are not recreated, so bind mounts and networks stay intact —
+     * exactly what's needed to make a proxy re-read a certificate that changed
+     * on disk underneath it.
+     *
+     * @throws \RuntimeException When the restart fails.
+     */
+    public function restart(string $composeFile, ?string $projectName = null): void
+    {
+        $this->runComposeCommand(
+            $composeFile,
+            $projectName,
+            ['restart'],
+            timeout: 120,
+            failureLabel: 'restart services',
+        );
+    }
+
+    /**
      * Stop Docker Compose services
      *
      * @param string $composeFile Path to docker-compose.yml

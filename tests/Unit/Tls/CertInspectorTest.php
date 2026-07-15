@@ -94,6 +94,70 @@ class CertInspectorTest extends TestCase
         }
     }
 
+    public function test_inspect_pem_parses_subject_alt_names(): void
+    {
+        $pem = $this->generateSelfSignedPemWithSans('app.localhost', ['app.localhost', 'ticket.localhost']);
+
+        $info = (new CertInspector())->inspectPem($pem);
+
+        $this->assertNotNull($info);
+        $this->assertSame(['app.localhost', 'ticket.localhost'], $info->subjectAltNames);
+        $this->assertTrue($info->coversHost('app.localhost'));
+        $this->assertTrue($info->coversHost('TICKET.localhost'));
+        $this->assertFalse($info->coversHost('other.localhost'));
+    }
+
+    public function test_inspect_pem_returns_empty_sans_when_extension_absent(): void
+    {
+        $pem = $this->generateSelfSignedPem('VirginLand', 'app.localhost');
+
+        $info = (new CertInspector())->inspectPem($pem);
+
+        $this->assertNotNull($info);
+        $this->assertSame([], $info->subjectAltNames);
+        // CN fallback still identifies the host the cert was minted for.
+        $this->assertTrue($info->coversHost('app.localhost'));
+        $this->assertFalse($info->coversHost('other.localhost'));
+    }
+
+    /**
+     * @param list<string> $sans
+     */
+    private function generateSelfSignedPemWithSans(string $cn, array $sans): string
+    {
+        $configPath = tempnam(sys_get_temp_dir(), 'ngramx-openssl-');
+        $this->assertNotFalse($configPath);
+
+        $sanLine = implode(', ', array_map(static fn (string $s): string => 'DNS:' . $s, $sans));
+        file_put_contents($configPath, <<<CNF
+            [req]
+            distinguished_name = dn
+            [dn]
+            [v3_req]
+            subjectAltName = $sanLine
+            CNF);
+
+        try {
+            $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+            $this->assertNotFalse($key);
+
+            $csr = openssl_csr_new(['commonName' => $cn], $key, ['config' => $configPath]);
+            \assert($csr instanceof \OpenSSLCertificateSigningRequest);
+
+            $cert = openssl_csr_sign($csr, null, $key, 1, [
+                'config' => $configPath,
+                'x509_extensions' => 'v3_req',
+            ]);
+            \assert($cert instanceof \OpenSSLCertificate);
+
+            openssl_x509_export($cert, $pem);
+
+            return $pem;
+        } finally {
+            @unlink($configPath);
+        }
+    }
+
     private function generateSelfSignedPem(string $org, string $cn): string
     {
         $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);

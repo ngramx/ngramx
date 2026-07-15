@@ -18,6 +18,7 @@ use Ngramx\Git\GitRepositoryService;
 use Ngramx\Laravel\LaravelService;
 use Ngramx\Orchestrator\CommandOrchestrator;
 use Ngramx\Worktree\OwnershipReconcileResult;
+use Ngramx\Worktree\WorktreeCertSeeder;
 use Ngramx\Worktree\WorktreeDependencyPrimer;
 use Ngramx\Worktree\WorktreeIdentity;
 use Ngramx\Worktree\WorktreeOwnershipReconciler;
@@ -795,6 +796,93 @@ class ReviewCommandTest extends TestCase
         $this->assertStringContainsString('Failed to switch into the worktree directory', $tester->getDisplay());
     }
 
+    public function test_worktree_review_restarts_a_running_env_when_the_cert_was_reseeded(): void
+    {
+        $repoName = WorktreeIdentity::sanitizeSegment(basename($this->tmpDir));
+        $folderName = WorktreeIdentity::folderName('gig-123', $repoName);
+        $worktreePath = $this->tmpDir . '/.ngramx/worktrees/' . $folderName;
+        mkdir($worktreePath, 0755, true);
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn($this->tmpDir . '/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(true);
+
+        // The environment is already running (setUp's isRunning => true), and the
+        // seeder reports it replaced the cert — the proxy must be restarted so it
+        // serves the new one.
+        $certSeeder = $this->createMock(WorktreeCertSeeder::class);
+        $certSeeder->expects($this->once())->method('seed')->willReturn(true);
+        $this->dockerCompose->expects($this->once())->method('restart');
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $urlResolver = $this->createMock(WorktreeUrlResolver::class);
+        $urlResolver->expects($this->any())->method('resolve')->willReturn('http://localhost:80');
+
+        $reconciler = $this->createMock(WorktreeOwnershipReconciler::class);
+        $reconciler->expects($this->any())
+            ->method('reconcile')
+            ->willReturn(OwnershipReconcileResult::skipped('unit test'));
+
+        $primer = $this->createMock(WorktreeDependencyPrimer::class);
+
+        $tester = new CommandTester($this->createCommand(
+            primer: $primer,
+            urlResolver: $urlResolver,
+            reconciler: $reconciler,
+            certSeeder: $certSeeder,
+        ));
+        $exitCode = $tester->execute(['ticket' => 'GIG-123', '--worktree' => true]);
+
+        $this->assertSame(0, $exitCode, $tester->getDisplay());
+        $this->assertStringContainsString('picks up the updated TLS certificate', $tester->getDisplay());
+    }
+
+    public function test_worktree_review_does_not_restart_when_the_cert_is_unchanged(): void
+    {
+        $repoName = WorktreeIdentity::sanitizeSegment(basename($this->tmpDir));
+        $folderName = WorktreeIdentity::folderName('gig-123', $repoName);
+        mkdir($this->tmpDir . '/.ngramx/worktrees/' . $folderName, 0755, true);
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn($this->tmpDir . '/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(true);
+
+        $certSeeder = $this->createMock(WorktreeCertSeeder::class);
+        $certSeeder->expects($this->once())->method('seed')->willReturn(false);
+        $this->dockerCompose->expects($this->never())->method('restart');
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $urlResolver = $this->createMock(WorktreeUrlResolver::class);
+        $urlResolver->expects($this->any())->method('resolve')->willReturn('http://localhost:80');
+
+        $reconciler = $this->createMock(WorktreeOwnershipReconciler::class);
+        $reconciler->expects($this->any())
+            ->method('reconcile')
+            ->willReturn(OwnershipReconcileResult::skipped('unit test'));
+
+        $primer = $this->createMock(WorktreeDependencyPrimer::class);
+
+        $tester = new CommandTester($this->createCommand(
+            primer: $primer,
+            urlResolver: $urlResolver,
+            reconciler: $reconciler,
+            certSeeder: $certSeeder,
+        ));
+        $exitCode = $tester->execute(['ticket' => 'GIG-123', '--worktree' => true]);
+
+        $this->assertSame(0, $exitCode, $tester->getDisplay());
+    }
+
     public function test_it_errors_when_no_ticket_and_not_cleanup(): void
     {
         $config = $this->createMockConfig([]);
@@ -864,6 +952,7 @@ class ReviewCommandTest extends TestCase
         ?WorktreeDependencyPrimer $primer = null,
         ?WorktreeUrlResolver $urlResolver = null,
         ?WorktreeOwnershipReconciler $reconciler = null,
+        ?WorktreeCertSeeder $certSeeder = null,
     ): ReviewCommand {
         return new ReviewCommand(
             $this->configLoader,
@@ -875,6 +964,7 @@ class ReviewCommandTest extends TestCase
             ownershipReconciler: $reconciler,
             worktreeUrlResolver: $urlResolver,
             dependencyPrimer: $primer,
+            certSeeder: $certSeeder,
         );
     }
 
