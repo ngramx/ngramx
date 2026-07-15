@@ -7,6 +7,7 @@ namespace Ngramx\Tests\Unit\Command;
 use Ngramx\Command\ReviewCommand;
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\LockFile;
+use Ngramx\Config\LockFileData;
 use Ngramx\Config\Schema\CommandDefinition;
 use Ngramx\Config\Schema\DockerConfig;
 use Ngramx\Config\Schema\N8nConfig;
@@ -487,6 +488,108 @@ class ReviewCommandTest extends TestCase
         $this->assertSame(0, $exitCode);
         $this->assertStringContainsString('https://github.com/org/repo/pull/99', $display);
         $this->assertStringContainsString('https://linear.app/team/GIG-123', $display);
+    }
+
+    public function test_it_localises_test_urls_onto_the_port_mapped_environment(): void
+    {
+        $ticketDir = $this->tmpDir . '/.ngramx/tickets/GIG-123';
+        mkdir($ticketDir, 0755, true);
+        file_put_contents($ticketDir . '/completion.json', json_encode([
+            'title' => 'GIG-123: Feature',
+            'description' => 'A feature.',
+            'pr_url' => 'https://github.com/org/repo/pull/7',
+            'test_urls' => [
+                ['label' => 'Invoice list', 'url' => 'https://app.example.com/invoices?bypass=me'],
+            ],
+            'test_plan' => [],
+        ]));
+
+        // `up` resolved a conflict on port 80 by moving it to 8080; the lock
+        // records the per-port map instead of an offset.
+        $this->lockFile = $this->createMock(LockFile::class);
+        $this->lockFile->expects($this->any())->method('exists')->willReturn(true);
+        $this->lockFile->expects($this->any())->method('read')->willReturn(new LockFileData(
+            namespace: null,
+            portOffset: null,
+            startedAt: date('c'),
+            portMap: [80 => 8080],
+        ));
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('http://localhost:8080/invoices?bypass=me', $display);
+        $this->assertStringNotContainsString('app.example.com', $display);
+    }
+
+    public function test_worktree_review_follows_the_port_map_recorded_in_the_worktree_lock(): void
+    {
+        // Pre-create the worktree directory the command derives so chdir succeeds,
+        // with a lock whose port map moved the web port 80 → 8123.
+        $repoName = WorktreeIdentity::sanitizeSegment(basename($this->tmpDir));
+        $folderName = WorktreeIdentity::folderName('gig-123', $repoName);
+        $worktreePath = $this->tmpDir . '/.ngramx/worktrees/' . $folderName;
+        mkdir($worktreePath, 0755, true);
+        (new LockFile($worktreePath))->write(new LockFileData(
+            namespace: 'ngramx-' . $folderName,
+            portOffset: null,
+            startedAt: date('c'),
+            portMap: [80 => 8123],
+        ));
+
+        // The worktree flow reads the ticket folder from the worktree checkout
+        // (the branch being worked on carries its own completion record).
+        $ticketDir = $worktreePath . '/.ngramx/tickets/GIG-123';
+        mkdir($ticketDir, 0755, true);
+        file_put_contents($ticketDir . '/completion.json', json_encode([
+            'title' => 'GIG-123: Feature',
+            'description' => 'A feature.',
+            'pr_url' => 'https://github.com/org/repo/pull/7',
+            'test_urls' => [
+                ['label' => 'Invoice list', 'url' => 'https://app.example.com/invoices'],
+            ],
+            'test_plan' => [],
+        ]));
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn($this->tmpDir . '/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(true);
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $urlResolver = $this->createMock(WorktreeUrlResolver::class);
+        $urlResolver->expects($this->any())->method('resolve')->willReturn('http://localhost:80');
+
+        $reconciler = $this->createMock(WorktreeOwnershipReconciler::class);
+        $reconciler->expects($this->any())
+            ->method('reconcile')
+            ->willReturn(OwnershipReconcileResult::skipped('unit test'));
+
+        $primer = $this->createMock(WorktreeDependencyPrimer::class);
+
+        $tester = new CommandTester($this->createCommand(primer: $primer, urlResolver: $urlResolver, reconciler: $reconciler));
+        $exitCode = $tester->execute(['ticket' => 'GIG-123', '--worktree' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        // Both the advertised application URL and the localised deep-link follow
+        // the web port to its remapped host port.
+        $this->assertStringContainsString('http://localhost:8123', $display);
+        $this->assertStringContainsString('http://localhost:8123/invoices', $display);
+        $this->assertStringNotContainsString('app.example.com', $display);
     }
 
     public function test_it_prefers_completion_json_over_completion_md(): void

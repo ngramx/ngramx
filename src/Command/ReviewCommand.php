@@ -203,11 +203,13 @@ class ReviewCommand extends Command
 
             $namespace = null;
             $portOffset = 0;
+            $portMap = [];
             if ($this->lockFile->exists()) {
                 $lockData = $this->lockFile->read();
                 if ($lockData !== null) {
                     $namespace = $lockData->namespace;
                     $portOffset = $lockData->portOffset ?? 0;
+                    $portMap = $lockData->portMap;
                 }
             }
 
@@ -218,7 +220,14 @@ class ReviewCommand extends Command
 
             $formatter->success("✓ Successfully prepared for ticket $ticketNumber review on branch $selectedBranch");
 
-            $environmentUrl = UrlPortOffset::apply($config->docker->appUrl, $portOffset);
+            // Targeted conflict resolution (`up` with no explicit offset) records
+            // a per-port map instead of an offset — the printed URL and the
+            // localised completion.json deep-links must follow the web port
+            // wherever the map moved it.
+            $environmentUrl = UrlPortOffset::applyMap(
+                UrlPortOffset::apply($config->docker->appUrl, $portOffset),
+                $portMap
+            );
             $this->displayCompletionUrls($repositoryPath, $ticketNumber, $formatter, $environmentUrl);
 
             $output->writeln('');
@@ -355,16 +364,23 @@ class ReviewCommand extends Command
             if ($liveLock !== null && $liveLock->portOffset !== null) {
                 $portOffset = $liveLock->portOffset;
             }
+            // When `up` resolved conflicts per-port instead of via an offset, the
+            // lock carries a port map — the advertised URL (and the completion
+            // deep-links rewritten onto it) must follow the web port's remap.
+            $portMap = $liveLock->portMap ?? [];
 
             // Now the app is up, decide the final URL: the pretty
             // "<folder>.localhost" subdomain for host-agnostic apps (typical
             // Laravel), or the app's own host for host-routed ones (e.g. apache
             // vhosts). Re-seed .env so the app's self-generated links match what we
             // print; the reset step below boots/clears with the corrected APP_URL.
-            $resolvedUrl = $this->worktreeUrlResolver->resolve(
-                $config->docker->appUrl,
-                $folderName,
-                $portOffset
+            $resolvedUrl = UrlPortOffset::applyMap(
+                $this->worktreeUrlResolver->resolve(
+                    $config->docker->appUrl,
+                    $folderName,
+                    $portOffset
+                ),
+                $portMap
             );
             if ($resolvedUrl !== $worktreeUrl) {
                 $worktreeUrl = $resolvedUrl;
