@@ -27,11 +27,38 @@ class CommandOrchestrator
      */
     private const DEFAULT_READINESS_TIMEOUT = 300;
 
+    /**
+     * Total attempts for parallel sub-commands: first runs of a group race
+     * against each other (e.g. artisan before composer install has finished),
+     * so a failed sub-command is re-run up to twice before we call it a real
+     * failure. Only the failed sub-commands are re-run — successful ones have
+     * already completed.
+     */
+    private const MAX_PARALLEL_ATTEMPTS = 3;
+
+    /**
+     * Delay before the final retry, giving a still-settling dependency
+     * (e.g. an install finishing) a moment to complete.
+     */
+    private const RETRY_DELAY_SECONDS = 3;
+
     private readonly ServiceReadinessWaiter $readinessWaiter;
 
+    /** @var \Closure(NgramxConfig, ?string): ParallelContainerExecutor */
+    private readonly \Closure $parallelExecutorFactory;
+
+    /** @var \Closure(int): void */
+    private readonly \Closure $retrySleep;
+
+    /**
+     * @param callable(NgramxConfig, ?string): ParallelContainerExecutor|null $parallelExecutorFactory Test seam for the parallel executor
+     * @param callable(int): void|null $retrySleep Test seam for the inter-retry delay
+     */
     public function __construct(
         private readonly OutputFormatter $formatter,
         ?ServiceReadinessWaiter $readinessWaiter = null,
+        ?callable $parallelExecutorFactory = null,
+        ?callable $retrySleep = null,
     ) {
         $this->readinessWaiter = $readinessWaiter ?? new ServiceReadinessWaiter(
             new DockerCompose(),
@@ -39,6 +66,19 @@ class CommandOrchestrator
             $this->formatter,
             new ContainerExecutor(),
         );
+        $this->parallelExecutorFactory = $parallelExecutorFactory !== null
+            ? $parallelExecutorFactory(...)
+            : static fn (NgramxConfig $config, ?string $projectName): ParallelContainerExecutor => new ParallelContainerExecutor(
+                new ContainerExecutor(),
+                $config->docker->composeFile,
+                $config->docker->primaryService,
+                $projectName,
+            );
+        $this->retrySleep = $retrySleep !== null
+            ? $retrySleep(...)
+            : static function (int $seconds): void {
+                sleep($seconds);
+            };
     }
 
     /**
@@ -290,15 +330,63 @@ class CommandOrchestrator
             ];
         }
 
+        $executor = ($this->parallelExecutorFactory)($config, $projectName);
+
+        $results = $this->runParallelBatch($executor, $items);
+
+        // First runs of a parallel group can race against each other (e.g. an
+        // artisan command firing before composer install has finished), so
+        // failures are usually transient. Re-run only the failed sub-commands —
+        // the successful ones have already completed — up to two more times,
+        // pausing before the final attempt to let a settling dependency finish.
+        $failedIndexes = $this->failedIndexes($results);
+
+        for ($attempt = 2; $failedIndexes !== [] && $attempt <= self::MAX_PARALLEL_ATTEMPTS; $attempt++) {
+            if ($attempt === self::MAX_PARALLEL_ATTEMPTS) {
+                ($this->retrySleep)(self::RETRY_DELAY_SECONDS);
+            }
+
+            $retryLabels = array_map(static fn (int $i) => $items[$i]['label'], $failedIndexes);
+            $this->formatter->info(sprintf(
+                'Retrying %d sub-command%s that failed on the previous run (attempt %d of %d): %s',
+                count($failedIndexes),
+                count($failedIndexes) === 1 ? '' : 's',
+                $attempt,
+                self::MAX_PARALLEL_ATTEMPTS,
+                implode(', ', $retryLabels),
+            ));
+
+            $retryItems = array_map(static fn (int $i) => $items[$i], $failedIndexes);
+            $retryResults = $this->runParallelBatch($executor, $retryItems);
+
+            foreach ($failedIndexes as $position => $index) {
+                $results[$index] = $retryResults[$position];
+            }
+
+            $failedIndexes = $this->failedIndexes($results);
+        }
+
+        if ($failedIndexes !== []) {
+            $failed = array_map(static fn (int $i) => $results[$i], $failedIndexes);
+            $this->reportFailures($results, $failed);
+            throw new \RuntimeException("Command '$commandName' failed: " . count($failed) . ' of ' . count($results) . ' sub-commands failed');
+        }
+
+        return microtime(true) - $startTime;
+    }
+
+    /**
+     * Run one batch of parallel sub-commands with a live progress panel.
+     *
+     * @param list<array{label: string, command: string, timeout: int}> $items
+     * @return list<ParallelCommandResult> results in the same order as $items
+     */
+    private function runParallelBatch(ParallelContainerExecutor $executor, array $items): array
+    {
+        $labels = array_map(static fn (array $item) => $item['label'], $items);
+
         $section = $this->formatter->createSection();
         $panel = new ParallelCommandPanel($section, $labels, $this->formatter->getOutput());
-
-        $executor = new ParallelContainerExecutor(
-            new ContainerExecutor(),
-            $config->docker->composeFile,
-            $config->docker->primaryService,
-            $projectName,
-        );
 
         $results = $executor->runAll(
             $items,
@@ -312,18 +400,27 @@ class CommandOrchestrator
 
         $panel->close();
 
-        $failed = array_values(array_filter($results, static fn (ParallelCommandResult $r) => !$r->successful));
-
-        if ($failed !== []) {
-            $this->reportFailures($results, $failed);
-            throw new \RuntimeException("Command '$commandName' failed: " . count($failed) . ' of ' . count($results) . ' sub-commands failed');
-        }
-
-        return microtime(true) - $startTime;
+        return $results;
     }
 
     /**
-     * @param list<ParallelCommandResult> $results
+     * @param array<int, ParallelCommandResult> $results
+     * @return list<int> indexes into $results of the failed sub-commands
+     */
+    private function failedIndexes(array $results): array
+    {
+        $indexes = [];
+        foreach ($results as $index => $result) {
+            if (!$result->successful) {
+                $indexes[] = $index;
+            }
+        }
+
+        return $indexes;
+    }
+
+    /**
+     * @param array<int, ParallelCommandResult> $results
      * @param list<ParallelCommandResult> $failed
      */
     private function reportFailures(array $results, array $failed): void
