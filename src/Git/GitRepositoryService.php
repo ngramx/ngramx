@@ -162,6 +162,13 @@ class GitRepositoryService
      * Uses git's DWIM behaviour so a branch that only exists on origin is created
      * as a local tracking branch. After creation we best-effort fast-forward to
      * origin so a re-used branch picks up newly pushed commits.
+     *
+     * Git hooks are disabled for the creation checkout: `git worktree add` fires
+     * the repo's post-checkout hook, and in a brand-new worktree the hook's
+     * dependencies (e.g. vendor/bin/captainhook) are not primed yet, so the hook
+     * fails and git propagates its exit code — falsely reporting a perfectly
+     * good worktree as a failed creation. Hooks resume normally for real
+     * operations inside the worktree afterwards.
      */
     public function addWorktree(string $repositoryPath, string $worktreePath, string $branch): bool
     {
@@ -171,26 +178,53 @@ class GitRepositoryService
         }
 
         $addProcess = new Process(
-            ['git', 'worktree', 'add', $worktreePath, $branch],
+            ['git', '-c', 'core.hooksPath=/dev/null', 'worktree', 'add', $worktreePath, $branch],
             $repositoryPath
         );
         $addProcess->setTimeout(120);
         $addProcess->run();
 
-        if (!$addProcess->isSuccessful()) {
+        // The exit code alone is not trustworthy: any failing hook (not just
+        // CaptainHook) makes `git worktree add` exit non-zero after the worktree
+        // was created correctly. Registration in `git worktree list` is the
+        // authoritative success signal.
+        if (!$addProcess->isSuccessful() && !$this->worktreeExists($repositoryPath, $worktreePath)) {
+            // A genuine failure can leave a half-created directory or a stale
+            // admin entry behind; clean both up so a retry starts clean instead
+            // of tripping over the leftover registration.
+            $this->cleanUpFailedWorktree($repositoryPath, $worktreePath);
+
             return false;
         }
 
         // Best-effort: bring the worktree up to date with origin. A diverged or
         // already-current branch makes this a no-op/failure we can safely ignore.
+        // Hooks stay disabled here for the same reason as above: dependencies are
+        // primed only after the worktree exists.
         $ffProcess = new Process(
-            ['git', '-C', $worktreePath, 'merge', '--ff-only', 'origin/' . $branch],
+            ['git', '-c', 'core.hooksPath=/dev/null', '-C', $worktreePath, 'merge', '--ff-only', 'origin/' . $branch],
             $repositoryPath
         );
         $ffProcess->setTimeout(60);
         $ffProcess->run();
 
         return true;
+    }
+
+    /**
+     * Remove the remnants of a failed `git worktree add`: the partially created
+     * directory (if any) and the pruneable administrative entry, so a retry does
+     * not fail with "already registered" against a worktree that never existed.
+     */
+    private function cleanUpFailedWorktree(string $repositoryPath, string $worktreePath): void
+    {
+        if (is_dir($worktreePath)) {
+            $removeProcess = new Process(['rm', '-rf', $worktreePath]);
+            $removeProcess->setTimeout(60);
+            $removeProcess->run();
+        }
+
+        $this->pruneWorktrees($repositoryPath);
     }
 
     /**

@@ -592,6 +592,56 @@ class GitRepositoryServiceTest extends TestCase
         $this->assertFalse($result);
     }
 
+    public function test_addWorktree_succeeds_despite_failing_post_checkout_hook(): void
+    {
+        // Simulate a CaptainHook-style post-checkout hook that depends on vendor/,
+        // which is never primed in a brand-new worktree — the hook exits 127 and
+        // git propagates that as the exit code of `git worktree add`.
+        $this->installFailingPostCheckoutHook();
+
+        $worktreePath = $this->tempDir . '/wt-hook';
+
+        $result = $this->service->addWorktree($this->gitRepoPath, $worktreePath, 'feature/TICKET-456');
+
+        $this->assertTrue($result, 'A failing post-checkout hook must not be reported as a failed worktree creation');
+        $this->assertDirectoryExists($worktreePath);
+        $this->assertFileExists($worktreePath . '/README.md');
+        $this->assertTrue($this->service->worktreeExists($this->gitRepoPath, $worktreePath));
+    }
+
+    public function test_addWorktree_returns_false_for_unknown_branch(): void
+    {
+        $worktreePath = $this->tempDir . '/wt-missing-branch';
+
+        $result = $this->service->addWorktree($this->gitRepoPath, $worktreePath, 'does-not-exist');
+
+        $this->assertFalse($result);
+        $this->assertFalse($this->service->worktreeExists($this->gitRepoPath, $worktreePath));
+    }
+
+    public function test_addWorktree_cleans_up_after_genuine_failure_so_retry_succeeds(): void
+    {
+        $worktreePath = $this->tempDir . '/wt-retry';
+
+        $this->assertFalse($this->service->addWorktree($this->gitRepoPath, $worktreePath, 'does-not-exist'));
+        $this->assertDirectoryDoesNotExist($worktreePath);
+
+        // A retry with a valid branch must not trip over leftovers of the failure.
+        $this->assertTrue($this->service->addWorktree($this->gitRepoPath, $worktreePath, 'feature/TICKET-456'));
+        $this->assertTrue($this->service->worktreeExists($this->gitRepoPath, $worktreePath));
+    }
+
+    /**
+     * Install a post-checkout hook that always fails, mimicking a hook runner
+     * invoked via a relative vendor/ path that is absent in a fresh worktree.
+     */
+    private function installFailingPostCheckoutHook(): void
+    {
+        $hookPath = $this->gitRepoPath . '/.git/hooks/post-checkout';
+        file_put_contents($hookPath, "#!/bin/sh\nvendor/bin/captainhook post-checkout\n");
+        chmod($hookPath, 0755);
+    }
+
     /**
      * Recursively remove a directory
      */
