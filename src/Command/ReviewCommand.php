@@ -47,10 +47,10 @@ class ReviewCommand extends Command
     private readonly WorktreeDependencyPrimer $dependencyPrimer;
 
     public function __construct(
-        private readonly ConfigLoader $configLoader,
+        protected readonly ConfigLoader $configLoader,
         private readonly DockerCompose $dockerCompose,
         private readonly LockFile $lockFile,
-        private readonly GitRepositoryService $gitRepositoryService,
+        protected readonly GitRepositoryService $gitRepositoryService,
         private readonly LaravelService $laravelService,
         private readonly CommandOrchestrator $commandOrchestrator,
         ?PortOffsetManager $portOffsetManager = null,
@@ -239,14 +239,15 @@ class ReviewCommand extends Command
      * leaving the main checkout untouched so other tickets can be reviewed in
      * parallel.
      */
-    private function runWorktreeReview(
+    protected function runWorktreeReview(
         InputInterface $input,
         OutputInterface $output,
         OutputFormatter $formatter,
         NgramxConfig $config,
         string $repositoryPath,
         string $selectedBranch,
-        string $ticketNumber
+        string $ticketNumber,
+        bool $createNewBranch = false
     ): int {
         $ticketSlug = WorktreeIdentity::deriveTicketSlug($selectedBranch, $ticketNumber);
         $repoName = WorktreeIdentity::sanitizeSegment(basename($repositoryPath));
@@ -269,6 +270,12 @@ class ReviewCommand extends Command
 
         if ($this->gitRepositoryService->worktreeExists($repositoryPath, $worktreePath)) {
             $formatter->info("Reusing existing worktree: $worktreePath");
+        } elseif ($createNewBranch) {
+            $formatter->info("Creating new branch $selectedBranch with worktree at .ngramx/worktrees/$folderName");
+            if (!$this->gitRepositoryService->addWorktreeWithNewBranch($repositoryPath, $worktreePath, $selectedBranch)) {
+                $formatter->error("Failed to create the new branch '$selectedBranch'. It may already exist and be checked out elsewhere — switch that checkout off it or pick a different name, then retry.");
+                return Command::FAILURE;
+            }
         } else {
             $formatter->info("Creating worktree for $selectedBranch at .ngramx/worktrees/$folderName");
             if (!$this->gitRepositoryService->addWorktree($repositoryPath, $worktreePath, $selectedBranch)) {

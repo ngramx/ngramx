@@ -33,6 +33,12 @@ class ConfigValidator
         if (isset($config['agents'])) {
             $this->validateAgentsSection($config['agents']);
         }
+
+        if (isset($config['default_team'])) {
+            if (!is_string($config['default_team']) || preg_match('/^[a-z]+$/i', $config['default_team']) !== 1) {
+                throw new ConfigException('default_team must be a short alphabetic team prefix (e.g. "gig")');
+            }
+        }
     }
 
     /**

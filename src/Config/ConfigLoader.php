@@ -131,6 +131,8 @@ class ConfigLoader
         $agents = $this->buildAgentsConfig($config['agents'] ?? []);
         $commands = $this->buildCommandsMap($config['commands'] ?? []);
 
+        $defaultTeam = $config['default_team'] ?? NgramxConfig::DEFAULT_TEAM;
+
         return new NgramxConfig(
             version: $config['version'],
             docker: $docker,
@@ -139,6 +141,7 @@ class ConfigLoader
             secrets: $secrets,
             agents: $agents,
             commands: $commands,
+            defaultTeam: strtolower((string) $defaultTeam),
         );
     }
 

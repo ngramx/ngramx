@@ -26,6 +26,7 @@ use Ngramx\Command\StatusCommand;
 use Ngramx\Command\StyleDemoCommand;
 use Ngramx\Command\SyncAgentsCommand;
 use Ngramx\Command\UpCommand;
+use Ngramx\Command\WorktreeCommand;
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\ConfigWarningChecker;
 use Ngramx\Config\Exception\ConfigException;
@@ -182,6 +183,18 @@ class Application extends BaseApplication
             $herdService
         ));
         $this->add(new ReviewCommand(
+            $configLoader,
+            $dockerCompose,
+            $lockFile,
+            $gitRepositoryService,
+            $laravelService,
+            $commandOrchestrator,
+            $portOffsetManager,
+            new GitExcludeManager(),
+            $namespaceResolver,
+            new ImageReuser()
+        ));
+        $this->add(new WorktreeCommand(
             $configLoader,
             $dockerCompose,
             $lockFile,

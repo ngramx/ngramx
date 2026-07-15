@@ -631,6 +631,53 @@ class GitRepositoryServiceTest extends TestCase
         $this->assertTrue($this->service->worktreeExists($this->gitRepoPath, $worktreePath));
     }
 
+    public function test_addWorktreeWithNewBranch_creates_branch_and_worktree(): void
+    {
+        $worktreePath = $this->tempDir . '/wt-new-branch';
+
+        $this->assertFalse($this->service->localBranchExists($this->gitRepoPath, 'gig-2345'));
+
+        $result = $this->service->addWorktreeWithNewBranch($this->gitRepoPath, $worktreePath, 'gig-2345');
+
+        $this->assertTrue($result);
+        $this->assertDirectoryExists($worktreePath);
+        $this->assertTrue($this->service->worktreeExists($this->gitRepoPath, $worktreePath));
+        $this->assertTrue($this->service->localBranchExists($this->gitRepoPath, 'gig-2345'));
+    }
+
+    public function test_addWorktreeWithNewBranch_succeeds_despite_failing_post_checkout_hook(): void
+    {
+        $this->installFailingPostCheckoutHook();
+
+        $worktreePath = $this->tempDir . '/wt-new-branch-hook';
+
+        $result = $this->service->addWorktreeWithNewBranch($this->gitRepoPath, $worktreePath, 'gig-9999');
+
+        $this->assertTrue($result, 'A failing post-checkout hook must not be reported as a failed worktree creation');
+        $this->assertTrue($this->service->worktreeExists($this->gitRepoPath, $worktreePath));
+    }
+
+    public function test_addWorktreeWithNewBranch_fails_when_branch_already_exists(): void
+    {
+        $worktreePath = $this->tempDir . '/wt-existing-branch';
+
+        $result = $this->service->addWorktreeWithNewBranch($this->gitRepoPath, $worktreePath, 'feature/TICKET-456');
+
+        $this->assertFalse($result);
+        $this->assertFalse($this->service->worktreeExists($this->gitRepoPath, $worktreePath));
+        $this->assertDirectoryDoesNotExist($worktreePath);
+    }
+
+    public function test_localBranchExists_distinguishes_local_from_remote_only_branches(): void
+    {
+        $this->assertTrue($this->service->localBranchExists($this->gitRepoPath, 'feature/TICKET-456'));
+
+        // Remove the local branch so only origin/<branch> remains.
+        $this->runGitCommand('git branch -D feature/TICKET-456');
+
+        $this->assertFalse($this->service->localBranchExists($this->gitRepoPath, 'feature/TICKET-456'));
+    }
+
     /**
      * Install a post-checkout hook that always fails, mimicking a hook runner
      * invoked via a relative vendor/ path that is absent in a fresh worktree.

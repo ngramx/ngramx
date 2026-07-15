@@ -212,6 +212,52 @@ class GitRepositoryService
     }
 
     /**
+     * Check whether a branch exists locally (refs/heads).
+     */
+    public function localBranchExists(string $repositoryPath, string $branch): bool
+    {
+        $process = new Process(
+            ['git', 'rev-parse', '--verify', '--quiet', 'refs/heads/' . $branch],
+            $repositoryPath
+        );
+        $process->setTimeout(30);
+        $process->run();
+
+        return $process->isSuccessful();
+    }
+
+    /**
+     * Create a git worktree at $worktreePath on a brand-new branch $newBranch.
+     *
+     * The branch is created from the repository's current HEAD. Hooks are
+     * disabled for the creation checkout for the same reason as addWorktree():
+     * the new worktree has no primed dependencies yet, so a failing hook would
+     * falsely report the creation as failed.
+     */
+    public function addWorktreeWithNewBranch(string $repositoryPath, string $worktreePath, string $newBranch): bool
+    {
+        $parent = dirname($worktreePath);
+        if (!is_dir($parent)) {
+            @mkdir($parent, 0755, true);
+        }
+
+        $addProcess = new Process(
+            ['git', '-c', 'core.hooksPath=/dev/null', 'worktree', 'add', '-b', $newBranch, $worktreePath],
+            $repositoryPath
+        );
+        $addProcess->setTimeout(120);
+        $addProcess->run();
+
+        if (!$addProcess->isSuccessful() && !$this->worktreeExists($repositoryPath, $worktreePath)) {
+            $this->cleanUpFailedWorktree($repositoryPath, $worktreePath);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Remove the remnants of a failed `git worktree add`: the partially created
      * directory (if any) and the pruneable administrative entry, so a retry does
      * not fail with "already registered" against a worktree that never existed.

@@ -110,6 +110,48 @@ class ConfigLoaderTest extends TestCase
         $this->assertSame(120, $config->docker->verifyTimeout);
     }
 
+    public function test_it_defaults_default_team_to_gig(): void
+    {
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
+
+        $this->assertSame('gig', $config->defaultTeam);
+    }
+
+    public function test_it_parses_and_lowercases_default_team(): void
+    {
+        $root = $this->makeTempDir();
+        file_put_contents($root . '/ngramx.yml', <<<YAML
+            version: "1.0"
+            docker:
+              compose_file: "docker-compose.yml"
+              primary_service: "app"
+              app_url: "http://localhost:8080"
+            default_team: "COR"
+            YAML);
+
+        $config = $this->loader->load($root . '/ngramx.yml');
+
+        $this->assertSame('cor', $config->defaultTeam);
+    }
+
+    public function test_it_rejects_a_non_alphabetic_default_team(): void
+    {
+        $root = $this->makeTempDir();
+        file_put_contents($root . '/ngramx.yml', <<<YAML
+            version: "1.0"
+            docker:
+              compose_file: "docker-compose.yml"
+              primary_service: "app"
+              app_url: "http://localhost:8080"
+            default_team: "gig-1"
+            YAML);
+
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('default_team');
+
+        $this->loader->load($root . '/ngramx.yml');
+    }
+
     public function test_it_parses_command_definitions(): void
     {
         $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');

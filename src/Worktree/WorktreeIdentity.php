@@ -30,6 +30,35 @@ class WorktreeIdentity
     }
 
     /**
+     * Normalise a user-supplied ticket identifier into a canonical
+     * "<team>-<number>" slug:
+     *
+     *   - "2345"      => "gig-2345" (bare numbers get the default team prefix)
+     *   - "gig-2345"  => "gig-2345"
+     *   - "gig2345"   => "gig-2345" (missing hyphen restored)
+     *   - "GIG-2345"  => "gig-2345"
+     *
+     * Anything that doesn't look like a ticket reference is sanitised as-is so
+     * the caller can still use it for branch searching and folder naming.
+     */
+    public static function normalizeTicket(string $ticket, string $defaultTeam): string
+    {
+        $ticket = strtolower(trim($ticket));
+
+        if (preg_match('/^\d+$/', $ticket) === 1) {
+            return self::sanitizeSegment($defaultTeam) . '-' . $ticket;
+        }
+
+        if (preg_match('/^([a-z]+)-?(\d+)$/', $ticket, $matches) === 1) {
+            return $matches[1] . '-' . $matches[2];
+        }
+
+        $sanitized = self::sanitizeSegment($ticket);
+
+        return $sanitized !== '' ? $sanitized : 'ticket';
+    }
+
+    /**
      * Lowercase a path/segment and collapse anything that is not a-z0-9 into a
      * single hyphen so it is safe to use in folder names and Docker namespaces.
      */

@@ -38,6 +38,26 @@ class WorktreeIdentityTest extends TestCase
         $this->assertSame('ngramx-gig-178-ill-kendrick', WorktreeIdentity::namespaceFor('gig-178-ill-kendrick'));
     }
 
+    public function test_it_normalizes_bare_numbers_with_the_default_team(): void
+    {
+        $this->assertSame('gig-2345', WorktreeIdentity::normalizeTicket('2345', 'gig'));
+        $this->assertSame('cor-99', WorktreeIdentity::normalizeTicket('99', 'cor'));
+    }
+
+    public function test_it_normalizes_full_ticket_references(): void
+    {
+        $this->assertSame('gig-2345', WorktreeIdentity::normalizeTicket('gig-2345', 'gig'));
+        $this->assertSame('gig-2345', WorktreeIdentity::normalizeTicket('GIG-2345', 'gig'));
+        $this->assertSame('gig-2345', WorktreeIdentity::normalizeTicket('gig2345', 'gig'));
+        $this->assertSame('cor-268', WorktreeIdentity::normalizeTicket('cor268', 'gig'));
+    }
+
+    public function test_it_sanitizes_non_ticket_input(): void
+    {
+        $this->assertSame('hotfix-login', WorktreeIdentity::normalizeTicket('hotfix/login', 'gig'));
+        $this->assertSame('ticket', WorktreeIdentity::normalizeTicket('!!', 'gig'));
+    }
+
     public function test_it_truncates_long_namespace_to_63_chars(): void
     {
         $folder = 'gig-178-' . str_repeat('a', 80);
