@@ -304,6 +304,134 @@ class UpCommandTest extends TestCase
         $this->assertSame(0, $exitCode);
     }
 
+    public function test_it_resolves_port_conflicts_individually_in_default_mode(): void
+    {
+        $config = $this->createMockConfig();
+
+        $this->lockFile->expects($this->once())
+            ->method('exists')
+            ->willReturn(false);
+
+        $this->configLoader->expects($this->once())
+            ->method('findConfigFile')
+            ->willReturn('/path/to/ngramx.yml');
+
+        $this->configLoader->expects($this->once())
+            ->method('load')
+            ->willReturn($config);
+
+        // Default mode: no namespace derivation, container names untouched.
+        $this->namespaceResolver->expects($this->never())
+            ->method('deriveFromDirectory');
+
+        $this->portOffsetManager->expects($this->once())
+            ->method('extractBasePorts')
+            ->with('docker-compose.yml')
+            ->willReturn([80, 5432]);
+
+        $this->portOffsetManager->expects($this->once())
+            ->method('resolvePortConflicts')
+            ->with([80, 5432])
+            ->willReturn([5432 => 5532]);
+
+        // Only the conflicted port is remapped: offset 0, no namespace, map passed.
+        $this->overrideGenerator->expects($this->once())
+            ->method('generate')
+            ->with('docker-compose.yml', 0, null, false, [5432 => 5532]);
+
+        $this->setupOrchestrator->expects($this->once())
+            ->method('setup')
+            ->with(
+                $config,
+                false,
+                false,
+                null,
+                0,
+                false,
+                null,
+                true,
+                [5432 => 5532]
+            )
+            ->willReturn([
+                'time' => 1.5,
+                'namespace' => '',
+                'port_offset' => 0,
+            ]);
+
+        // The remap is recorded in the lock so show-url and down stay accurate.
+        $this->lockFile->expects($this->once())
+            ->method('write')
+            ->with($this->callback(function (LockFileData $data) {
+                return $data->portMap === [5432 => 5532]
+                    && $data->namespace === null
+                    && $data->portOffset === null;
+            }));
+
+        $command = $this->createCommand();
+        $tester = new CommandTester($command);
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(0, $exitCode);
+        $display = $tester->getDisplay();
+        $this->assertStringContainsString('Port conflict detected', $display);
+        $this->assertStringContainsString('5432 is in use — using 5532 instead', $display);
+    }
+
+    public function test_it_skips_conflict_resolution_when_a_port_offset_is_given(): void
+    {
+        $config = $this->createMockConfig();
+
+        $this->lockFile->expects($this->any())->method('exists')->willReturn(false);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn('/path/to/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+
+        // A global offset already moves every port — no per-port scan needed.
+        $this->portOffsetManager->expects($this->never())
+            ->method('resolvePortConflicts');
+
+        $this->setupOrchestrator->expects($this->any())->method('setup')->willReturn([
+            'time' => 1.5,
+            'namespace' => '',
+            'port_offset' => 1000,
+        ]);
+
+        $command = $this->createCommand();
+        $tester = new CommandTester($command);
+        $exitCode = $tester->execute(['--port-offset' => '1000']);
+
+        $this->assertSame(0, $exitCode);
+    }
+
+    public function test_it_does_not_generate_override_when_no_ports_conflict(): void
+    {
+        $config = $this->createMockConfig();
+
+        $this->lockFile->expects($this->any())->method('exists')->willReturn(false);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn('/path/to/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+
+        $this->portOffsetManager->expects($this->any())->method('extractBasePorts')->willReturn([80, 5432]);
+        $this->portOffsetManager->expects($this->any())->method('resolvePortConflicts')->willReturn([]);
+
+        $this->overrideGenerator->expects($this->never())
+            ->method('generate');
+
+        $this->lockFile->expects($this->never())
+            ->method('write');
+
+        $this->setupOrchestrator->expects($this->any())->method('setup')->willReturn([
+            'time' => 1.5,
+            'namespace' => '',
+            'port_offset' => 0,
+        ]);
+
+        $command = $this->createCommand();
+        $tester = new CommandTester($command);
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(0, $exitCode);
+    }
+
     public function test_it_does_not_generate_override_in_default_mode(): void
     {
         $config = $this->createMockConfig();

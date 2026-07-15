@@ -71,6 +71,8 @@ class SetupOrchestrator
      * @param bool $verifyAppUrl When true, probe `docker.app_url` after setup and
      *        throw on 5xx / connection refused. Disable with `ngramx up --no-verify`
      *        for CI / non-HTTP stacks.
+     * @param array<int, int> $portMap Per-port conflict remap (conflicted base host
+     *        port => replacement) so the post-start probe follows a remapped web port.
      * @return array{time: float, namespace: string, port_offset: int, app_url_probe: ?ProbeResult} Setup results
      * @throws \RuntimeException
      * @throws ServiceNotHealthyException
@@ -83,7 +85,8 @@ class SetupOrchestrator
         ?int $portOffset = null,
         bool $rebuild = false,
         ?int $timeout = null,
-        bool $verifyAppUrl = true
+        bool $verifyAppUrl = true,
+        array $portMap = []
     ): array {
         $startTime = microtime(true);
 
@@ -137,7 +140,7 @@ class SetupOrchestrator
         // its own entrypoint waiting for a desynced db container).
         $probe = null;
         if ($verifyAppUrl && $config->docker->appUrl !== '') {
-            $probe = $this->verifyAppUrl($config, $namespace, $portOffset ?? 0);
+            $probe = $this->verifyAppUrl($config, $namespace, $portOffset ?? 0, $portMap);
         }
 
         return [
@@ -201,13 +204,20 @@ class SetupOrchestrator
      * culprit's logs (the primary service) so the user sees the actual error
      * rather than just "502 Bad Gateway".
      */
-    private function verifyAppUrl(NgramxConfig $config, ?string $namespace, int $portOffset): ProbeResult
+    /**
+     * @param array<int, int> $portMap
+     */
+    private function verifyAppUrl(NgramxConfig $config, ?string $namespace, int $portOffset, array $portMap = []): ProbeResult
     {
         $this->formatter->section('Verifying app URL');
         // When --avoid-conflicts / --port-offset shifted the stack, the
         // app's host port is no longer the scheme default — probe the
-        // actually-bound port, not the original ngramx.yml URL.
-        $url = UrlPortOffset::apply($config->docker->appUrl, $portOffset);
+        // actually-bound port, not the original ngramx.yml URL. The same goes
+        // for targeted conflict resolution moving the web port individually.
+        $url = UrlPortOffset::applyMap(
+            UrlPortOffset::apply($config->docker->appUrl, $portOffset),
+            $portMap,
+        );
 
         // A project may declare `docker.verify_timeout` (seconds) to widen the
         // probe budget — useful for stacks whose cold boot reliably outlasts the

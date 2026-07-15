@@ -133,6 +133,90 @@ class ComposeOverrideGeneratorTest extends TestCase
         $this->assertEquals(['1080:80'], $ports);
     }
 
+    public function test_it_remaps_only_conflicted_ports_via_port_map(): void
+    {
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'app' => [
+                    'image' => 'nginx',
+                    'ports' => ['80:80', '443:443'],
+                ],
+                'db' => [
+                    'image' => 'postgres',
+                    'ports' => ['5432:5432'],
+                ],
+            ],
+        ]);
+
+        $this->generator->generate($composeFile, 0, null, false, [5432 => 5532]);
+
+        $overrideContent = file_get_contents($this->tempDir . '/docker-compose.override.yml');
+        $this->assertNotFalse($overrideContent, 'Failed to read override file');
+        $override = Yaml::parse($overrideContent, Yaml::PARSE_CUSTOM_TAGS);
+
+        $dbPorts = $override['services']['db']['ports'];
+        if ($dbPorts instanceof \Symfony\Component\Yaml\Tag\TaggedValue) {
+            $dbPorts = $dbPorts->getValue();
+        }
+        $this->assertEquals(['5532:5432'], $dbPorts, 'Only the conflicted host port moves');
+
+        $appPorts = $override['services']['app']['ports'];
+        if ($appPorts instanceof \Symfony\Component\Yaml\Tag\TaggedValue) {
+            $appPorts = $appPorts->getValue();
+        }
+        $this->assertEquals(['80:80', '443:443'], $appPorts, 'Non-conflicted ports keep their original binding');
+    }
+
+    public function test_it_remaps_interpolated_port_default_via_port_map(): void
+    {
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'pwa-preview' => [
+                    'image' => 'node',
+                    'ports' => ['${EK_PWA_PREVIEW_PORT:-3827}:4173'],
+                ],
+            ],
+        ]);
+
+        $this->generator->generate($composeFile, 0, null, false, [3827 => 3927]);
+
+        $overrideContent = file_get_contents($this->tempDir . '/docker-compose.override.yml');
+        $this->assertNotFalse($overrideContent, 'Failed to read override file');
+        $override = Yaml::parse($overrideContent, Yaml::PARSE_CUSTOM_TAGS);
+
+        $ports = $override['services']['pwa-preview']['ports'];
+        if ($ports instanceof \Symfony\Component\Yaml\Tag\TaggedValue) {
+            $ports = $ports->getValue();
+        }
+
+        $this->assertEquals(['${EK_PWA_PREVIEW_PORT:-3927}:4173'], $ports);
+    }
+
+    public function test_it_does_not_change_container_names_when_remapping_ports(): void
+    {
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'app' => [
+                    'image' => 'nginx',
+                    'container_name' => 'earl-kendrick-core',
+                    'ports' => ['80:80'],
+                ],
+            ],
+        ]);
+
+        $this->generator->generate($composeFile, 0, null, false, [80 => 180]);
+
+        $overrideContent = file_get_contents($this->tempDir . '/docker-compose.override.yml');
+        $this->assertNotFalse($overrideContent, 'Failed to read override file');
+        $override = Yaml::parse($overrideContent, Yaml::PARSE_CUSTOM_TAGS);
+
+        $this->assertArrayNotHasKey(
+            'container_name',
+            $override['services']['app'],
+            'Per-port conflict resolution must not rename containers'
+        );
+    }
+
     public function test_it_applies_offset_to_multiple_ports(): void
     {
         $composeFile = $this->createComposeFile([

@@ -40,6 +40,34 @@ final class UrlPortOffset
         return self::rebuild($parts, $basePort + $offset);
     }
 
+    /**
+     * Return $url with its port swapped when the URL's effective port (explicit
+     * `:port`, or the scheme default) appears in the per-port remap. Used when
+     * targeted conflict resolution moved individual host ports: the printed and
+     * probed URL must follow the web port wherever it went, while URLs whose
+     * port did not conflict stay untouched.
+     *
+     * @param array<int, int> $portMap conflicted base host port => replacement
+     */
+    public static function applyMap(string $url, array $portMap): string
+    {
+        if ($portMap === []) {
+            return $url;
+        }
+
+        $parts = parse_url($url);
+        if ($parts === false || !isset($parts['scheme'], $parts['host'])) {
+            return $url;
+        }
+
+        $basePort = $parts['port'] ?? self::defaultPortForScheme((string) $parts['scheme']);
+        if ($basePort === null || !isset($portMap[$basePort])) {
+            return $url;
+        }
+
+        return self::rebuild($parts, $portMap[$basePort]);
+    }
+
     private static function defaultPortForScheme(string $scheme): ?int
     {
         return match (strtolower($scheme)) {

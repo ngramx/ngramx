@@ -67,4 +67,35 @@ class UrlPortOffsetTest extends TestCase
     {
         $this->assertSame('not a url', UrlPortOffset::apply('not a url', 100));
     }
+
+    public function test_apply_map_swaps_scheme_default_port_when_mapped(): void
+    {
+        $this->assertSame(
+            'http://app.localhost:180',
+            UrlPortOffset::applyMap('http://app.localhost', [80 => 180]),
+        );
+    }
+
+    public function test_apply_map_swaps_explicit_port_when_mapped(): void
+    {
+        $this->assertSame(
+            'https://app.localhost:8543/dashboard?foo=bar#section',
+            UrlPortOffset::applyMap('https://app.localhost:443/dashboard?foo=bar#section', [443 => 8543]),
+        );
+    }
+
+    public function test_apply_map_leaves_url_unchanged_when_port_not_mapped(): void
+    {
+        $url = 'http://app.localhost';
+
+        // Only the db port conflicted; the web URL must stay on its port.
+        $this->assertSame($url, UrlPortOffset::applyMap($url, [5432 => 5532]));
+    }
+
+    public function test_apply_map_with_empty_map_returns_url_unchanged(): void
+    {
+        $url = 'https://app.localhost:443';
+
+        $this->assertSame($url, UrlPortOffset::applyMap($url, []));
+    }
 }

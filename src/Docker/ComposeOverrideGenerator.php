@@ -44,8 +44,12 @@ YAML;
     /**
      * Generate the override file with port offsets, namespace prefixes and a
      * worktree git bind mount as needed. A no-op when none of those apply.
+     *
+     * @param array<int, int> $portMap Per-port host remap (conflicted base port =>
+     *        replacement) applied when no global offset is in effect. Only the
+     *        mapped ports are rewritten; every other mapping stays untouched.
      */
-    public function generate(string $composeFile, int $portOffset, ?string $namespacePrefix = null, bool $noHostMapping = false): void
+    public function generate(string $composeFile, int $portOffset, ?string $namespacePrefix = null, bool $noHostMapping = false, array $portMap = []): void
     {
         // When the stack runs from a linked git worktree, bind-mount the parent
         // repo's shared git dir at the same absolute path the worktree's gitdir
@@ -54,7 +58,7 @@ YAML;
         // metadata next to the compose file.
         $gitCommonDir = $this->gitMount->resolve($this->projectDir($composeFile));
 
-        if ($portOffset === 0 && $namespacePrefix === null && !$noHostMapping && $gitCommonDir === null) {
+        if ($portOffset === 0 && $namespacePrefix === null && !$noHostMapping && $gitCommonDir === null && $portMap === []) {
             // No override needed
             return;
         }
@@ -92,11 +96,13 @@ YAML;
                 $servicesWithPorts[] = $serviceName;
                 $serviceOverride['ports'] = [];
             }
-            // Handle port offset (only when not removing ports entirely)
-            elseif (isset($service['ports']) && $portOffset > 0) {
+            // Handle port offset or per-port remap (only when not removing ports entirely)
+            elseif (isset($service['ports']) && ($portOffset > 0 || $portMap !== [])) {
                 $newPorts = [];
                 foreach ($service['ports'] as $portMapping) {
-                    $newPort = $this->applyOffset($portMapping, $portOffset);
+                    $newPort = $portOffset > 0
+                        ? $this->applyOffset($portMapping, $portOffset)
+                        : $this->applyPortMap($portMapping, $portMap);
                     if ($newPort !== null) {
                         $newPorts[] = $newPort;
                     }
@@ -216,6 +222,50 @@ YAML;
         // Container-only ("4173") or unrecognised shapes: preserve as-is so the
         // mapping is not dropped from the override file.
         return $portMapping;
+    }
+
+    /**
+     * Rewrite the host port of a mapping using a per-port remap, leaving
+     * mappings whose host port is not in the map untouched. Used for targeted
+     * conflict resolution: only the conflicted ports move, everything else
+     * keeps its original binding.
+     *
+     * @param array<int, int> $portMap conflicted host port => replacement
+     */
+    private function applyPortMap(mixed $portMapping, array $portMap): ?string
+    {
+        if (!is_string($portMapping)) {
+            // Long-format (array) port mappings are not rewritten here.
+            return null;
+        }
+
+        $parts = PortMapping::split($portMapping);
+
+        if (count($parts) === 2) {
+            [$hostPort, $containerPort] = $parts;
+            return $this->remapHostSegment($hostPort, $portMap) . ':' . $containerPort;
+        }
+
+        if (count($parts) === 3) {
+            [$interface, $hostPort, $containerPort] = $parts;
+            return $interface . ':' . $this->remapHostSegment($hostPort, $portMap) . ':' . $containerPort;
+        }
+
+        // Container-only ("4173") or unrecognised shapes: preserve as-is.
+        return $portMapping;
+    }
+
+    /**
+     * @param array<int, int> $portMap
+     */
+    private function remapHostSegment(string $hostPort, array $portMap): string
+    {
+        $number = PortMapping::hostPortNumber($hostPort);
+        if ($number === null || !isset($portMap[$number])) {
+            return $hostPort;
+        }
+
+        return PortMapping::replaceHostPort($hostPort, $portMap[$number]);
     }
 
     /**

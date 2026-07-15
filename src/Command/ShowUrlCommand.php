@@ -67,7 +67,10 @@ class ShowUrlCommand extends Command
 
             // Build the URL
             if ($basePort !== null) {
-                $finalPort = $basePort + $portOffset;
+                // A targeted conflict remap recorded at `up` time takes
+                // precedence for its ports; the global offset covers the rest.
+                $portMap = $lockData->portMap ?? [];
+                $finalPort = $portMap[$basePort] ?? ($basePort + $portOffset);
                 // Parse URL and replace/add port
                 $url = $this->buildUrlWithPort($appUrl, $finalPort);
             } else {

@@ -89,6 +89,38 @@ class LockFileTest extends TestCase
         $this->assertNull($readData);
     }
 
+    public function test_it_round_trips_port_map_with_integer_keys(): void
+    {
+        $data = new LockFileData(
+            namespace: null,
+            portOffset: null,
+            startedAt: '2025-11-08T10:30:00+00:00',
+            portMap: [5432 => 5532, 80 => 180],
+        );
+
+        $this->lockFile->write($data);
+        $readData = $this->lockFile->read();
+
+        $this->assertNotNull($readData);
+        // JSON serialises the keys as strings; the read path must restore ints.
+        $this->assertSame([5432 => 5532, 80 => 180], $readData->portMap);
+    }
+
+    public function test_it_defaults_port_map_to_empty_array(): void
+    {
+        $data = new LockFileData(
+            namespace: 'test-namespace',
+            portOffset: 1000,
+            startedAt: '2025-11-08T10:30:00+00:00',
+        );
+
+        $this->lockFile->write($data);
+        $readData = $this->lockFile->read();
+
+        $this->assertNotNull($readData);
+        $this->assertSame([], $readData->portMap);
+    }
+
     public function test_it_deletes_lock_file(): void
     {
         $data = new LockFileData(

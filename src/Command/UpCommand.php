@@ -127,14 +127,23 @@ class UpCommand extends Command
                 $formatter->info('Host port mapping disabled - containers will not expose ports');
             }
 
+            // With no global offset in play, resolve individual port conflicts:
+            // only the conflicted ports are remapped, everything else (including
+            // container names) stays exactly as configured, so a redis conflict
+            // never pushes the web service off port 80.
+            $portMap = [];
+            if (!$noHostMapping && $portOffset === 0) {
+                $portMap = $this->resolvePortConflicts($config->docker->composeFile, $formatter);
+            }
+
             // Generate override file if port offset is needed, using namespace, no host
             // mapping, or when running from a linked git worktree (which needs the parent
             // repo's git dir bind-mounted in so git resolves inside containers).
             $worktreeRoot = dirname($configPath);
             $inWorktree = (new WorktreeGitMount())->resolve($worktreeRoot) !== null;
-            $needsOverride = $portOffset > 0 || $namespace !== null || $noHostMapping || $inWorktree;
+            $needsOverride = $portOffset > 0 || $namespace !== null || $noHostMapping || $inWorktree || $portMap !== [];
             if ($needsOverride) {
-                $this->overrideGenerator->generate($config->docker->composeFile, $portOffset, $namespace, $noHostMapping);
+                $this->overrideGenerator->generate($config->docker->composeFile, $portOffset, $namespace, $noHostMapping, $portMap);
             }
 
             // Free host ports 80/443 when requested (Herd uses nginx; Caddy is a separate common listener)
@@ -172,6 +181,7 @@ class UpCommand extends Command
                 $input->getOption('rebuild'),
                 $timeout,
                 !$input->getOption('no-verify'),
+                $portMap,
             );
 
             // In a linked worktree the container's root entrypoint (composer
@@ -195,6 +205,7 @@ class UpCommand extends Command
                     noHostMapping: $noHostMapping,
                     herdStopped: $herdStopped,
                     caddyStopped: $caddyStopped,
+                    portMap: $portMap,
                 );
                 $this->lockFile->write($lockData);
                 $output->writeln('');
@@ -202,7 +213,7 @@ class UpCommand extends Command
             }
 
             // Display completion summary with port information
-            $this->displayCompletionSummary($formatter, $result['time'], $config, $portOffset);
+            $this->displayCompletionSummary($formatter, $result['time'], $config, $portOffset, $portMap);
 
             // Inspect the TLS cert (if any) and either reassure the user it's
             // browser-trusted or offer to upgrade self-signed -> mkcert via
@@ -313,13 +324,45 @@ class UpCommand extends Command
     }
 
     /**
+     * Detect host port conflicts on the ports the compose file wants to bind
+     * and resolve them individually — only the conflicted ports move, and the
+     * remap is announced so the developer knows exactly what changed.
+     *
+     * @return array<int, int> conflicted base port => replacement port
+     */
+    private function resolvePortConflicts(string $composeFile, OutputFormatter $formatter): array
+    {
+        $basePorts = $this->portOffsetManager->extractBasePorts($composeFile);
+        if ($basePorts === []) {
+            return [];
+        }
+
+        $portMap = $this->portOffsetManager->resolvePortConflicts($basePorts);
+        if ($portMap === []) {
+            return [];
+        }
+
+        $formatter->info(count($portMap) === 1
+            ? 'Port conflict detected — resolved automatically:'
+            : count($portMap) . ' port conflicts detected — resolved automatically:');
+        foreach ($portMap as $from => $to) {
+            $formatter->info("  {$from} is in use — using {$to} instead");
+        }
+
+        return $portMap;
+    }
+
+    /**
      * Display completion summary with port information
+     *
+     * @param array<int, int> $portMap
      */
     private function displayCompletionSummary(
         OutputFormatter $formatter,
         float $totalTime,
         \Ngramx\Config\Schema\NgramxConfig $config,
-        int $portOffset
+        int $portOffset,
+        array $portMap = []
     ): void {
         $output = $formatter->getOutput();
         $output->writeln('');
@@ -332,7 +375,10 @@ class UpCommand extends Command
             // (https://host) ports; the old inline regex only matched the
             // explicit form, so URLs that relied on the scheme default were
             // silently shown un-shifted.
-            $url = UrlPortOffset::apply($config->docker->appUrl, $portOffset);
+            $url = UrlPortOffset::applyMap(
+                UrlPortOffset::apply($config->docker->appUrl, $portOffset),
+                $portMap,
+            );
 
             $output->writeln(sprintf('<fg=green>→</> Access at: <fg=cyan>%s</>', $url));
             $output->writeln('');

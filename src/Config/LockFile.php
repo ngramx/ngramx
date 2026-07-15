@@ -45,6 +45,14 @@ class LockFile
             return null;
         }
 
+        // JSON object keys are strings; cast them back to the int host ports.
+        $portMap = [];
+        if (isset($data['port_map']) && is_array($data['port_map'])) {
+            foreach ($data['port_map'] as $from => $to) {
+                $portMap[(int) $from] = (int) $to;
+            }
+        }
+
         return new LockFileData(
             namespace: $data['namespace'] ?? null,
             portOffset: $data['port_offset'] ?? null,
@@ -52,6 +60,7 @@ class LockFile
             noHostMapping: $data['no_host_mapping'] ?? false,
             herdStopped: $data['herd_stopped'] ?? false,
             caddyStopped: $data['caddy_stopped'] ?? false,
+            portMap: $portMap,
         );
     }
 
@@ -67,6 +76,7 @@ class LockFile
             'no_host_mapping' => $data->noHostMapping,
             'herd_stopped' => $data->herdStopped,
             'caddy_stopped' => $data->caddyStopped,
+            'port_map' => $data->portMap === [] ? null : $data->portMap,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         file_put_contents($this->getLockFilePath(), $content);

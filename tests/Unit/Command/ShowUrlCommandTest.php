@@ -105,6 +105,61 @@ class ShowUrlCommandTest extends TestCase
         $this->assertSame("http://localhost:8080\n", $tester->getDisplay());
     }
 
+    public function test_it_applies_port_map_from_lock_file(): void
+    {
+        $config = $this->createMockConfig('http://localhost');
+
+        $lockData = new LockFileData(
+            namespace: null,
+            portOffset: null,
+            startedAt: '2025-01-07T10:00:00+00:00',
+            portMap: [80 => 180, 5432 => 5532],
+        );
+
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn('/path/to/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+        $this->lockFile->expects($this->any())->method('exists')->willReturn(true);
+        $this->lockFile->expects($this->any())->method('read')->willReturn($lockData);
+
+        $this->portOffsetManager->expects($this->once())
+            ->method('getPrimaryServicePort')
+            ->with('docker-compose.yml', 'app')
+            ->willReturn(80);
+
+        $command = $this->createCommand();
+        $tester = new CommandTester($command);
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame("http://localhost:180\n", $tester->getDisplay());
+    }
+
+    public function test_it_ignores_port_map_when_primary_port_is_not_mapped(): void
+    {
+        $config = $this->createMockConfig('http://localhost');
+
+        $lockData = new LockFileData(
+            namespace: null,
+            portOffset: null,
+            startedAt: '2025-01-07T10:00:00+00:00',
+            portMap: [5432 => 5532],
+        );
+
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn('/path/to/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+        $this->lockFile->expects($this->any())->method('exists')->willReturn(true);
+        $this->lockFile->expects($this->any())->method('read')->willReturn($lockData);
+
+        $this->portOffsetManager->expects($this->any())->method('getPrimaryServicePort')->willReturn(80);
+
+        $command = $this->createCommand();
+        $tester = new CommandTester($command);
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame("http://localhost:80\n", $tester->getDisplay());
+    }
+
     public function test_it_outputs_app_url_when_no_port_exposed(): void
     {
         $config = $this->createMockConfig('http://localhost');

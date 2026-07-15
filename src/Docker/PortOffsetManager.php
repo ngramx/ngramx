@@ -15,6 +15,32 @@ class PortOffsetManager
     private const DEFAULT_SCAN_END = 9000;
 
     /**
+     * Step between candidate replacement ports when resolving a single
+     * conflicted port. A round step keeps the replacement recognisable
+     * (5432 → 5532 → 5632 ...).
+     */
+    private const CONFLICT_SCAN_STEP = 100;
+
+    private const MAX_PORT = 65535;
+
+    /** @var list<int>|null */
+    private ?array $usedPortsCache = null;
+
+    /** @var \Closure(): list<int> */
+    private readonly \Closure $usedPortsProvider;
+
+    /**
+     * @param callable(): list<int>|null $usedPortsProvider Test seam: supplies the
+     *        host ports currently in use. Defaults to querying Docker.
+     */
+    public function __construct(?callable $usedPortsProvider = null)
+    {
+        $this->usedPortsProvider = $usedPortsProvider !== null
+            ? $usedPortsProvider(...)
+            : fn (): array => $this->getDockerUsedPorts();
+    }
+
+    /**
      * Extract base ports from docker-compose.yml
      *
      * @return int[] Array of base port numbers
@@ -110,26 +136,72 @@ class PortOffsetManager
     }
 
     /**
+     * Resolve per-port conflicts: for every base port that is already in use on
+     * the host, allocate a nearby free replacement, leaving non-conflicted
+     * ports untouched. This is the day-to-day alternative to a global offset —
+     * a conflict on redis must not push the web service off port 80.
+     *
+     * @param int[] $basePorts Host ports the compose file wants to bind
+     * @return array<int, int> conflicted base port => free replacement port (empty when nothing conflicts)
+     * @throws \RuntimeException When no free replacement can be found for a conflicted port
+     */
+    public function resolvePortConflicts(array $basePorts): array
+    {
+        $map = [];
+        /** @var list<int> $claimed Replacements already promised in this resolution */
+        $claimed = [];
+
+        foreach ($basePorts as $basePort) {
+            if ($this->isPortAvailable($basePort)) {
+                continue;
+            }
+
+            $replacement = $this->findFreePortNear($basePort, array_merge($basePorts, $claimed));
+            $map[$basePort] = $replacement;
+            $claimed[] = $replacement;
+        }
+
+        return $map;
+    }
+
+    /**
+     * Find a free port near $basePort, stepping upwards in round increments and
+     * skipping ports that are in use, wanted by the compose file, or already
+     * claimed as a replacement for another conflicted port.
+     *
+     * @param int[] $reserved
+     * @throws \RuntimeException
+     */
+    private function findFreePortNear(int $basePort, array $reserved): int
+    {
+        for ($candidate = $basePort + self::CONFLICT_SCAN_STEP; $candidate <= self::MAX_PORT; $candidate += self::CONFLICT_SCAN_STEP) {
+            if ($this->isPortAvailable($candidate) && !in_array($candidate, $reserved, true)) {
+                return $candidate;
+            }
+        }
+
+        throw new \RuntimeException(
+            "No free replacement found for conflicted port {$basePort}. Stop the service using it or specify a custom --port-offset."
+        );
+    }
+
+    /**
      * Check if a specific port is available on the host
      * Uses Docker to check actual host port bindings (works even when running in a container)
      */
     private function isPortAvailable(int $port): bool
     {
-        // Get all used ports from Docker containers on the host
-        static $usedPorts = null;
-
-        if ($usedPorts === null) {
-            $usedPorts = $this->getDockerUsedPorts();
+        if ($this->usedPortsCache === null) {
+            $this->usedPortsCache = ($this->usedPortsProvider)();
         }
 
-        // Check if this port is in the used ports list
-        return !in_array($port, $usedPorts, true);
+        return !in_array($port, $this->usedPortsCache, true);
     }
 
     /**
      * Get all ports currently in use by Docker containers on the host
      *
-     * @return int[]
+     * @return list<int>
      */
     private function getDockerUsedPorts(): array
     {
@@ -165,7 +237,7 @@ class PortOffsetManager
             }
         }
 
-        return array_unique($usedPorts);
+        return array_values(array_unique($usedPorts));
     }
 
     /**

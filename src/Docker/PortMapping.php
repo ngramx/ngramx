@@ -105,4 +105,26 @@ final class PortMapping
 
         return $segment;
     }
+
+    /**
+     * Replace a host-port segment with a specific port number.
+     *
+     * - Plain numeric ports are replaced directly ("5432" => "5532").
+     * - Interpolations with a numeric default keep the variable override but
+     *   have the default replaced ("${VAR:-5432}" => "${VAR:-5532}").
+     * - Any other expression is returned unchanged because it cannot be
+     *   rewritten safely.
+     */
+    public static function replaceHostPort(string $segment, int $newPort): string
+    {
+        if (preg_match('/^\d+$/', $segment) === 1) {
+            return (string) $newPort;
+        }
+
+        if (preg_match('/^\$\{([A-Za-z_][A-Za-z0-9_]*)(:?-)\d+\}$/', $segment, $matches) === 1) {
+            return '${' . $matches[1] . $matches[2] . $newPort . '}';
+        }
+
+        return $segment;
+    }
 }
