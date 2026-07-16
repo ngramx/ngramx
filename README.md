@@ -278,6 +278,8 @@ ngramx worktree gig-1234          # Full ticket reference
 ngramx worktree gig-1234 --quick  # Skips database reset (same semantics as review --quick)
 ngramx worktree gig-1234 --cursor # Opens the worktree in a new Cursor window once ready
 ngramx worktree gig-1234 -c       # Shorthand for --cursor
+ngramx worktree gig-1234 --cleanup  # Tears down + removes that ticket's worktree env
+ngramx worktree --cleanup           # Tears down + removes every worktree env
 ```
 
 This command:
@@ -292,8 +294,9 @@ This command:
 
 - `--quick` — Run the `clear` command instead of `fresh`. Same caveats as `review --quick`.
 - `--cursor` / `-c` — Open the worktree in a **new Cursor window** once the environment is ready. Requires the `cursor` CLI on your PATH; degrades gracefully with a manual command hint if not found.
+- `--cleanup` — Stop the worktree's Docker stack (including its volumes) and remove the git worktree for this ticket. **Omit the ticket argument** (`ngramx worktree --cleanup`) to tear down and remove *every* worktree under `.ngramx/worktrees/` in one pass.
 
-When you're done, run `ngramx review <ticket> --cleanup` to tear down the worktree environment.
+When you're done, run `ngramx worktree <ticket> --cleanup` (or `ngramx review <ticket> --cleanup`) to tear down the worktree environment.
 
 ### `ngramx status`
 

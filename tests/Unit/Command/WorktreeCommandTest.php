@@ -65,12 +65,90 @@ class WorktreeCommandTest extends TestCase
         $this->assertSame('worktree', $command->getName());
         $this->assertNotEmpty($command->getDescription());
         $this->assertTrue($definition->hasArgument('ticket'));
-        $this->assertTrue($definition->getArgument('ticket')->isRequired());
+        $this->assertFalse($definition->getArgument('ticket')->isRequired());
         $this->assertTrue($definition->hasOption('quick'));
         $this->assertTrue($definition->hasOption('cursor'));
         $this->assertSame('c', $definition->getOption('cursor')->getShortcut());
         $this->assertFalse($definition->hasOption('worktree'));
-        $this->assertFalse($definition->hasOption('cleanup'));
+        $this->assertTrue($definition->hasOption('cleanup'));
+    }
+
+    public function test_it_errors_when_no_ticket_and_not_cleanup(): void
+    {
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('ticket identifier is required', $tester->getDisplay());
+        $this->assertStringContainsString('--cleanup', $tester->getDisplay());
+    }
+
+    public function test_cleanup_without_ticket_removes_all_worktrees(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-foo', 0755, true);
+        mkdir($worktreesDir . '/gig-2-bar', 0755, true);
+
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['--cleanup' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('Cleaning up all worktrees (2)', $display);
+        $this->assertStringContainsString('Removed all worktrees', $display);
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-foo');
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-2-bar');
+    }
+
+    public function test_cleanup_without_ticket_when_no_worktrees(): void
+    {
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['--cleanup' => true]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('nothing to clean up', $tester->getDisplay());
+    }
+
+    public function test_cleanup_with_ticket_removes_only_matching_worktree(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-foo', 0755, true);
+        mkdir($worktreesDir . '/gig-2-bar', 0755, true);
+
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'gig-1', '--cleanup' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('Removed worktree for ticket gig-1', $display);
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-foo');
+        $this->assertDirectoryExists($worktreesDir . '/gig-2-bar');
+    }
+
+    public function test_cleanup_with_bare_number_normalizes_ticket_before_matching(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/cor-55-foo', 0755, true);
+        mkdir($worktreesDir . '/gig-2-bar', 0755, true);
+
+        $this->setupConfigLoader($this->createMockConfig(defaultTeam: 'cor'));
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => '55', '--cleanup' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('Removed worktree for ticket cor-55', $display);
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/cor-55-foo');
+        $this->assertDirectoryExists($worktreesDir . '/gig-2-bar');
     }
 
     public function test_it_creates_a_new_branch_when_nothing_matches(): void

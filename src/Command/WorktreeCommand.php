@@ -31,9 +31,10 @@ class WorktreeCommand extends ReviewCommand
         $this
             ->setName('worktree')
             ->setDescription('Create (or reuse) a git worktree with an isolated dev environment for working on a ticket')
-            ->addArgument('ticket', InputArgument::REQUIRED, 'The ticket to work on: a bare number ("2345", prefixed with the configured default team), or a full reference ("gig-2345" / "gig2345")')
+            ->addArgument('ticket', InputArgument::OPTIONAL, 'The ticket to work on: a bare number ("2345", prefixed with the configured default team), or a full reference ("gig-2345" / "gig2345"). Optional with --cleanup, where it targets a single worktree (omit it to clean up every worktree).')
             ->addOption('quick', null, InputOption::VALUE_NONE, 'Use the "clear" command instead of "fresh" — skips the database reset. Only safe on branches with no schema or seed changes.')
-            ->addOption('cursor', 'c', InputOption::VALUE_NONE, 'Open the worktree in a new Cursor window once it is ready');
+            ->addOption('cursor', 'c', InputOption::VALUE_NONE, 'Open the worktree in a new Cursor window once it is ready')
+            ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. Targets one ticket when given, or every worktree when no ticket is provided.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -42,15 +43,28 @@ class WorktreeCommand extends ReviewCommand
         $ticketArgument = $input->getArgument('ticket');
         $rawTicket = is_string($ticketArgument) ? trim($ticketArgument) : '';
 
-        if ($rawTicket === '') {
-            $formatter->error('A ticket identifier is required, e.g. `ngramx worktree 2345` or `ngramx worktree gig-2345`.');
-            return Command::FAILURE;
-        }
-
         try {
             $configPath = $this->configLoader->findConfigFile();
             $config = $this->configLoader->load($configPath);
             $repositoryPath = dirname($configPath);
+
+            if ((bool) $input->getOption('cleanup')) {
+                if ($rawTicket === '') {
+                    return $this->runWorktreeCleanupAll($output, $formatter, $repositoryPath);
+                }
+
+                $ticketSlug = WorktreeIdentity::normalizeTicket($rawTicket, $config->defaultTeam);
+
+                return $this->runWorktreeCleanup($output, $formatter, $repositoryPath, $ticketSlug);
+            }
+
+            if ($rawTicket === '') {
+                $formatter->error(
+                    'A ticket identifier is required, e.g. `ngramx worktree 2345` or `ngramx worktree gig-2345`. '
+                    . 'To remove worktrees instead, pass --cleanup (with a ticket to target one, or alone to remove them all).'
+                );
+                return Command::FAILURE;
+            }
 
             $ticketSlug = WorktreeIdentity::normalizeTicket($rawTicket, $config->defaultTeam);
 

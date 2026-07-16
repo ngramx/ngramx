@@ -473,7 +473,7 @@ class ReviewCommand extends Command
      * Stop and remove the worktree (and its parallel Docker environment) created
      * for a ticket, reclaiming containers, volumes and disk space.
      */
-    private function runWorktreeCleanup(
+    protected function runWorktreeCleanup(
         OutputInterface $output,
         OutputFormatter $formatter,
         string $repositoryPath,
@@ -512,7 +512,7 @@ class ReviewCommand extends Command
      * under .ngramx/worktrees/. Used by `review --cleanup` with no ticket argument
      * to reclaim every parallel review environment in one pass.
      */
-    private function runWorktreeCleanupAll(
+    protected function runWorktreeCleanupAll(
         OutputInterface $output,
         OutputFormatter $formatter,
         string $repositoryPath
