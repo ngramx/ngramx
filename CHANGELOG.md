@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.29.1](https://github.com/ngramx/ngramx/compare/v2.29.0...v2.29.1) (2026-07-16)
+
+
+### Bug Fixes
+
+* retry Cursor launch with live WSL IPC sockets when opening worktrees ([d526385](https://github.com/ngramx/ngramx/commit/d52638560070e4e5a96d0f222082cd020cf23e68))
+
 # [2.29.0](https://github.com/ngramx/ngramx/compare/v2.28.0...v2.29.0) (2026-07-16)
 
 
