@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.28.0](https://github.com/ngramx/ngramx/compare/v2.27.0...v2.28.0) (2026-07-16)
+
+
+### Features
+
+* add .env secrets provider and support multiple secret providers ([f56b885](https://github.com/ngramx/ngramx/commit/f56b8856f7ee43097b00cd7e1f778a2a372bb8a7))
+
 # [2.27.0](https://github.com/ngramx/ngramx/compare/v2.26.0...v2.27.0) (2026-07-16)
 
 
