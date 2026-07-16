@@ -48,7 +48,7 @@ class ReviewCommandTest extends TestCase
         $this->tmpDir = sys_get_temp_dir() . '/ngramx-review-test-' . uniqid();
         mkdir($this->tmpDir, 0755, true);
 
-        $this->dockerCompose->expects($this->any())->method('isRunning')->willReturn(true);
+        $this->dockerCompose->expects($this->any())->method('isServiceRunning')->willReturn(true);
         $this->lockFile->expects($this->any())->method('exists')->willReturn(false);
         $this->gitRepositoryService->expects($this->any())->method('fetchFromOrigin')->willReturn(true);
         $this->gitRepositoryService->expects($this->any())->method('findBranchesContaining')->willReturn(['GIG-123-feature']);
@@ -80,10 +80,13 @@ class ReviewCommandTest extends TestCase
         $this->assertSame('c', $definition->getOption('cursor')->getShortcut());
     }
 
-    public function test_it_starts_services_when_not_running_instead_of_refusing(): void
+    public function test_it_starts_services_when_the_primary_service_is_not_running_instead_of_refusing(): void
     {
+        // isServiceRunning => false covers both a fully-down stack and a
+        // half-dead one (databases up, app exited) — either way `review`
+        // must attempt `up` rather than skipping startup.
         $this->dockerCompose = $this->createMock(DockerCompose::class);
-        $this->dockerCompose->expects($this->once())->method('isRunning')->willReturn(false);
+        $this->dockerCompose->expects($this->once())->method('isServiceRunning')->willReturn(false);
 
         $this->setupConfigLoader($this->createMockConfig([]));
 
@@ -948,6 +951,87 @@ class ReviewCommandTest extends TestCase
         $this->assertStringContainsString('Removed worktree for ticket gig-1', $display);
         $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-foo');
         $this->assertDirectoryExists($worktreesDir . '/gig-2-bar');
+    }
+
+    public function test_cleanup_sweeps_containers_by_namespace_even_without_a_lock_file(): void
+    {
+        // A startup that failed partway (fresh, health check) leaves containers
+        // running but never writes .ngramx.lock — teardown must still sweep the
+        // compose project derived from the folder name, or the containers are
+        // orphaned once the directory (and its override) is deleted.
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-9-foo', 0755, true);
+
+        $config = $this->createMockConfig([]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+
+        $this->dockerCompose->expects($this->once())
+            ->method('downProject')
+            ->with('ngramx-gig-9-foo', true);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'gig-9', '--cleanup' => true]);
+
+        $this->assertSame(0, $exitCode, $tester->getDisplay());
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-9-foo');
+    }
+
+    public function test_cleanup_finds_a_worktree_named_without_the_team_prefix(): void
+    {
+        // Folder names come from the branch, which may lack the team prefix
+        // (branch "2478-fix" => folder "2478-<repo>"). A normalised ticket like
+        // "gig-2478" must still reach it via the bare-number fallback.
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/2478-terrablock', 0755, true);
+
+        $config = $this->createMockConfig([]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'gig-2478', '--cleanup' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('Removed worktree for ticket gig-2478', $display);
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/2478-terrablock');
+    }
+
+    public function test_cleanup_prefers_the_full_slug_over_the_bare_number_fallback(): void
+    {
+        // The fallback must not drag in other teams' worktrees when the full
+        // slug already matches something.
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-7-foo', 0755, true);
+        mkdir($worktreesDir . '/cor-7-bar', 0755, true);
+
+        $config = $this->createMockConfig([]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'gig-7', '--cleanup' => true]);
+
+        $this->assertSame(0, $exitCode, $tester->getDisplay());
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-7-foo');
+        $this->assertDirectoryExists($worktreesDir . '/cor-7-bar');
+    }
+
+    public function test_cleanup_accepts_a_full_branch_name_and_finds_the_slug_folder(): void
+    {
+        // Creation derives the folder from the branch's "<team>-<number>"
+        // prefix, so "gig-1-form-design-ideas" lives in "gig-1-foo". Cleanup
+        // must normalise the pasted branch name the same way instead of
+        // substring-matching the raw argument (which matches nothing).
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-foo', 0755, true);
+
+        $config = $this->createMockConfig([]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'gig-1-form-design-ideas', '--cleanup' => true]);
+
+        $this->assertSame(0, $exitCode, $tester->getDisplay());
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-foo');
     }
 
     private function createCommand(

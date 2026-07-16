@@ -48,7 +48,7 @@ class WorktreeCommandTest extends TestCase
 
         // A worktree environment that is "already running" skips the in-process
         // `up`, which a bare CommandTester cannot execute anyway.
-        $this->dockerCompose->expects($this->any())->method('isRunning')->willReturn(true);
+        $this->dockerCompose->expects($this->any())->method('isServiceRunning')->willReturn(true);
         $this->gitRepositoryService->expects($this->any())->method('fetchFromOrigin')->willReturn(true);
     }
 

@@ -16,11 +16,15 @@ class WorktreeIdentity
     /**
      * Derive a normalised ticket slug (e.g. "gig-178") from the selected branch
      * name, falling back to the raw ticket argument when the branch does not
-     * start with a recognisable "<team>-<number>" prefix.
+     * contain a recognisable "<team>-<number>" prefix.
      */
     public static function deriveTicketSlug(string $branch, string $fallbackTicket): string
     {
-        if (preg_match('/^([a-z]+-\d+)/i', $branch, $matches) === 1) {
+        // Match "<team>-<number>" at the start of the branch or of any path
+        // segment, so tool-prefixed branches ("cursor/gig-2478-form-ideas")
+        // land in the same worktree folder as their unprefixed siblings
+        // instead of spawning a differently-named duplicate environment.
+        if (preg_match('~(?:^|/)([a-z]+-\d+)~i', $branch, $matches) === 1) {
             return strtolower($matches[1]);
         }
 
@@ -33,10 +37,11 @@ class WorktreeIdentity
      * Normalise a user-supplied ticket identifier into a canonical
      * "<team>-<number>" slug:
      *
-     *   - "2345"      => "gig-2345" (bare numbers get the default team prefix)
-     *   - "gig-2345"  => "gig-2345"
-     *   - "gig2345"   => "gig-2345" (missing hyphen restored)
-     *   - "GIG-2345"  => "gig-2345"
+     *   - "2345"                  => "gig-2345" (bare numbers get the default team prefix)
+     *   - "gig-2345"              => "gig-2345"
+     *   - "gig2345"               => "gig-2345" (missing hyphen restored)
+     *   - "GIG-2345"              => "gig-2345"
+     *   - "gig-2345-form-ideas"   => "gig-2345" (full branch names are accepted)
      *
      * Anything that doesn't look like a ticket reference is sanitised as-is so
      * the caller can still use it for branch searching and folder naming.
@@ -49,7 +54,9 @@ class WorktreeIdentity
             return self::sanitizeSegment($defaultTeam) . '-' . $ticket;
         }
 
-        if (preg_match('/^([a-z]+)-?(\d+)$/', $ticket, $matches) === 1) {
+        // A trailing "-suffix" is allowed so a pasted branch name
+        // ("gig-2345-form-ideas") normalises to the ticket it belongs to.
+        if (preg_match('/^([a-z]+)-?(\d+)(?=$|-)/', $ticket, $matches) === 1) {
             return $matches[1] . '-' . $matches[2];
         }
 

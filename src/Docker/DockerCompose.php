@@ -394,6 +394,36 @@ class DockerCompose
     }
 
     /**
+     * Stop and remove a compose project's containers, networks and (optionally)
+     * volumes by project name alone — no compose file required.
+     *
+     * Compose reconstructs the project from container labels, so this works
+     * even when the project's compose/override files no longer exist (e.g. a
+     * worktree directory that has already been deleted). A project with no
+     * resources is a warning-only no-op that still exits 0.
+     *
+     * @throws \RuntimeException When the teardown fails.
+     */
+    public function downProject(string $projectName, bool $volumes = false): void
+    {
+        $command = ['docker-compose', '-p', $projectName, 'down', '--remove-orphans'];
+
+        if ($volumes) {
+            $command[] = '-v';
+        }
+
+        $process = new Process($command);
+        $process->setTimeout(120);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            throw new \RuntimeException(
+                "Failed to remove compose project '$projectName': {$process->getErrorOutput()}"
+            );
+        }
+    }
+
+    /**
      * List every service declared in the compose file (whether running or not).
      *
      * Uses `docker-compose config --services`, which enumerates the services
@@ -523,5 +553,23 @@ class DockerCompose
         }
 
         return false;
+    }
+
+    /**
+     * Check whether one specific compose service has a container in the
+     * "running" state.
+     *
+     * This is the right probe for "is the environment usable?" decisions:
+     * a half-dead stack (databases up, app exited) counts as running under
+     * {@see isRunning}, which makes callers skip startup and then fail
+     * downstream against the dead primary service. `compose ps` omits
+     * stopped containers by default, so an exited or never-created service
+     * simply isn't listed — both correctly report false here.
+     */
+    public function isServiceRunning(string $composeFile, string $service, ?string $projectName = null): bool
+    {
+        $services = $this->ps($composeFile, $projectName);
+
+        return ($services[$service]['State'] ?? null) === 'running';
     }
 }

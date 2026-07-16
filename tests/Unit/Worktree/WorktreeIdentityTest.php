@@ -16,6 +16,14 @@ class WorktreeIdentityTest extends TestCase
         $this->assertSame('cor-42', WorktreeIdentity::deriveTicketSlug('cor-42', 'cor-42'));
     }
 
+    public function test_it_derives_slug_from_tool_prefixed_branches(): void
+    {
+        // "cursor/..." (and similar tool prefixes) must land in the same
+        // worktree folder as the unprefixed branch for the same ticket,
+        // not spawn a duplicate environment under a different name.
+        $this->assertSame('gig-2478', WorktreeIdentity::deriveTicketSlug('cursor/gig-2478-form-design-ideas-ac08', '2478'));
+    }
+
     public function test_it_falls_back_to_ticket_when_branch_has_no_prefix(): void
     {
         $this->assertSame('hotfix-login', WorktreeIdentity::deriveTicketSlug('hotfix/login', 'hotfix/login'));
@@ -50,6 +58,14 @@ class WorktreeIdentityTest extends TestCase
         $this->assertSame('gig-2345', WorktreeIdentity::normalizeTicket('GIG-2345', 'gig'));
         $this->assertSame('gig-2345', WorktreeIdentity::normalizeTicket('gig2345', 'gig'));
         $this->assertSame('cor-268', WorktreeIdentity::normalizeTicket('cor268', 'gig'));
+    }
+
+    public function test_it_normalizes_full_branch_names_to_their_ticket(): void
+    {
+        $this->assertSame('gig-2478', WorktreeIdentity::normalizeTicket('gig-2478-form-design-ideas', 'gig'));
+        $this->assertSame('gig-2478', WorktreeIdentity::normalizeTicket('GIG-2478-Form-Design', 'gig'));
+        // A digit run followed by more word characters is not a ticket boundary.
+        $this->assertSame('gig2345x', WorktreeIdentity::normalizeTicket('gig2345x', 'gig'));
     }
 
     public function test_it_sanitizes_non_ticket_input(): void

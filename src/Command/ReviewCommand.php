@@ -108,8 +108,16 @@ class ReviewCommand extends Command
             $repositoryPath = dirname($configPath);
 
             if ((bool) $input->getOption('cleanup')) {
+                // Normalise the argument to the same "<team>-<number>" slug the
+                // creation path derives for the folder name, so a pasted branch
+                // name ("gig-2478-form-ideas") still finds "gig-2478-<repo>".
                 return $hasTicket
-                    ? $this->runWorktreeCleanup($output, $formatter, $repositoryPath, $ticketNumber)
+                    ? $this->runWorktreeCleanup(
+                        $output,
+                        $formatter,
+                        $repositoryPath,
+                        WorktreeIdentity::normalizeTicket($ticketNumber, $config->defaultTeam)
+                    )
                     : $this->runWorktreeCleanupAll($output, $formatter, $repositoryPath);
             }
 
@@ -133,9 +141,11 @@ class ReviewCommand extends Command
                 // Rather than refusing when the stack is down, start it for the
                 // developer — `review` already knows how to bring an environment
                 // up, so making them run `ngramx up` first is needless friction.
+                // Probe the primary service specifically: a half-dead stack
+                // (databases up, app exited) must be brought up too, not skipped.
                 // Reuse the namespace/offset the lock recorded so the URL and
                 // container names stay stable across the restart.
-                if (!$this->dockerCompose->isRunning($composeFile, $namespace)) {
+                if (!$this->dockerCompose->isServiceRunning($composeFile, $primaryService, $namespace)) {
                     $formatter->info('Services are not running — starting them first...');
 
                     // A leftover lock (containers gone, lock left behind) would
@@ -352,9 +362,15 @@ class ReviewCommand extends Command
             // previous run (machine reboot, `docker compose down` elsewhere, a
             // crash) makes the worktree *look* running while its containers are
             // long gone — we'd then skip startup and fail downstream in the reset
-            // step with "Service 'app' is not running". Probing the containers is
-            // the only reliable signal.
-            $alreadyRunning = $this->dockerCompose->isRunning($config->docker->composeFile, $namespace);
+            // step with "Service 'app' is not running". And it must be the
+            // *primary* service that is probed: a half-dead stack (databases
+            // running, app exited) would otherwise count as running, skip `up`,
+            // and hit the same downstream failure.
+            $alreadyRunning = $this->dockerCompose->isServiceRunning(
+                $config->docker->composeFile,
+                $config->docker->primaryService,
+                $namespace
+            );
 
             if ($alreadyRunning) {
                 $formatter->info('Worktree environment is already running — skipping startup.');
@@ -581,8 +597,22 @@ class ReviewCommand extends Command
                     chdir($originalCwd);
                 }
             }
-        } else {
-            $formatter->info('No running environment detected for this worktree.');
+        }
+
+        // The lock file is written only when `up` fully succeeds, so its absence
+        // must not be read as "nothing running": a startup that failed partway
+        // (health check, init command, fresh) leaves live containers behind with
+        // no lock, and skipping the teardown here would orphan them forever once
+        // the directory (and its compose override) is deleted below. Compose can
+        // reconstruct the project from container labels alone, so sweep by the
+        // namespace derived from the folder name — a no-op when the in-process
+        // `down` above already removed everything.
+        $namespace = WorktreeIdentity::namespaceFor(basename($worktreePath));
+        try {
+            $this->dockerCompose->downProject($namespace, volumes: true);
+        } catch (Exception $e) {
+            $formatter->warning('Could not remove leftover containers: ' . $e->getMessage());
+            $formatter->info("Remove them manually with: docker compose -p $namespace down --volumes");
         }
 
         $this->gitRepositoryService->removeWorktree($repositoryPath, $worktreePath);
@@ -636,16 +666,36 @@ class ReviewCommand extends Command
      * Find worktree directories under .ngramx/worktrees/ whose folder name
      * contains the ticket (case-insensitive).
      *
+     * The folder name is derived from the *branch* at creation time, so it may
+     * not carry the team prefix the caller normalised onto the ticket (a branch
+     * like "2478-fix-thing" produces folder "2478-<repo>", which "gig-2478"
+     * would never match). When the full slug finds nothing, fall back to the
+     * bare ticket number so those worktrees stay reachable by cleanup.
+     *
      * @return list<string> Absolute paths to matching worktree directories
      */
     private function findWorktreesForTicket(string $repositoryPath, string $ticketNumber): array
     {
-        $needle = mb_strtolower($ticketNumber);
+        $candidates = [mb_strtolower($ticketNumber)];
 
-        return array_values(array_filter(
-            $this->listWorktreeDirectories($repositoryPath),
-            fn (string $path): bool => str_contains(mb_strtolower(basename($path)), $needle)
-        ));
+        if (preg_match('/^[a-z]+-(\d+)$/i', $ticketNumber, $matches) === 1) {
+            $candidates[] = $matches[1];
+        }
+
+        $directories = $this->listWorktreeDirectories($repositoryPath);
+
+        foreach ($candidates as $needle) {
+            $matched = array_values(array_filter(
+                $directories,
+                fn (string $path): bool => str_contains(mb_strtolower(basename($path)), $needle)
+            ));
+
+            if ($matched !== []) {
+                return $matched;
+            }
+        }
+
+        return [];
     }
 
     /**
