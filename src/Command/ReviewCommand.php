@@ -21,6 +21,7 @@ use Ngramx\Http\UrlPortOffset;
 use Ngramx\Laravel\LaravelService;
 use Ngramx\Orchestrator\CommandOrchestrator;
 use Ngramx\Output\OutputFormatter;
+use Ngramx\Worktree\CursorIpcHookResolver;
 use Ngramx\Worktree\WorktreeCertSeeder;
 use Ngramx\Worktree\WorktreeDependencyPrimer;
 use Ngramx\Worktree\WorktreeIdentity;
@@ -913,18 +914,56 @@ class ReviewCommand extends Command
 
         if (!$probe->isSuccessful()) {
             $formatter->warning('The `cursor` command was not found on your PATH.');
-            $formatter->info("Open it manually with: cursor $worktreePath");
+            $formatter->info("Open it manually with: cursor --new-window $worktreePath");
             return;
         }
 
+        $cursorBinary = trim($probe->getOutput());
+        if ($cursorBinary === '') {
+            $formatter->warning('The `cursor` command was not found on your PATH.');
+            $formatter->info("Open it manually with: cursor --new-window $worktreePath");
+            return;
+        }
+
+        $resolvedWorktreePath = realpath($worktreePath) ?: $worktreePath;
+        $manualCommand = 'cursor --new-window ' . $resolvedWorktreePath;
+        $ipcHooks = CursorIpcHookResolver::discoverCandidates();
+        $attemptHooks = $ipcHooks !== [] ? $ipcHooks : [null];
+        $lastOutput = '';
+
         try {
-            $process = new Process(['cursor', $worktreePath]);
-            $process->setTimeout(null);
-            $process->start();
-            $formatter->info('Opening Cursor...');
+            foreach ($attemptHooks as $ipcHook) {
+                $process = new Process([$cursorBinary, '--new-window', $resolvedWorktreePath]);
+                $process->setTimeout(30);
+
+                $runtimeEnv = [];
+                if (is_string($ipcHook)) {
+                    $runtimeEnv['VSCODE_IPC_HOOK_CLI'] = $ipcHook;
+                } elseif (getenv('VSCODE_IPC_HOOK_CLI') !== false) {
+                    $runtimeEnv['VSCODE_IPC_HOOK_CLI'] = false;
+                }
+
+                $process->run(null, $runtimeEnv);
+                $lastOutput = trim($process->getErrorOutput() . "\n" . $process->getOutput());
+
+                if ($process->isSuccessful()) {
+                    $formatter->info("Opening Cursor: $manualCommand");
+                    return;
+                }
+
+                if (!CursorIpcHookResolver::isIpcConnectionFailure($lastOutput)) {
+                    break;
+                }
+            }
+
+            $formatter->warning('Could not open Cursor automatically.');
+            $formatter->info("Open it manually with: $manualCommand");
+            if ($lastOutput !== '') {
+                $formatter->info($lastOutput);
+            }
         } catch (\Throwable) {
             $formatter->warning('Could not open Cursor automatically.');
-            $formatter->info("Open it manually with: cursor $worktreePath");
+            $formatter->info("Open it manually with: $manualCommand");
         }
     }
 
