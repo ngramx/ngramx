@@ -33,7 +33,7 @@ class WorktreeCommand extends ReviewCommand
             ->setDescription('Create (or reuse) a git worktree with an isolated dev environment for working on a ticket')
             ->addArgument('ticket', InputArgument::REQUIRED, 'The ticket to work on: a bare number ("2345", prefixed with the configured default team), or a full reference ("gig-2345" / "gig2345")')
             ->addOption('quick', null, InputOption::VALUE_NONE, 'Use the "clear" command instead of "fresh" — skips the database reset. Only safe on branches with no schema or seed changes.')
-            ->addOption('cursor', null, InputOption::VALUE_NONE, 'Open the worktree in a new Cursor window once it is ready');
+            ->addOption('cursor', 'c', InputOption::VALUE_NONE, 'Open the worktree in a new Cursor window once it is ready');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int

@@ -225,6 +225,7 @@ ngramx review GIG-1234           # Checks out the branch and runs `fresh`
 ngramx review GIG-1234 --quick   # Checks out the branch and runs `clear` instead
 ngramx review GIG-1234 --worktree # Reviews in an isolated worktree + parallel env
 ngramx review GIG-1234 --cursor   # Same as --worktree, then opens a new Cursor window
+ngramx review GIG-1234 -c         # Shorthand for --cursor
 ngramx review GIG-1234 --cleanup  # Tears down + removes that ticket's worktree env
 ngramx review --cleanup           # Tears down + removes every worktree env
 ```
@@ -240,7 +241,7 @@ This command:
 
 - `--quick` — Run the `clear` command instead of `fresh`. This skips the database reset and only installs deps and clears caches, so it's much faster. **Only use `--quick` on branches that don't change your database schema or seed data** — otherwise you'll be reviewing against stale data. When in doubt, use the default (`fresh`).
 - `--worktree` / `-w` — Review in an **isolated git worktree with its own parallel dev environment** instead of checking the branch out in your main working directory. This lets you review (or fix) several tickets at once without your editor and Docker stack fighting over a single branch.
-- `--cursor` — Everything `--worktree` does, then opens the worktree in a **new Cursor window**. Implies `--worktree`.
+- `--cursor` / `-c` — Everything `--worktree` does, then opens the worktree in a **new Cursor window**. Implies `--worktree`.
 - `--cleanup` — Stop the worktree's Docker stack (including its volumes) and remove the git worktree for this ticket. Use this when you're done reviewing. **Omit the ticket argument** (`ngramx review --cleanup`) to tear down and remove *every* worktree under `.ngramx/worktrees/` in one pass. (If a container left root-owned files behind, cleanup removes them via a short-lived helper container.)
 
 **How worktree mode works:**
@@ -266,6 +267,33 @@ Ngramx layers compose files in a fixed order, so machine-generated and human-aut
 If a crash-looping container slips through, `ngramx up` (and therefore `ngramx review`) fails fast: it detects the `Restarting`/`Exited` state (or a climbing restart count), dumps the last ~50 log lines from the offending service, and exits non-zero instead of leaving the container looping silently.
 
 **Requires:** `fresh` and (for `--quick`) `clear` defined in `ngramx.yml` — see [Recommended commands](#recommended-commands). If the relevant command isn't defined, review falls back to a generic Laravel reset (`optimize:clear` + `migrate:fresh --seed`).
+
+### `ngramx worktree`
+
+Start (or continue) your own work on a ticket in an isolated git worktree with its own parallel dev environment — the "author" counterpart to `ngramx review`:
+
+```bash
+ngramx worktree 2345              # Bare number — prefixed with default_team from ngramx.yml
+ngramx worktree gig-1234          # Full ticket reference
+ngramx worktree gig-1234 --quick  # Skips database reset (same semantics as review --quick)
+ngramx worktree gig-1234 --cursor # Opens the worktree in a new Cursor window once ready
+ngramx worktree gig-1234 -c       # Shorthand for --cursor
+```
+
+This command:
+
+1. Fetches from `origin`
+2. Searches remote branches for the ticket (canonical slug, hyphen-less spelling, then bare number)
+3. Uses the matching branch, prompts if multiple, or creates a new `{team}-{number}` branch when none exists
+4. Creates or reuses a worktree under `.ngramx/worktrees/` and brings up a parallel dev environment (same machinery as `review --worktree`)
+5. Prints the application URL, worktree path, and any URLs from `.ngramx/tickets/<ticket>/completion.json`
+
+**Options:**
+
+- `--quick` — Run the `clear` command instead of `fresh`. Same caveats as `review --quick`.
+- `--cursor` / `-c` — Open the worktree in a **new Cursor window** once the environment is ready. Requires the `cursor` CLI on your PATH; degrades gracefully with a manual command hint if not found.
+
+When you're done, run `ngramx review <ticket> --cleanup` to tear down the worktree environment.
 
 ### `ngramx status`
 

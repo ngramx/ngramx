@@ -76,7 +76,8 @@ class ReviewCommandTest extends TestCase
 
         $this->assertTrue($definition->hasOption('worktree'));
         $this->assertTrue($definition->hasOption('cursor'));
-        $this->assertTrue($definition->getOption('worktree')->getShortcut() === 'w');
+        $this->assertSame('w', $definition->getOption('worktree')->getShortcut());
+        $this->assertSame('c', $definition->getOption('cursor')->getShortcut());
     }
 
     public function test_it_starts_services_when_not_running_instead_of_refusing(): void

@@ -68,6 +68,7 @@ class WorktreeCommandTest extends TestCase
         $this->assertTrue($definition->getArgument('ticket')->isRequired());
         $this->assertTrue($definition->hasOption('quick'));
         $this->assertTrue($definition->hasOption('cursor'));
+        $this->assertSame('c', $definition->getOption('cursor')->getShortcut());
         $this->assertFalse($definition->hasOption('worktree'));
         $this->assertFalse($definition->hasOption('cleanup'));
     }
