@@ -6,6 +6,7 @@ namespace Ngramx\Command;
 
 use Exception;
 use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Output\OutputFormatter;
 use Ngramx\Worktree\WorktreeIdentity;
 use Symfony\Component\Console\Command\Command;
@@ -31,7 +32,7 @@ class WorktreeCommand extends ReviewCommand
         $this
             ->setName('worktree')
             ->setDescription('Create (or reuse) a git worktree with an isolated dev environment for working on a ticket')
-            ->addArgument('ticket', InputArgument::OPTIONAL, 'The ticket to work on: a bare number ("2345", prefixed with the configured default team), or a full reference ("gig-2345" / "gig2345"). Optional with --cleanup, where it targets a single worktree (omit it to clean up every worktree).')
+            ->addArgument('ticket', InputArgument::OPTIONAL, 'The ticket to work on: a bare number ("2345", prefixed with the configured default team), or a full reference ("gig-2345" / "gig2345"). Omit on a feature branch to move the current branch into a worktree. Optional with --cleanup, where it targets a single worktree (omit it to clean up every worktree).')
             ->addOption('quick', null, InputOption::VALUE_NONE, 'Use the "clear" command instead of "fresh" — skips the database reset. Only safe on branches with no schema or seed changes.')
             ->addOption('cursor', 'c', InputOption::VALUE_NONE, 'Open the worktree in a new Cursor window once it is ready')
             ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. Targets one ticket when given, or every worktree when no ticket is provided.');
@@ -59,11 +60,13 @@ class WorktreeCommand extends ReviewCommand
             }
 
             if ($rawTicket === '') {
-                $formatter->error(
-                    'A ticket identifier is required, e.g. `ngramx worktree 2345` or `ngramx worktree gig-2345`. '
-                    . 'To remove worktrees instead, pass --cleanup (with a ticket to target one, or alone to remove them all).'
+                return $this->runWorktreeFromCurrentBranch(
+                    $input,
+                    $output,
+                    $formatter,
+                    $config,
+                    $repositoryPath
                 );
-                return Command::FAILURE;
             }
 
             $ticketSlug = WorktreeIdentity::normalizeTicket($rawTicket, $config->defaultTeam);
@@ -156,5 +159,74 @@ class WorktreeCommand extends ReviewCommand
         }
 
         return [];
+    }
+
+    /**
+     * Move the currently checked-out feature branch into a worktree, freeing the
+     * main checkout to return to the integration branch.
+     */
+    private function runWorktreeFromCurrentBranch(
+        InputInterface $input,
+        OutputInterface $output,
+        OutputFormatter $formatter,
+        NgramxConfig $config,
+        string $repositoryPath
+    ): int {
+        $currentBranch = $this->gitRepositoryService->getCurrentBranch($repositoryPath);
+        if ($currentBranch === null) {
+            $formatter->error('Could not determine the current branch. Check out a feature branch and try again.');
+            return Command::FAILURE;
+        }
+
+        if ($this->gitRepositoryService->isIntegrationBranch($currentBranch)) {
+            $formatter->warning(
+                "You're on the {$currentBranch} branch. To open up a worktree, without specifying a ticket, switch to a feature branch first."
+            );
+            return Command::SUCCESS;
+        }
+
+        $featureBranch = $currentBranch;
+        $ticketSlug = WorktreeIdentity::deriveTicketSlug($featureBranch, $featureBranch);
+
+        $formatter->section("Preparing worktree for current branch: $featureBranch");
+
+        $didStash = false;
+        if ($this->gitRepositoryService->hasUncommittedChanges($repositoryPath)) {
+            $formatter->info('Stashing uncommitted changes...');
+            if (!$this->gitRepositoryService->stashPush($repositoryPath, "ngramx worktree: {$featureBranch}")) {
+                $formatter->error('Failed to stash uncommitted changes.');
+                return Command::FAILURE;
+            }
+            $didStash = true;
+        }
+
+        $integrationBranch = $this->gitRepositoryService->resolveDefaultIntegrationBranch($repositoryPath);
+        $formatter->info("Switching main checkout to {$integrationBranch}...");
+        if (!$this->gitRepositoryService->checkoutLocalBranch($repositoryPath, $integrationBranch)) {
+            $message = "Failed to switch the main checkout to '{$integrationBranch}'.";
+            $details = trim($this->gitRepositoryService->lastCheckoutError());
+            if ($details !== '') {
+                $message .= "\n\n" . OutputFormatter::escape($details);
+            }
+            $formatter->error($message);
+
+            if ($didStash) {
+                $formatter->info('Restoring stashed changes in the main checkout...');
+                $this->gitRepositoryService->stashPop($repositoryPath);
+            }
+
+            return Command::FAILURE;
+        }
+
+        return $this->runWorktreeReview(
+            $input,
+            $output,
+            $formatter,
+            $config,
+            $repositoryPath,
+            $featureBranch,
+            $ticketSlug,
+            popStash: $didStash
+        );
     }
 }

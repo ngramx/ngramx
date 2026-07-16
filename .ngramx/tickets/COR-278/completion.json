@@ -1,0 +1,34 @@
+{
+  "title": "COR-278: Allow Ngramx Worktree Without Ticket On Current Feature Branch",
+  "description": "Allows ngramx worktree with no ticket on a feature branch by stashing changes, moving the main checkout to the integration branch, creating the worktree, and restoring the stash before startup.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/1",
+  "linear_url": "https://linear.app/gigabyte/issue/COR-278/auto-worktree-current-feature-branch-when-running-ngramx-worktree-with",
+  "test_urls": [
+    {
+      "label": "GitHub PR",
+      "url": "https://github.com/ngramx/ngramx/pull/1"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Worktree from current feature branch with uncommitted changes",
+      "status": "active",
+      "steps": [
+        "Check out a feature branch in the main repository checkout",
+        "Make an uncommitted change",
+        "Run ngramx worktree with no ticket argument",
+        "Confirm the main checkout is on main (or the integration branch)",
+        "Confirm a worktree exists for the feature branch and contains the stashed changes"
+      ]
+    },
+    {
+      "description": "Warning when run on an integration branch",
+      "status": "active",
+      "steps": [
+        "Check out main in the main repository checkout",
+        "Run ngramx worktree with no ticket argument",
+        "Confirm a warning is shown and no worktree is created"
+      ]
+    }
+  ]
+}

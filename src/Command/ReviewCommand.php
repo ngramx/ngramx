@@ -260,7 +260,8 @@ class ReviewCommand extends Command
         string $repositoryPath,
         string $selectedBranch,
         string $ticketNumber,
-        bool $createNewBranch = false
+        bool $createNewBranch = false,
+        bool $popStash = false
     ): int {
         $ticketSlug = WorktreeIdentity::deriveTicketSlug($selectedBranch, $ticketNumber);
         $repoName = WorktreeIdentity::sanitizeSegment(basename($repositoryPath));
@@ -331,6 +332,15 @@ class ReviewCommand extends Command
             $this->dependencyPrimer->await($formatter);
             $formatter->error("Failed to switch into the worktree directory: $worktreePath");
             return Command::FAILURE;
+        }
+
+        if ($popStash) {
+            $formatter->info('Restoring stashed changes into the worktree...');
+            if (!$this->gitRepositoryService->stashPop($worktreePath)) {
+                $formatter->warning(
+                    'Could not restore stashed changes automatically. Run `git stash pop` in the worktree to recover them.'
+                );
+            }
         }
 
         try {

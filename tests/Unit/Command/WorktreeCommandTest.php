@@ -73,16 +73,112 @@ class WorktreeCommandTest extends TestCase
         $this->assertTrue($definition->hasOption('cleanup'));
     }
 
-    public function test_it_errors_when_no_ticket_and_not_cleanup(): void
+    public function test_it_warns_when_no_ticket_on_integration_branch(): void
     {
         $this->setupConfigLoader($this->createMockConfig());
+
+        $this->gitRepositoryService->expects($this->once())
+            ->method('getCurrentBranch')
+            ->with($this->tmpDir)
+            ->willReturn('main');
+        $this->gitRepositoryService->expects($this->once())
+            ->method('isIntegrationBranch')
+            ->with('main')
+            ->willReturn(true);
 
         $tester = new CommandTester($this->createCommand());
         $exitCode = $tester->execute([]);
 
-        $this->assertSame(1, $exitCode);
-        $this->assertStringContainsString('ticket identifier is required', $tester->getDisplay());
-        $this->assertStringContainsString('--cleanup', $tester->getDisplay());
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString("You're on the main branch", $tester->getDisplay());
+        $this->assertStringContainsString('switch to a feature branch first', $tester->getDisplay());
+    }
+
+    public function test_it_moves_the_current_feature_branch_into_a_worktree(): void
+    {
+        $this->setupConfigLoader($this->createMockConfig());
+        $this->preCreateWorktreeDirectory('gig-123');
+
+        $this->gitRepositoryService->expects($this->once())
+            ->method('getCurrentBranch')
+            ->with($this->tmpDir)
+            ->willReturn('gig-123-fix-thing');
+        $this->gitRepositoryService->expects($this->once())
+            ->method('isIntegrationBranch')
+            ->with('gig-123-fix-thing')
+            ->willReturn(false);
+        $this->gitRepositoryService->expects($this->once())
+            ->method('hasUncommittedChanges')
+            ->with($this->tmpDir)
+            ->willReturn(true);
+        $this->gitRepositoryService->expects($this->once())
+            ->method('stashPush')
+            ->with($this->tmpDir, 'ngramx worktree: gig-123-fix-thing')
+            ->willReturn(true);
+        $this->gitRepositoryService->expects($this->once())
+            ->method('resolveDefaultIntegrationBranch')
+            ->with($this->tmpDir)
+            ->willReturn('main');
+        $this->gitRepositoryService->expects($this->once())
+            ->method('checkoutLocalBranch')
+            ->with($this->tmpDir, 'main')
+            ->willReturn(true);
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(false);
+        $this->gitRepositoryService->expects($this->once())
+            ->method('addWorktree')
+            ->with($this->tmpDir, $this->anything(), 'gig-123-fix-thing')
+            ->willReturn(true);
+        $this->gitRepositoryService->expects($this->once())
+            ->method('stashPop')
+            ->willReturn(true);
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(0, $exitCode, $tester->getDisplay());
+        $this->assertStringContainsString('Preparing worktree for current branch: gig-123-fix-thing', $tester->getDisplay());
+        $this->assertStringContainsString('Stashing uncommitted changes', $tester->getDisplay());
+        $this->assertStringContainsString('Switching main checkout to main', $tester->getDisplay());
+        $this->assertStringContainsString('Restoring stashed changes into the worktree', $tester->getDisplay());
+    }
+
+    public function test_it_skips_stash_when_worktree_from_current_branch_is_clean(): void
+    {
+        $this->setupConfigLoader($this->createMockConfig());
+        $this->preCreateWorktreeDirectory('gig-456');
+
+        $this->gitRepositoryService->expects($this->once())
+            ->method('getCurrentBranch')
+            ->willReturn('gig-456-feature');
+        $this->gitRepositoryService->expects($this->once())
+            ->method('isIntegrationBranch')
+            ->willReturn(false);
+        $this->gitRepositoryService->expects($this->once())
+            ->method('hasUncommittedChanges')
+            ->willReturn(false);
+        $this->gitRepositoryService->expects($this->never())->method('stashPush');
+        $this->gitRepositoryService->expects($this->once())
+            ->method('resolveDefaultIntegrationBranch')
+            ->willReturn('main');
+        $this->gitRepositoryService->expects($this->once())
+            ->method('checkoutLocalBranch')
+            ->with($this->tmpDir, 'main')
+            ->willReturn(true);
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(false);
+        $this->gitRepositoryService->expects($this->once())
+            ->method('addWorktree')
+            ->with($this->anything(), $this->anything(), 'gig-456-feature')
+            ->willReturn(true);
+        $this->gitRepositoryService->expects($this->never())->method('stashPop');
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(0, $exitCode, $tester->getDisplay());
     }
 
     public function test_cleanup_without_ticket_removes_all_worktrees(): void
