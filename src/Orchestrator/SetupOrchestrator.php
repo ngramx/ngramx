@@ -86,13 +86,14 @@ class SetupOrchestrator
         bool $rebuild = false,
         ?int $timeout = null,
         bool $verifyAppUrl = true,
-        array $portMap = []
+        array $portMap = [],
+        string $configDirectory = ''
     ): array {
         $startTime = microtime(true);
 
         // Validate required secrets are available
-        if (!empty($config->secrets->required)) {
-            $this->validateSecrets($config);
+        if (!$config->secrets->isEmpty()) {
+            $this->validateSecrets($config, $configDirectory);
         }
 
         // Detect first run (no existing images)
@@ -320,21 +321,38 @@ class SetupOrchestrator
     /**
      * Validate that all required secrets are available before setup proceeds
      */
-    private function validateSecrets(NgramxConfig $config): void
+    private function validateSecrets(NgramxConfig $config, string $configDirectory): void
     {
         $this->formatter->section('Validating secrets');
 
-        $missing = $this->secretsValidator->validate($config->secrets);
+        $missingByProvider = $this->secretsValidator->validate(
+            $config->secrets,
+            $configDirectory !== '' ? $configDirectory : (getcwd() ?: '.')
+        );
 
-        if (!empty($missing)) {
-            $names = implode(', ', $missing);
-            $this->formatter->error("Missing required secrets: $names");
+        if ($missingByProvider !== []) {
+            foreach ($missingByProvider as $provider => $missing) {
+                $names = implode(', ', $missing);
+                $label = $provider === '.env' ? '.env file' : "{$provider} provider";
+                $this->formatter->error("Missing required secrets from {$label}: {$names}");
+            }
+
+            $details = [];
+            foreach ($missingByProvider as $provider => $missing) {
+                $source = match ($provider) {
+                    '.env' => 'the .env file',
+                    'env' => 'environment variables',
+                    default => $provider,
+                };
+                $details[] = $source . ' (' . implode(', ', $missing) . ')';
+            }
+
             throw new \RuntimeException(
-                "Missing required secrets: $names. These must be set as environment variables."
+                'Missing required secrets: ' . implode('; ', $details) . '.'
             );
         }
 
-        $count = count($config->secrets->required);
+        $count = $config->secrets->totalRequiredCount();
         $this->formatter->info("All $count required secret(s) available");
     }
 

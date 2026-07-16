@@ -531,6 +531,33 @@ class ConfigValidatorTest extends TestCase
         $this->assertTrue(true);
     }
 
+    public function test_it_validates_multiple_secrets_providers(): void
+    {
+        $config = [
+            'version' => '1.0',
+            'docker' => [
+                'compose_file' => 'docker-compose.yml',
+                'primary_service' => 'app',
+                'app_url' => 'http://localhost:8080',
+            ],
+            'secrets' => [
+                'providers' => [
+                    [
+                        'provider' => '.env',
+                        'required' => ['APP_KEY'],
+                    ],
+                    [
+                        'provider' => 'env',
+                        'required' => ['HOST_SECRET'],
+                    ],
+                ],
+            ],
+        ];
+
+        $this->validator->validate($config);
+        $this->assertTrue(true);
+    }
+
     public function test_it_validates_secrets_section_with_defaults(): void
     {
         $config = [
@@ -570,7 +597,7 @@ class ConfigValidatorTest extends TestCase
     public function test_it_throws_exception_for_unsupported_secrets_provider(): void
     {
         $this->expectException(ConfigException::class);
-        $this->expectExceptionMessage('Unsupported secrets provider: vault');
+        $this->expectExceptionMessage('Unsupported secrets provider at secrets.provider: vault');
 
         $config = [
             'version' => '1.0',
@@ -582,6 +609,29 @@ class ConfigValidatorTest extends TestCase
             'secrets' => [
                 'provider' => 'vault',
                 'required' => ['SECRET_ONE'],
+            ],
+        ];
+
+        $this->validator->validate($config);
+    }
+
+    public function test_it_throws_exception_when_mixing_legacy_and_multi_provider_secrets(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('cannot mix the legacy provider/required keys with secrets.providers');
+
+        $config = [
+            'version' => '1.0',
+            'docker' => [
+                'compose_file' => 'docker-compose.yml',
+                'primary_service' => 'app',
+                'app_url' => 'http://localhost:8080',
+            ],
+            'secrets' => [
+                'provider' => 'env',
+                'providers' => [
+                    ['provider' => 'env', 'required' => ['SECRET_ONE']],
+                ],
             ],
         ];
 

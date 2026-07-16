@@ -11,6 +11,7 @@ use Ngramx\Config\Schema\DockerConfig;
 use Ngramx\Config\Schema\N8nConfig;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Schema\SecretsConfig;
+use Ngramx\Config\Schema\SecretsProviderConfig;
 use Ngramx\Config\Schema\ServiceWaitConfig;
 use Ngramx\Config\Schema\SetupConfig;
 use Ngramx\Config\Validator\ConfigValidator;
@@ -252,13 +253,30 @@ class ConfigLoader
      */
     private function buildSecretsConfig(array $secretsConfig): SecretsConfig
     {
-        $provider = $secretsConfig['provider'] ?? 'env';
-        $required = $secretsConfig['required'] ?? [];
+        if (isset($secretsConfig['providers'])) {
+            $providers = [];
+            foreach ($secretsConfig['providers'] as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
 
-        return new SecretsConfig(
-            provider: $provider,
-            required: $required,
-        );
+                $providers[] = new SecretsProviderConfig(
+                    provider: is_string($entry['provider'] ?? null) ? $entry['provider'] : SecretsProviderConfig::PROVIDER_ENV,
+                    required: is_array($entry['required'] ?? null) ? $entry['required'] : [],
+                );
+            }
+
+            return new SecretsConfig(providers: $providers);
+        }
+
+        return new SecretsConfig(providers: [
+            new SecretsProviderConfig(
+                provider: is_string($secretsConfig['provider'] ?? null)
+                    ? $secretsConfig['provider']
+                    : SecretsProviderConfig::PROVIDER_ENV,
+                required: is_array($secretsConfig['required'] ?? null) ? $secretsConfig['required'] : [],
+            ),
+        ]);
     }
 
     /**

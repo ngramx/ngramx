@@ -9,6 +9,9 @@ use Ngramx\Config\Schema\AgentsConfig;
 
 class ConfigValidator
 {
+    /** @var list<string> */
+    private const SUPPORTED_SECRET_PROVIDERS = ['env', '.env'];
+
     /**
      * @param array<string, mixed> $config
      * @throws ConfigException
@@ -230,23 +233,82 @@ class ConfigValidator
             throw new ConfigException('secrets must be an array');
         }
 
+        if (isset($secrets['providers'])) {
+            if (isset($secrets['provider']) || isset($secrets['required'])) {
+                throw new ConfigException(
+                    'secrets cannot mix the legacy provider/required keys with secrets.providers — use one format or the other'
+                );
+            }
+
+            $this->validateSecretsProvidersList($secrets['providers']);
+
+            return;
+        }
+
         if (isset($secrets['provider']) && !is_string($secrets['provider'])) {
             throw new ConfigException('secrets.provider must be a string');
         }
 
-        if (isset($secrets['provider']) && $secrets['provider'] !== 'env') {
-            throw new ConfigException("Unsupported secrets provider: {$secrets['provider']}. Supported providers: env");
+        if (isset($secrets['provider'])) {
+            $this->validateSecretProvider($secrets['provider'], 'secrets.provider');
         }
 
         if (isset($secrets['required'])) {
-            if (!is_array($secrets['required'])) {
-                throw new ConfigException('secrets.required must be an array');
+            $this->validateSecretsRequiredList($secrets['required'], 'secrets.required');
+        }
+    }
+
+    /**
+     * @param mixed $providers
+     * @throws ConfigException
+     */
+    private function validateSecretsProvidersList(mixed $providers): void
+    {
+        if (!is_array($providers)) {
+            throw new ConfigException('secrets.providers must be an array');
+        }
+
+        foreach ($providers as $index => $entry) {
+            if (!is_array($entry)) {
+                throw new ConfigException("secrets.providers[$index] must be an array");
             }
 
-            foreach ($secrets['required'] as $index => $name) {
-                if (!is_string($name) || $name === '') {
-                    throw new ConfigException("secrets.required[$index] must be a non-empty string");
-                }
+            if (!isset($entry['provider']) || !is_string($entry['provider'])) {
+                throw new ConfigException("secrets.providers[$index].provider must be a string");
+            }
+
+            $this->validateSecretProvider($entry['provider'], "secrets.providers[$index].provider");
+
+            if (isset($entry['required'])) {
+                $this->validateSecretsRequiredList($entry['required'], "secrets.providers[$index].required");
+            }
+        }
+    }
+
+    /**
+     * @throws ConfigException
+     */
+    private function validateSecretProvider(string $provider, string $path): void
+    {
+        if (!in_array($provider, self::SUPPORTED_SECRET_PROVIDERS, true)) {
+            $supported = implode(', ', self::SUPPORTED_SECRET_PROVIDERS);
+            throw new ConfigException("Unsupported secrets provider at {$path}: {$provider}. Supported providers: {$supported}");
+        }
+    }
+
+    /**
+     * @param mixed $required
+     * @throws ConfigException
+     */
+    private function validateSecretsRequiredList(mixed $required, string $path): void
+    {
+        if (!is_array($required)) {
+            throw new ConfigException("{$path} must be an array");
+        }
+
+        foreach ($required as $index => $name) {
+            if (!is_string($name) || $name === '') {
+                throw new ConfigException("{$path}[$index] must be a non-empty string");
             }
         }
     }

@@ -182,6 +182,7 @@ class UpCommand extends Command
                 $timeout,
                 !$input->getOption('no-verify'),
                 $portMap,
+                dirname($configPath),
             );
 
             // In a linked worktree the container's root entrypoint (composer

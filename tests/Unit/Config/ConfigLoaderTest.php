@@ -176,8 +176,9 @@ class ConfigLoaderTest extends TestCase
     {
         $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
 
-        $this->assertEquals('env', $config->secrets->provider);
-        $this->assertEmpty($config->secrets->required);
+        $this->assertCount(1, $config->secrets->providers);
+        $this->assertSame('env', $config->secrets->providers[0]->provider);
+        $this->assertEmpty($config->secrets->providers[0]->required);
     }
 
     public function test_it_parses_single_command_into_commands_list(): void
@@ -243,10 +244,22 @@ class ConfigLoaderTest extends TestCase
     {
         $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx-with-secrets.yml');
 
-        $this->assertEquals('env', $config->secrets->provider);
-        $this->assertCount(2, $config->secrets->required);
-        $this->assertEquals('NOVA_ACCOUNT_EMAIL', $config->secrets->required[0]);
-        $this->assertEquals('NOVA_LICENSE_KEY', $config->secrets->required[1]);
+        $this->assertCount(1, $config->secrets->providers);
+        $this->assertSame('env', $config->secrets->providers[0]->provider);
+        $this->assertCount(2, $config->secrets->providers[0]->required);
+        $this->assertEquals('NOVA_ACCOUNT_EMAIL', $config->secrets->providers[0]->required[0]);
+        $this->assertEquals('NOVA_LICENSE_KEY', $config->secrets->providers[0]->required[1]);
+    }
+
+    public function test_it_loads_multiple_secrets_providers(): void
+    {
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx-with-multi-secrets.yml');
+
+        $this->assertCount(2, $config->secrets->providers);
+        $this->assertSame('.env', $config->secrets->providers[0]->provider);
+        $this->assertSame(['APP_KEY', 'DB_PASSWORD'], $config->secrets->providers[0]->required);
+        $this->assertSame('env', $config->secrets->providers[1]->provider);
+        $this->assertSame(['NOVA_ACCOUNT_EMAIL', 'NOVA_LICENSE_KEY'], $config->secrets->providers[1]->required);
     }
 
     public function test_find_config_file_returns_config_in_current_directory(): void
