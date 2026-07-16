@@ -359,15 +359,19 @@ class ReviewCommand extends Command
             if ($alreadyRunning) {
                 $formatter->info('Worktree environment is already running — skipping startup.');
 
-                // The proxy read the old cert at startup; restart in place so
-                // it serves the one that now covers the worktree hostname.
+                // The proxy read the old cert at startup; recreate the containers
+                // so it serves the one that now covers the worktree hostname.
+                // Recreate rather than restart: a restart reuses the mount spec
+                // captured at container creation, which fails on Docker Desktop +
+                // WSL2 when the worktree's bind-mount proxy id has gone stale
+                // (directory deleted and recreated, or Docker Desktop restarted).
                 if ($certChanged) {
-                    $formatter->info('Restarting services so the proxy picks up the updated TLS certificate...');
+                    $formatter->info('Recreating services so the proxy picks up the updated TLS certificate...');
                     try {
-                        $this->dockerCompose->restart($config->docker->composeFile, $namespace);
+                        $this->dockerCompose->forceRecreate($config->docker->composeFile, $namespace);
                     } catch (Exception $e) {
-                        $formatter->warning('Could not restart services automatically: ' . $e->getMessage());
-                        $formatter->info('Restart them manually so HTTPS uses the new certificate.');
+                        $formatter->warning('Could not recreate services automatically: ' . $e->getMessage());
+                        $formatter->info('Recreate them manually (docker compose up -d --force-recreate) so HTTPS uses the new certificate.');
                     }
                 }
             } else {

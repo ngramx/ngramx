@@ -797,7 +797,7 @@ class ReviewCommandTest extends TestCase
         $this->assertStringContainsString('Failed to switch into the worktree directory', $tester->getDisplay());
     }
 
-    public function test_worktree_review_restarts_a_running_env_when_the_cert_was_reseeded(): void
+    public function test_worktree_review_recreates_a_running_env_when_the_cert_was_reseeded(): void
     {
         $repoName = WorktreeIdentity::sanitizeSegment(basename($this->tmpDir));
         $folderName = WorktreeIdentity::folderName('gig-123', $repoName);
@@ -813,11 +813,12 @@ class ReviewCommandTest extends TestCase
         $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(true);
 
         // The environment is already running (setUp's isRunning => true), and the
-        // seeder reports it replaced the cert — the proxy must be restarted so it
-        // serves the new one.
+        // seeder reports it replaced the cert — the containers must be recreated
+        // (not restarted, which reuses stale bind-mount specs on Docker Desktop +
+        // WSL2) so the proxy serves the new one.
         $certSeeder = $this->createMock(WorktreeCertSeeder::class);
         $certSeeder->expects($this->once())->method('seed')->willReturn(true);
-        $this->dockerCompose->expects($this->once())->method('restart');
+        $this->dockerCompose->expects($this->once())->method('forceRecreate');
 
         $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
 
@@ -843,7 +844,7 @@ class ReviewCommandTest extends TestCase
         $this->assertStringContainsString('picks up the updated TLS certificate', $tester->getDisplay());
     }
 
-    public function test_worktree_review_does_not_restart_when_the_cert_is_unchanged(): void
+    public function test_worktree_review_does_not_recreate_when_the_cert_is_unchanged(): void
     {
         $repoName = WorktreeIdentity::sanitizeSegment(basename($this->tmpDir));
         $folderName = WorktreeIdentity::folderName('gig-123', $repoName);
@@ -859,7 +860,7 @@ class ReviewCommandTest extends TestCase
 
         $certSeeder = $this->createMock(WorktreeCertSeeder::class);
         $certSeeder->expects($this->once())->method('seed')->willReturn(false);
-        $this->dockerCompose->expects($this->never())->method('restart');
+        $this->dockerCompose->expects($this->never())->method('forceRecreate');
 
         $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
 

@@ -329,22 +329,28 @@ class DockerCompose
     }
 
     /**
-     * Restart the project's services in place (docker-compose restart).
+     * Recreate the project's containers (docker compose up -d --force-recreate).
      *
-     * Containers are not recreated, so bind mounts and networks stay intact —
-     * exactly what's needed to make a proxy re-read a certificate that changed
-     * on disk underneath it.
+     * Used instead of `docker compose restart` because a plain restart reuses
+     * the mount spec captured at container creation. On Docker Desktop + WSL2,
+     * host bind mounts are proxied through
+     * /run/desktop/mnt/host/wsl/docker-desktop-bind-mounts/<id>, and that id
+     * goes stale when the source directory is deleted and recreated (e.g. a
+     * git worktree removed and re-added) or when Docker Desktop/WSL restarts.
+     * Restarting such a container fails with "no such file or directory";
+     * recreating it rebinds the mount against the directory as it exists now,
+     * while still making the proxy re-read a certificate that changed on disk.
      *
-     * @throws \RuntimeException When the restart fails.
+     * @throws \RuntimeException When the recreate fails.
      */
-    public function restart(string $composeFile, ?string $projectName = null): void
+    public function forceRecreate(string $composeFile, ?string $projectName = null): void
     {
         $this->runComposeCommand(
             $composeFile,
             $projectName,
-            ['restart'],
-            timeout: 120,
-            failureLabel: 'restart services',
+            ['up', '-d', '--force-recreate'],
+            timeout: 300,
+            failureLabel: 'recreate services',
         );
     }
 
@@ -496,13 +502,26 @@ class DockerCompose
     }
 
     /**
-     * Check if any services are running
+     * Check if any services are genuinely running.
+     *
+     * Only containers whose State is "running" count. A stack whose containers
+     * are all crash-looping ("restarting") or stopped ("exited", "dead",
+     * "created", "paused") merely *looks* alive in `compose ps`; treating it as
+     * running makes callers skip startup and then fail downstream on a broken
+     * environment. Falling through to the normal startup path instead gives
+     * compose a chance to recreate the containers.
      *
      * @param string $composeFile Path to docker-compose.yml
      * @param string|null $projectName Optional project name for container isolation
      */
     public function isRunning(string $composeFile, ?string $projectName = null): bool
     {
-        return !empty($this->ps($composeFile, $projectName));
+        foreach ($this->ps($composeFile, $projectName) as $service) {
+            if (($service['State'] ?? null) === 'running') {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
