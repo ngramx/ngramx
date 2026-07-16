@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.29.0](https://github.com/ngramx/ngramx/compare/v2.28.0...v2.29.0) (2026-07-16)
+
+
+### Features
+
+* allow ngramx worktree without a ticket on the current feature branch ([5c54ef2](https://github.com/ngramx/ngramx/commit/5c54ef2e55b61d6337f7282a60d4f3086ac27ab1))
+
 # [2.28.0](https://github.com/ngramx/ngramx/compare/v2.27.0...v2.28.0) (2026-07-16)
 
 
