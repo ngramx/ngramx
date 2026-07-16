@@ -678,6 +678,56 @@ class GitRepositoryServiceTest extends TestCase
         $this->assertFalse($this->service->localBranchExists($this->gitRepoPath, 'feature/TICKET-456'));
     }
 
+    public function test_getCurrentBranch_returns_checked_out_branch(): void
+    {
+        $this->runGitCommand('git checkout feature/TICKET-456');
+
+        $this->assertSame('feature/TICKET-456', $this->service->getCurrentBranch($this->gitRepoPath));
+    }
+
+    public function test_isIntegrationBranch_recognises_mainline_branches(): void
+    {
+        $this->assertTrue($this->service->isIntegrationBranch('main'));
+        $this->assertTrue($this->service->isIntegrationBranch('staging'));
+        $this->assertTrue($this->service->isIntegrationBranch('production'));
+        $this->assertFalse($this->service->isIntegrationBranch('gig-123-fix-thing'));
+    }
+
+    public function test_resolveDefaultIntegrationBranch_prefers_origin_head(): void
+    {
+        $this->assertSame('main', $this->service->resolveDefaultIntegrationBranch($this->gitRepoPath));
+    }
+
+    public function test_hasUncommittedChanges_detects_dirty_working_tree(): void
+    {
+        $this->assertFalse($this->service->hasUncommittedChanges($this->gitRepoPath));
+
+        file_put_contents($this->gitRepoPath . '/dirty.txt', 'pending');
+
+        $this->assertTrue($this->service->hasUncommittedChanges($this->gitRepoPath));
+    }
+
+    public function test_stashPush_and_stashPop_round_trip(): void
+    {
+        $this->runGitCommand('git checkout feature/TICKET-456');
+        file_put_contents($this->gitRepoPath . '/dirty.txt', 'pending');
+
+        $this->assertTrue($this->service->stashPush($this->gitRepoPath, 'test stash'));
+        $this->assertFalse($this->service->hasUncommittedChanges($this->gitRepoPath));
+
+        $this->assertTrue($this->service->stashPop($this->gitRepoPath));
+        $this->assertTrue($this->service->hasUncommittedChanges($this->gitRepoPath));
+        $this->assertFileExists($this->gitRepoPath . '/dirty.txt');
+    }
+
+    public function test_checkoutLocalBranch_checks_out_without_merging(): void
+    {
+        $this->runGitCommand('git checkout feature/TICKET-456');
+
+        $this->assertTrue($this->service->checkoutLocalBranch($this->gitRepoPath, 'main'));
+        $this->assertSame('main', $this->service->getCurrentBranch($this->gitRepoPath));
+    }
+
     /**
      * Install a post-checkout hook that always fails, mimicking a hook runner
      * invoked via a relative vendor/ path that is absent in a fresh worktree.

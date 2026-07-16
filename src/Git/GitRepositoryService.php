@@ -14,6 +14,22 @@ use Symfony\Component\Process\Process;
 class GitRepositoryService
 {
     /**
+     * Branch names that represent the main integration line — not feature work.
+     * Used by `ngramx worktree` when no ticket is given to decide whether the
+     * current checkout can be moved into a worktree.
+     *
+     * @var list<string>
+     */
+    private const INTEGRATION_BRANCHES = [
+        'main',
+        'master',
+        'staging',
+        'stage',
+        'production',
+        'prod',
+    ];
+
+    /**
      * The combined git stderr/stdout from the most recent failed checkout, kept so
      * callers can surface the underlying reason (e.g. a dirty working tree) instead
      * of a generic failure message. Empty when the last checkout succeeded.
@@ -31,6 +47,138 @@ class GitRepositoryService
         $fetchProcess->run();
 
         return $fetchProcess->isSuccessful();
+    }
+
+    /**
+     * Return the currently checked-out branch name, or null when HEAD is detached.
+     */
+    public function getCurrentBranch(string $repositoryPath): ?string
+    {
+        $process = new Process(['git', 'branch', '--show-current'], $repositoryPath);
+        $process->setTimeout(10);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            return null;
+        }
+
+        $branch = trim($process->getOutput());
+
+        return $branch !== '' ? $branch : null;
+    }
+
+    /**
+     * Whether the branch is an integration line (main/staging/production, etc.)
+     * rather than a feature branch.
+     */
+    public function isIntegrationBranch(string $branch): bool
+    {
+        return in_array(strtolower($branch), self::INTEGRATION_BRANCHES, true);
+    }
+
+    /**
+     * Resolve the repository's default integration branch — the branch the main
+     * checkout should return to after moving feature work into a worktree.
+     */
+    public function resolveDefaultIntegrationBranch(string $repositoryPath): string
+    {
+        $headProcess = new Process(['git', 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD'], $repositoryPath);
+        $headProcess->setTimeout(10);
+        $headProcess->run();
+
+        if ($headProcess->isSuccessful()) {
+            $ref = trim($headProcess->getOutput());
+            if (str_starts_with($ref, 'origin/')) {
+                return substr($ref, strlen('origin/'));
+            }
+        }
+
+        foreach (['main', 'master'] as $candidate) {
+            if ($this->localBranchExists($repositoryPath, $candidate)) {
+                return $candidate;
+            }
+        }
+
+        return 'main';
+    }
+
+    /**
+     * Whether the working tree has staged or unstaged changes (including untracked
+     * files when $includeUntracked is true).
+     */
+    public function hasUncommittedChanges(string $repositoryPath, bool $includeUntracked = true): bool
+    {
+        $args = ['git', 'status', '--porcelain'];
+        if (!$includeUntracked) {
+            $args[] = '--untracked-files=no';
+        }
+
+        $process = new Process($args, $repositoryPath);
+        $process->setTimeout(30);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            return false;
+        }
+
+        return trim($process->getOutput()) !== '';
+    }
+
+    /**
+     * Stash uncommitted changes when the working tree is dirty. Returns true when
+     * there was nothing to stash or the stash succeeded.
+     */
+    public function stashPush(string $repositoryPath, ?string $message = null): bool
+    {
+        if (!$this->hasUncommittedChanges($repositoryPath)) {
+            return true;
+        }
+
+        $args = ['git', 'stash', 'push', '-u'];
+        if ($message !== null && $message !== '') {
+            $args[] = '-m';
+            $args[] = $message;
+        }
+
+        $process = new Process($args, $repositoryPath);
+        $process->setTimeout(60);
+        $process->run();
+
+        return $process->isSuccessful();
+    }
+
+    /**
+     * Pop the most recent stash entry in the given checkout/worktree.
+     */
+    public function stashPop(string $repositoryPath): bool
+    {
+        $process = new Process(['git', 'stash', 'pop'], $repositoryPath);
+        $process->setTimeout(60);
+        $process->run();
+
+        return $process->isSuccessful();
+    }
+
+    /**
+     * Check out an existing local branch without merging from origin.
+     */
+    public function checkoutLocalBranch(string $repositoryPath, string $branch): bool
+    {
+        $process = new Process(['git', 'checkout', $branch], $repositoryPath);
+        $process->setTimeout(60);
+        $process->run();
+
+        if ($process->isSuccessful()) {
+            $this->lastCheckoutError = '';
+
+            return true;
+        }
+
+        $this->lastCheckoutError = trim(
+            $process->getErrorOutput() . "\n" . $process->getOutput()
+        );
+
+        return false;
     }
 
     /**
