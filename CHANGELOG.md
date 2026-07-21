@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.30.0](https://github.com/ngramx/ngramx/compare/v2.29.3...v2.30.0) (2026-07-21)
+
+
+### Bug Fixes
+
+* satisfy PHPStan for secrets shorthand list types ([8987967](https://github.com/ngramx/ngramx/commit/8987967626d2f423e3cd4a503ab59c7b4954ae3c))
+* validate worktree secrets before starting Docker ([89bc75f](https://github.com/ngramx/ngramx/commit/89bc75fd243640291fc15735bb48e5dd9f1c2bfb))
+
+
+### Features
+
+* accept shorthand secrets lists and rename env provider to shell ([23730e8](https://github.com/ngramx/ngramx/commit/23730e8f38a59dc8e6e470cd0b63952bf3523378))
+
 ## [2.29.3](https://github.com/ngramx/ngramx/compare/v2.29.2...v2.29.3) (2026-07-16)
 
 
