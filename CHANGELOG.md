@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.1](https://github.com/ngramx/ngramx/compare/v2.32.0...v2.32.1) (2026-07-21)
+
+
+### Bug Fixes
+
+* remove compose baseline file and Flux auth seeding from ngramx ([06c40d8](https://github.com/ngramx/ngramx/commit/06c40d834da8aad01fdfeef162e5ff77e0662326))
+
 # [2.32.0](https://github.com/ngramx/ngramx/compare/v2.31.0...v2.32.0) (2026-07-21)
 
 
