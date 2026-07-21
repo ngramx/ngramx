@@ -7,6 +7,7 @@ namespace Ngramx\Command;
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\Exception\ConfigException;
 use Ngramx\Config\LockFile;
+use Ngramx\Docker\ComposeBuildBaseline;
 use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Docker\Exception\ServiceNotHealthyException;
@@ -28,6 +29,7 @@ class RebuildCommand extends Command
         private readonly CommandOrchestrator $commandOrchestrator,
         private readonly LockFile $lockFile,
         private readonly ComposeOverrideGenerator $overrideGenerator,
+        private readonly ComposeBuildBaseline $composeBuildBaseline = new ComposeBuildBaseline(),
     ) {
         parent::__construct();
     }
@@ -115,6 +117,7 @@ class RebuildCommand extends Command
                 $buildPanel->clear();
             }
             $formatter->info('Containers rebuilt and started');
+            $this->composeBuildBaseline->record($config->docker->composeFile);
 
             // Phase 3: Wait for services to be healthy (with live rolling logs)
             if (!empty($config->docker->waitFor)) {

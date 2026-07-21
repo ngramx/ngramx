@@ -7,9 +7,11 @@ namespace Ngramx\Orchestrator;
 use Ngramx\Config\Schema\CommandDefinition;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Validator\SecretsValidator;
+use Ngramx\Docker\ComposeBuildBaseline;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Docker\Exception\ServiceNotHealthyException;
 use Ngramx\Docker\HealthChecker;
+use Ngramx\Docker\ImageBuildFreshnessChecker;
 use Ngramx\Docker\NetworkAttachmentChecker;
 use Ngramx\Docker\ServiceReadinessWaiter;
 use Ngramx\Executor\ContainerCommandExecutor;
@@ -43,6 +45,8 @@ class SetupOrchestrator
         private readonly HealthChecker $healthChecker,
         private readonly OutputFormatter $formatter,
         private readonly SecretsValidator $secretsValidator = new SecretsValidator(),
+        private readonly ImageBuildFreshnessChecker $buildFreshnessChecker = new ImageBuildFreshnessChecker(),
+        private readonly ComposeBuildBaseline $composeBuildBaseline = new ComposeBuildBaseline(),
         ?ServiceReadinessWaiter $readinessWaiter = null,
         ?AppUrlProbe $appUrlProbe = null,
         ?NetworkAttachmentChecker $networkAttachmentChecker = null,
@@ -109,6 +113,10 @@ class SetupOrchestrator
         }
 
         // Phase 2: Start Docker services
+        if (!$rebuild) {
+            $this->warnAboutStaleBuildInputs($config->docker->composeFile, $namespace);
+        }
+
         $this->startDockerServices($config->docker->composeFile, $namespace, $rebuild, $timeout, $firstRun);
 
         // Phase 2.5: Detect and auto-recover network-detached containers.
@@ -142,6 +150,10 @@ class SetupOrchestrator
         $probe = null;
         if ($verifyAppUrl && $config->docker->appUrl !== '') {
             $probe = $this->verifyAppUrl($config, $namespace, $portOffset ?? 0, $portMap);
+        }
+
+        if ($firstRun || $rebuild) {
+            $this->composeBuildBaseline->record($config->docker->composeFile);
         }
 
         return [
@@ -344,6 +356,23 @@ class SetupOrchestrator
 
         $count = $config->secrets->totalRequiredCount();
         $this->formatter->info("All $count required secret(s) available");
+    }
+
+    private function warnAboutStaleBuildInputs(string $composeFile, ?string $namespace): void
+    {
+        $findings = $this->buildFreshnessChecker->findStaleBuildInputs($composeFile, $namespace);
+        if ($findings === []) {
+            return;
+        }
+
+        $this->formatter->section('Docker image out of date');
+        foreach (explode("\n", $this->buildFreshnessChecker->formatAdvisory($findings)) as $line) {
+            if ($line === '') {
+                continue;
+            }
+
+            $this->formatter->warning($line);
+        }
     }
 
     /**

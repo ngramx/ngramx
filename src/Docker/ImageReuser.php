@@ -22,6 +22,11 @@ use Symfony\Component\Yaml\Yaml;
  */
 class ImageReuser
 {
+    public function __construct(
+        private readonly ImageBuildFreshnessChecker $freshnessChecker = new ImageBuildFreshnessChecker(),
+    ) {
+    }
+
     /**
      * Reuse already-built images for built-from-source services.
      *
@@ -36,7 +41,7 @@ class ImageReuser
             $target = $targetProject . '-' . $service;
 
             // A previous run for this same worktree may already have the image.
-            if ($this->imageExists($target)) {
+            if ($this->imageExists($target) && !$this->freshnessChecker->isServiceImageStale($composeFile, $targetProject, $service)) {
                 $reused[] = $service;
                 continue;
             }
@@ -47,6 +52,10 @@ class ImageReuser
                     continue;
                 }
 
+                if ($this->freshnessChecker->isServiceImageStale($composeFile, $sourceProject, $service)) {
+                    break;
+                }
+
                 if ($this->tagImage($source, $target)) {
                     $reused[] = $service;
                 }
@@ -55,6 +64,21 @@ class ImageReuser
         }
 
         return $reused;
+    }
+
+    /**
+     * @return list<StaleBuildFinding>
+     */
+    public function findStaleBuildInputs(string $composeFile, string $targetProject): array
+    {
+        return $this->freshnessChecker->findStaleBuildInputs($composeFile, $targetProject);
+    }
+
+    public function formatStaleBuildAdvisory(string $composeFile, string $targetProject): string
+    {
+        return $this->freshnessChecker->formatAdvisory(
+            $this->findStaleBuildInputs($composeFile, $targetProject)
+        );
     }
 
     /**

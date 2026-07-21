@@ -152,7 +152,7 @@ class SecretsValidatorTest extends TestCase
         $this->assertSame(['shell' => ['MISSING_SECRET']], $missing);
     }
 
-    public function test_it_treats_empty_string_env_value_as_present(): void
+    public function test_it_treats_empty_string_env_value_as_missing(): void
     {
         $validator = $this->createValidatorWithEnv([
             'EMPTY_SECRET' => '',
@@ -162,10 +162,10 @@ class SecretsValidatorTest extends TestCase
             new SecretsProviderConfig(required: ['EMPTY_SECRET']),
         ]);
 
-        $this->assertSame([], $validator->validate($secrets, $this->tmpDir));
+        $this->assertSame(['shell' => ['EMPTY_SECRET']], $validator->validate($secrets, $this->tmpDir));
     }
 
-    public function test_it_treats_empty_string_dotenv_value_as_present(): void
+    public function test_it_treats_empty_string_dotenv_value_as_missing(): void
     {
         file_put_contents($this->tmpDir . '/.env', "EMPTY_SECRET=\n");
 
@@ -177,7 +177,7 @@ class SecretsValidatorTest extends TestCase
             ),
         ]);
 
-        $this->assertSame([], $validator->validate($secrets, $this->tmpDir));
+        $this->assertSame(['.env' => ['EMPTY_SECRET']], $validator->validate($secrets, $this->tmpDir));
     }
 
     /**

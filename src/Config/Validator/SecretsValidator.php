@@ -61,7 +61,8 @@ class SecretsValidator
     {
         $missing = [];
         foreach ($required as $name) {
-            if ($this->getEnvVar($name) === false) {
+            $value = $this->getEnvVar($name);
+            if ($value === false || trim((string) $value) === '') {
                 $missing[] = $name;
             }
         }
@@ -82,7 +83,7 @@ class SecretsValidator
 
         $missing = [];
         foreach ($required as $name) {
-            if (!array_key_exists($name, $values)) {
+            if (!array_key_exists($name, $values) || trim($values[$name]) === '') {
                 $missing[] = $name;
             }
         }
