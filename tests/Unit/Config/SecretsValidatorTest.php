@@ -59,7 +59,7 @@ class SecretsValidatorTest extends TestCase
 
         $missing = $validator->validate($secrets, $this->tmpDir);
 
-        $this->assertSame(['env' => ['SECRET_TWO', 'SECRET_THREE']], $missing);
+        $this->assertSame(['shell' => ['SECRET_TWO', 'SECRET_THREE']], $missing);
     }
 
     public function test_it_validates_dotenv_provider_against_env_file(): void
@@ -123,7 +123,7 @@ class SecretsValidatorTest extends TestCase
                 required: ['APP_KEY', 'DB_PASSWORD'],
             ),
             new SecretsProviderConfig(
-                provider: SecretsProviderConfig::PROVIDER_ENV,
+                provider: SecretsProviderConfig::PROVIDER_SHELL,
                 required: ['HOST_SECRET', 'MISSING_ENV_SECRET'],
             ),
         ]);
@@ -132,8 +132,24 @@ class SecretsValidatorTest extends TestCase
 
         $this->assertSame([
             '.env' => ['DB_PASSWORD'],
-            'env' => ['MISSING_ENV_SECRET'],
+            'shell' => ['MISSING_ENV_SECRET'],
         ], $missing);
+    }
+
+    public function test_it_still_validates_obsolete_env_provider_for_backwards_compatibility(): void
+    {
+        $validator = $this->createValidatorWithEnv([]);
+
+        $secrets = new SecretsConfig(providers: [
+            new SecretsProviderConfig(
+                provider: SecretsProviderConfig::PROVIDER_ENV,
+                required: ['MISSING_SECRET'],
+            ),
+        ]);
+
+        $missing = $validator->validate($secrets, $this->tmpDir);
+
+        $this->assertSame(['shell' => ['MISSING_SECRET']], $missing);
     }
 
     public function test_it_treats_empty_string_env_value_as_present(): void

@@ -177,7 +177,7 @@ class ConfigLoaderTest extends TestCase
         $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
 
         $this->assertCount(1, $config->secrets->providers);
-        $this->assertSame('env', $config->secrets->providers[0]->provider);
+        $this->assertSame('shell', $config->secrets->providers[0]->provider);
         $this->assertEmpty($config->secrets->providers[0]->required);
     }
 
@@ -245,7 +245,7 @@ class ConfigLoaderTest extends TestCase
         $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx-with-secrets.yml');
 
         $this->assertCount(1, $config->secrets->providers);
-        $this->assertSame('env', $config->secrets->providers[0]->provider);
+        $this->assertSame('shell', $config->secrets->providers[0]->provider);
         $this->assertCount(2, $config->secrets->providers[0]->required);
         $this->assertEquals('NOVA_ACCOUNT_EMAIL', $config->secrets->providers[0]->required[0]);
         $this->assertEquals('NOVA_LICENSE_KEY', $config->secrets->providers[0]->required[1]);
@@ -258,8 +258,39 @@ class ConfigLoaderTest extends TestCase
         $this->assertCount(2, $config->secrets->providers);
         $this->assertSame('.env', $config->secrets->providers[0]->provider);
         $this->assertSame(['APP_KEY', 'DB_PASSWORD'], $config->secrets->providers[0]->required);
-        $this->assertSame('env', $config->secrets->providers[1]->provider);
+        $this->assertSame('shell', $config->secrets->providers[1]->provider);
         $this->assertSame(['NOVA_ACCOUNT_EMAIL', 'NOVA_LICENSE_KEY'], $config->secrets->providers[1]->required);
+    }
+
+    public function test_it_loads_shorthand_secrets_provider_list(): void
+    {
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx-with-secrets-list.yml');
+
+        $this->assertFalse($config->secrets->isEmpty());
+        $this->assertCount(1, $config->secrets->providers);
+        $this->assertSame('.env', $config->secrets->providers[0]->provider);
+        $this->assertSame(['FLUX_USERNAME', 'FLUX_LICENSE_KEY'], $config->secrets->providers[0]->required);
+    }
+
+    public function test_it_normalizes_obsolete_env_provider_to_shell(): void
+    {
+        $root = $this->makeTempDir();
+        file_put_contents($root . '/ngramx.yml', <<<'YAML'
+version: "1.0"
+docker:
+  compose_file: docker-compose.yml
+  primary_service: app
+  app_url: http://localhost
+secrets:
+  provider: env
+  required:
+    - SECRET_ONE
+YAML);
+
+        $config = $this->loader->load($root . '/ngramx.yml');
+
+        $this->assertSame('shell', $config->secrets->providers[0]->provider);
+        $this->assertSame(['SECRET_ONE'], $config->secrets->providers[0]->required);
     }
 
     public function test_find_config_file_returns_config_in_current_directory(): void

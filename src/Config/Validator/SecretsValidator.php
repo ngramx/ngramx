@@ -33,9 +33,11 @@ class SecretsValidator
                 continue;
             }
 
-            $missing = match ($providerConfig->provider) {
-                SecretsProviderConfig::PROVIDER_ENV => $this->validateEnvProvider($providerConfig->required),
-                SecretsProviderConfig::PROVIDER_DOTENV => $this->validateDotEnvProvider(
+            $missing = match (true) {
+                SecretsProviderConfig::isShellProvider($providerConfig->provider) => $this->validateShellProvider(
+                    $providerConfig->required
+                ),
+                $providerConfig->provider === SecretsProviderConfig::PROVIDER_DOTENV => $this->validateDotEnvProvider(
                     $providerConfig->required,
                     rtrim($configDirectory, '/') . '/.env'
                 ),
@@ -43,7 +45,8 @@ class SecretsValidator
             };
 
             if ($missing !== []) {
-                $missingByProvider[$providerConfig->provider] = $missing;
+                $providerKey = SecretsProviderConfig::normalizeProvider($providerConfig->provider);
+                $missingByProvider[$providerKey] = $missing;
             }
         }
 
@@ -54,7 +57,7 @@ class SecretsValidator
      * @param string[] $required
      * @return string[]
      */
-    private function validateEnvProvider(array $required): array
+    private function validateShellProvider(array $required): array
     {
         $missing = [];
         foreach ($required as $name) {

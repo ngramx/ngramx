@@ -333,7 +333,11 @@ class SetupOrchestrator
         if ($missingByProvider !== []) {
             foreach ($missingByProvider as $provider => $missing) {
                 $names = implode(', ', $missing);
-                $label = $provider === '.env' ? '.env file' : "{$provider} provider";
+                $label = match ($provider) {
+                    '.env' => '.env file',
+                    'shell' => 'shell environment',
+                    default => "{$provider} provider",
+                };
                 $this->formatter->error("Missing required secrets from {$label}: {$names}");
             }
 
@@ -341,7 +345,7 @@ class SetupOrchestrator
             foreach ($missingByProvider as $provider => $missing) {
                 $source = match ($provider) {
                     '.env' => 'the .env file',
-                    'env' => 'environment variables',
+                    'shell' => 'shell environment variables',
                     default => $provider,
                 };
                 $details[] = $source . ' (' . implode(', ', $missing) . ')';

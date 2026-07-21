@@ -522,7 +522,7 @@ class ConfigValidatorTest extends TestCase
                 'app_url' => 'http://localhost:8080',
             ],
             'secrets' => [
-                'provider' => 'env',
+                'provider' => 'shell',
                 'required' => ['SECRET_ONE', 'SECRET_TWO'],
             ],
         ];
@@ -547,10 +547,50 @@ class ConfigValidatorTest extends TestCase
                         'required' => ['APP_KEY'],
                     ],
                     [
-                        'provider' => 'env',
+                        'provider' => 'shell',
                         'required' => ['HOST_SECRET'],
                     ],
                 ],
+            ],
+        ];
+
+        $this->validator->validate($config);
+        $this->assertTrue(true);
+    }
+
+    public function test_it_validates_shorthand_secrets_provider_list(): void
+    {
+        $config = [
+            'version' => '1.0',
+            'docker' => [
+                'compose_file' => 'docker-compose.yml',
+                'primary_service' => 'app',
+                'app_url' => 'http://localhost:8080',
+            ],
+            'secrets' => [
+                [
+                    'provider' => '.env',
+                    'required' => ['FLUX_USERNAME', 'FLUX_LICENSE_KEY'],
+                ],
+            ],
+        ];
+
+        $this->validator->validate($config);
+        $this->assertTrue(true);
+    }
+
+    public function test_it_still_validates_obsolete_env_provider_for_backwards_compatibility(): void
+    {
+        $config = [
+            'version' => '1.0',
+            'docker' => [
+                'compose_file' => 'docker-compose.yml',
+                'primary_service' => 'app',
+                'app_url' => 'http://localhost:8080',
+            ],
+            'secrets' => [
+                'provider' => 'env',
+                'required' => ['SECRET_ONE'],
             ],
         ];
 
@@ -628,9 +668,9 @@ class ConfigValidatorTest extends TestCase
                 'app_url' => 'http://localhost:8080',
             ],
             'secrets' => [
-                'provider' => 'env',
+                'provider' => 'shell',
                 'providers' => [
-                    ['provider' => 'env', 'required' => ['SECRET_ONE']],
+                    ['provider' => 'shell', 'required' => ['SECRET_ONE']],
                 ],
             ],
         ];

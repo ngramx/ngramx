@@ -253,6 +253,8 @@ class ConfigLoader
      */
     private function buildSecretsConfig(array $secretsConfig): SecretsConfig
     {
+        $secretsConfig = SecretsSectionNormalizer::normalize($secretsConfig);
+
         if (isset($secretsConfig['providers'])) {
             $providers = [];
             foreach ($secretsConfig['providers'] as $entry) {
@@ -261,7 +263,11 @@ class ConfigLoader
                 }
 
                 $providers[] = new SecretsProviderConfig(
-                    provider: is_string($entry['provider'] ?? null) ? $entry['provider'] : SecretsProviderConfig::PROVIDER_ENV,
+                    provider: SecretsProviderConfig::normalizeProvider(
+                        is_string($entry['provider'] ?? null)
+                            ? $entry['provider']
+                            : SecretsProviderConfig::PROVIDER_SHELL
+                    ),
                     required: is_array($entry['required'] ?? null) ? $entry['required'] : [],
                 );
             }
@@ -271,9 +277,11 @@ class ConfigLoader
 
         return new SecretsConfig(providers: [
             new SecretsProviderConfig(
-                provider: is_string($secretsConfig['provider'] ?? null)
-                    ? $secretsConfig['provider']
-                    : SecretsProviderConfig::PROVIDER_ENV,
+                provider: SecretsProviderConfig::normalizeProvider(
+                    is_string($secretsConfig['provider'] ?? null)
+                        ? $secretsConfig['provider']
+                        : SecretsProviderConfig::PROVIDER_SHELL
+                ),
                 required: is_array($secretsConfig['required'] ?? null) ? $secretsConfig['required'] : [],
             ),
         ]);

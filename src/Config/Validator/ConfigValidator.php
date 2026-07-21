@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Ngramx\Config\Validator;
 
 use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\SecretsSectionNormalizer;
 use Ngramx\Config\Schema\AgentsConfig;
 
 class ConfigValidator
 {
     /** @var list<string> */
-    private const SUPPORTED_SECRET_PROVIDERS = ['env', '.env'];
+    private const SUPPORTED_SECRET_PROVIDERS = ['shell', '.env', 'env'];
+
+    /** @var list<string> */
+    private const DOCUMENTED_SECRET_PROVIDERS = ['shell', '.env'];
 
     /**
      * @param array<string, mixed> $config
@@ -233,6 +237,8 @@ class ConfigValidator
             throw new ConfigException('secrets must be an array');
         }
 
+        $secrets = SecretsSectionNormalizer::normalize($secrets);
+
         if (isset($secrets['providers'])) {
             if (isset($secrets['provider']) || isset($secrets['required'])) {
                 throw new ConfigException(
@@ -291,7 +297,7 @@ class ConfigValidator
     private function validateSecretProvider(string $provider, string $path): void
     {
         if (!in_array($provider, self::SUPPORTED_SECRET_PROVIDERS, true)) {
-            $supported = implode(', ', self::SUPPORTED_SECRET_PROVIDERS);
+            $supported = implode(', ', self::DOCUMENTED_SECRET_PROVIDERS);
             throw new ConfigException("Unsupported secrets provider at {$path}: {$provider}. Supported providers: {$supported}");
         }
     }
