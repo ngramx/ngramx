@@ -9,6 +9,7 @@ use Ngramx\Config\Exception\ConfigException;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Output\OutputFormatter;
 use Ngramx\Worktree\WorktreeIdentity;
+use RuntimeException;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -79,7 +80,7 @@ class WorktreeCommand extends ReviewCommand
                 return Command::FAILURE;
             }
 
-            $formatter->info('Searching remote branches for the ticket...');
+            $formatter->info('Searching branches for the ticket...');
             $branchNames = $this->findTicketBranches($repositoryPath, $rawTicket, $ticketSlug);
 
             if ($branchNames === []) {
@@ -104,15 +105,24 @@ class WorktreeCommand extends ReviewCommand
                 );
             }
 
-            $selectedBranch = $this->gitRepositoryService->selectBranch(
-                $repositoryPath,
-                $branchNames,
-                $input,
-                $output,
-                fn (string $message) => $formatter->info($message),
-                fn (string $message) => $formatter->warning($message),
-                fn (string $branch) => str_starts_with($branch, $ticketSlug)
-            );
+            try {
+                /** @var list<string> $matchingBranches */
+                $matchingBranches = array_values($branchNames);
+
+                $selectedBranch = $this->gitRepositoryService->selectBranchForWorktree(
+                    $repositoryPath,
+                    $matchingBranches,
+                    $input,
+                    $output,
+                    fn (string $message) => $formatter->info($message),
+                    fn (string $message) => $formatter->warning($message),
+                    fn (string $branch) => str_starts_with($branch, $ticketSlug)
+                );
+            } catch (RuntimeException $e) {
+                $formatter->error($e->getMessage());
+
+                return Command::FAILURE;
+            }
 
             return $this->runWorktreeReview(
                 $input,
@@ -133,26 +143,42 @@ class WorktreeCommand extends ReviewCommand
     }
 
     /**
-     * Search remote branches for the ticket, trying the most specific spelling
-     * first: the canonical slug ("gig-2345"), then the hyphen-less variant
-     * ("gig2345"), then the bare number ("2345"). The first spelling that
-     * matches anything wins, so a branch named with either convention is found
-     * without the bare-number fallback dragging in unrelated tickets.
+     * Search remote and local branches for the ticket, trying the most specific
+     * spelling first: the canonical slug ("gig-2345"), then the hyphen-less variant
+     * ("gig2345"), then the bare number ("2345"), then the raw user input when it
+     * looks like a full branch name. The first spelling that matches anything
+     * wins, so a branch named with either convention is found without the
+     * bare-number fallback dragging in unrelated tickets.
      *
      * @return array<string> Branch names (without origin/ prefix)
      */
     private function findTicketBranches(string $repositoryPath, string $rawTicket, string $ticketSlug): array
     {
-        $candidates = [$ticketSlug, str_replace('-', '', $ticketSlug)];
+        $prefixMatches = $this->gitRepositoryService->findBranchesForTicketPrefix($repositoryPath, $ticketSlug);
+        if ($prefixMatches !== []) {
+            return $prefixMatches;
+        }
 
-        // For a bare-number invocation the user's input *is* the identifier the
-        // ticket's branches most likely contain (e.g. cursor/2345-fix-thing).
+        $normalisedRaw = strtolower(trim($rawTicket));
+        if ($normalisedRaw !== $ticketSlug && $this->gitRepositoryService->localBranchExists($repositoryPath, $normalisedRaw)) {
+            return [$normalisedRaw];
+        }
+
+        $candidates = [str_replace('-', '', $ticketSlug)];
+
         if (preg_match('/^\d+$/', $rawTicket) === 1) {
             $candidates[] = $rawTicket;
         }
 
         foreach (array_unique($candidates) as $candidate) {
             $branches = $this->gitRepositoryService->findBranchesContaining($repositoryPath, $candidate);
+            if ($branches !== []) {
+                return $branches;
+            }
+        }
+
+        foreach (array_unique($candidates) as $candidate) {
+            $branches = $this->gitRepositoryService->findLocalBranchesContaining($repositoryPath, $candidate);
             if ($branches !== []) {
                 return $branches;
             }

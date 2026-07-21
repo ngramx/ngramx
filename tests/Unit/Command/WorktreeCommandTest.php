@@ -252,6 +252,7 @@ class WorktreeCommandTest extends TestCase
         $this->setupConfigLoader($this->createMockConfig());
         $this->preCreateWorktreeDirectory('gig-123');
 
+        $this->stubNoTicketPrefixMatches();
         $this->gitRepositoryService->expects($this->any())->method('findBranchesContaining')->willReturn([]);
         $this->gitRepositoryService->expects($this->any())->method('localBranchExists')->willReturn(false);
         $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(false);
@@ -277,6 +278,13 @@ class WorktreeCommandTest extends TestCase
         $this->preCreateWorktreeDirectory('cor-55');
 
         $searched = [];
+        $prefixSearched = [];
+        $this->gitRepositoryService->expects($this->any())
+            ->method('findBranchesForTicketPrefix')
+            ->willReturnCallback(function (string $path, string $prefix) use (&$prefixSearched): array {
+                $prefixSearched[] = $prefix;
+                return [];
+            });
         $this->gitRepositoryService->expects($this->any())
             ->method('findBranchesContaining')
             ->willReturnCallback(function (string $path, string $needle) use (&$searched): array {
@@ -297,8 +305,8 @@ class WorktreeCommandTest extends TestCase
         $exitCode = $tester->execute(['ticket' => '55']);
 
         $this->assertSame(0, $exitCode, $tester->getDisplay());
-        // The canonical slug is searched first, the bare number as a fallback.
-        $this->assertContains('cor-55', $searched);
+        $this->assertContains('cor-55', $prefixSearched);
+        $this->assertContains('cor55', $searched);
         $this->assertContains('55', $searched);
     }
 
@@ -308,9 +316,12 @@ class WorktreeCommandTest extends TestCase
         $this->preCreateWorktreeDirectory('gig-123');
 
         $this->gitRepositoryService->expects($this->any())
-            ->method('findBranchesContaining')
+            ->method('findBranchesForTicketPrefix')
+            ->with($this->tmpDir, 'gig-123')
             ->willReturn(['gig-123-fix-thing']);
-        $this->gitRepositoryService->expects($this->any())->method('selectBranch')->willReturn('gig-123-fix-thing');
+        $this->gitRepositoryService->expects($this->any())
+            ->method('selectBranchForWorktree')
+            ->willReturn('gig-123-fix-thing');
         $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(false);
 
         $this->gitRepositoryService->expects($this->once())
@@ -332,10 +343,13 @@ class WorktreeCommandTest extends TestCase
         $this->setupConfigLoader($this->createMockConfig());
         $this->preCreateWorktreeDirectory('gig-123');
 
+        $this->stubNoTicketPrefixMatches();
         $this->gitRepositoryService->expects($this->any())
             ->method('findBranchesContaining')
             ->willReturnCallback(fn (string $path, string $needle): array => $needle === 'gig123' ? ['gig123-old-style'] : []);
-        $this->gitRepositoryService->expects($this->any())->method('selectBranch')->willReturn('gig123-old-style');
+        $this->gitRepositoryService->expects($this->any())
+            ->method('selectBranchForWorktree')
+            ->willReturn('gig123-old-style');
         $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(false);
 
         $this->gitRepositoryService->expects($this->once())
@@ -357,6 +371,7 @@ class WorktreeCommandTest extends TestCase
         $this->setupConfigLoader($this->createMockConfig());
         $this->preCreateWorktreeDirectory('gig-123');
 
+        $this->stubNoTicketPrefixMatches();
         $this->gitRepositoryService->expects($this->any())->method('findBranchesContaining')->willReturn([]);
         $this->gitRepositoryService->expects($this->any())->method('localBranchExists')->willReturn(true);
         $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(false);
@@ -376,15 +391,70 @@ class WorktreeCommandTest extends TestCase
         $this->assertStringContainsString("reusing the local branch 'gig-123'", $tester->getDisplay());
     }
 
+    public function test_it_finds_a_local_branch_with_a_descriptive_suffix(): void
+    {
+        $branch = 'gig-2497-allow-defect-pins-to-be-assigned-to-specific-custom-report';
+
+        $this->setupConfigLoader($this->createMockConfig());
+        $this->preCreateWorktreeDirectory('gig-2497');
+
+        $this->gitRepositoryService->expects($this->any())
+            ->method('findBranchesForTicketPrefix')
+            ->with($this->tmpDir, 'gig-2497')
+            ->willReturn([$branch]);
+        $this->gitRepositoryService->expects($this->any())
+            ->method('selectBranchForWorktree')
+            ->willReturn($branch);
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(false);
+
+        $this->gitRepositoryService->expects($this->once())
+            ->method('addWorktree')
+            ->with($this->anything(), $this->anything(), $branch)
+            ->willReturn(true);
+        $this->gitRepositoryService->expects($this->never())->method('addWorktreeWithNewBranch');
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'gig-2497']);
+
+        $this->assertSame(0, $exitCode, $tester->getDisplay());
+        $this->assertStringContainsString('Searching branches for the ticket', $tester->getDisplay());
+        $this->assertStringNotContainsString("a new branch 'gig-2497' will be created", $tester->getDisplay());
+    }
+
+    public function test_it_fails_when_all_matching_branches_are_checked_out_elsewhere(): void
+    {
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $this->gitRepositoryService->expects($this->any())
+            ->method('findBranchesForTicketPrefix')
+            ->willReturn(['gig-2497-allow-defect-pins-to-be-assigned-to-specific-custom-report']);
+        $this->gitRepositoryService->expects($this->once())
+            ->method('selectBranchForWorktree')
+            ->willThrowException(new \RuntimeException(
+                'All matching branches are already checked out in other worktrees. '
+                . 'Switch those worktrees off the branch or remove them before retrying.'
+            ));
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'gig-2497']);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('already checked out in other worktrees', $tester->getDisplay());
+    }
+
     public function test_it_reuses_an_existing_worktree(): void
     {
         $this->setupConfigLoader($this->createMockConfig());
         $this->preCreateWorktreeDirectory('gig-123');
 
         $this->gitRepositoryService->expects($this->any())
-            ->method('findBranchesContaining')
+            ->method('findBranchesForTicketPrefix')
             ->willReturn(['gig-123-fix-thing']);
-        $this->gitRepositoryService->expects($this->any())->method('selectBranch')->willReturn('gig-123-fix-thing');
+        $this->gitRepositoryService->expects($this->any())
+            ->method('selectBranchForWorktree')
+            ->willReturn('gig-123-fix-thing');
         $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(true);
 
         $this->gitRepositoryService->expects($this->never())->method('addWorktree');
@@ -411,6 +481,13 @@ class WorktreeCommandTest extends TestCase
 
         $this->assertSame(1, $exitCode);
         $this->assertStringContainsString('Failed to fetch from origin', $tester->getDisplay());
+    }
+
+    private function stubNoTicketPrefixMatches(): void
+    {
+        $this->gitRepositoryService->expects($this->any())
+            ->method('findBranchesForTicketPrefix')
+            ->willReturn([]);
     }
 
     /**

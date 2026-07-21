@@ -227,6 +227,208 @@ class GitRepositoryService
     }
 
     /**
+     * Find local branches whose names contain a search string.
+     *
+     * @return array<string> Array of branch names (without refs/heads/ prefix)
+     */
+    public function findLocalBranchesContaining(string $repositoryPath, string $searchString): array
+    {
+        $escapedSearch = escapeshellarg($searchString);
+
+        $branchProcess = Process::fromShellCommandline(
+            "git for-each-ref --format='%(refname:short)' refs/heads | grep $escapedSearch",
+            $repositoryPath
+        );
+        $branchProcess->setTimeout(30);
+        $branchProcess->run();
+
+        if (!$branchProcess->isSuccessful()) {
+            return [];
+        }
+
+        $branchOutput = trim($branchProcess->getOutput());
+        if ($branchOutput === '') {
+            return [];
+        }
+
+        /** @var array<string> $branchNames */
+        $branchNames = array_values(array_unique(array_filter(
+            array_map('trim', explode("\n", $branchOutput)),
+            static fn (string $branch): bool => $branch !== ''
+        )));
+
+        return $branchNames;
+    }
+
+    /**
+     * Find local and remote branches whose names start with a ticket prefix
+     * ("gig-2497" matches "gig-2497" and "gig-2497-allow-defect-pins-…").
+     *
+     * @return list<string>
+     */
+    public function findBranchesForTicketPrefix(string $repositoryPath, string $ticketPrefix): array
+    {
+        $ticketPrefix = strtolower(trim($ticketPrefix));
+        if ($ticketPrefix === '') {
+            return [];
+        }
+
+        $pattern = '/^' . preg_quote($ticketPrefix, '/') . '(?:$|-)/';
+
+        /** @var list<string> $matches */
+        $matches = [];
+        foreach ($this->listKnownBranchNames($repositoryPath) as $branch) {
+            if (preg_match($pattern, strtolower($branch)) === 1) {
+                $matches[] = $branch;
+            }
+        }
+
+        return array_values(array_unique($matches));
+    }
+
+    /**
+     * Map each checked-out branch to the worktree path that has it open.
+     *
+     * @return array<string, string> Branch name => absolute worktree path
+     */
+    public function mapCheckedOutBranches(string $repositoryPath): array
+    {
+        $process = new Process(['git', 'worktree', 'list', '--porcelain'], $repositoryPath);
+        $process->setTimeout(30);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            return [];
+        }
+
+        $checkedOut = [];
+        $currentWorktree = null;
+
+        foreach (explode("\n", $process->getOutput()) as $line) {
+            if (str_starts_with($line, 'worktree ')) {
+                $currentWorktree = trim(substr($line, strlen('worktree ')));
+
+                continue;
+            }
+
+            if ($currentWorktree === null || !str_starts_with($line, 'branch ')) {
+                continue;
+            }
+
+            $ref = trim(substr($line, strlen('branch ')));
+            if (!str_starts_with($ref, 'refs/heads/')) {
+                continue;
+            }
+
+            $branch = substr($ref, strlen('refs/heads/'));
+            if ($branch !== '') {
+                $checkedOut[$branch] = $currentWorktree;
+            }
+        }
+
+        return $checkedOut;
+    }
+
+    /**
+     * Select a branch for a new worktree, excluding branches already checked
+     * out elsewhere and surfacing where they are checked out.
+     *
+     * @param list<string> $branches
+     */
+    public function selectBranchForWorktree(
+        string $repositoryPath,
+        array $branches,
+        InputInterface $input,
+        OutputInterface $output,
+        callable $infoCallback,
+        callable $warningCallback,
+        ?callable $preferenceCallback = null
+    ): string {
+        $checkedOut = $this->mapCheckedOutBranches($repositoryPath);
+
+        /** @var list<string> $available */
+        $available = [];
+        foreach ($branches as $branch) {
+            if (!array_key_exists($branch, $checkedOut)) {
+                $available[] = $branch;
+            }
+        }
+
+        $unavailable = array_values(array_diff($branches, $available));
+        if ($unavailable !== []) {
+            $warningCallback('The following matching branches are already checked out elsewhere and cannot be used:');
+            foreach ($unavailable as $branch) {
+                $warningCallback("  - {$branch} (at {$checkedOut[$branch]})");
+            }
+        }
+
+        if ($available === []) {
+            throw new RuntimeException(
+                'All matching branches are already checked out in other worktrees. '
+                . 'Switch those worktrees off the branch or remove them before retrying.'
+            );
+        }
+
+        if (count($available) === 1) {
+            $infoCallback('Using branch: ' . $available[0]);
+
+            return $available[0];
+        }
+
+        return $this->selectBranch(
+            $repositoryPath,
+            $available,
+            $input,
+            $output,
+            $infoCallback,
+            $warningCallback,
+            $preferenceCallback
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function listKnownBranchNames(string $repositoryPath): array
+    {
+        $names = [];
+
+        $localProcess = new Process(
+            ['git', 'for-each-ref', '--format=%(refname:short)', 'refs/heads'],
+            $repositoryPath
+        );
+        $localProcess->setTimeout(30);
+        $localProcess->run();
+        if ($localProcess->isSuccessful()) {
+            foreach (explode("\n", trim($localProcess->getOutput())) as $line) {
+                $line = trim($line);
+                if ($line !== '') {
+                    $names[] = $line;
+                }
+            }
+        }
+
+        $remoteProcess = new Process(
+            ['git', 'for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin'],
+            $repositoryPath
+        );
+        $remoteProcess->setTimeout(30);
+        $remoteProcess->run();
+        if ($remoteProcess->isSuccessful()) {
+            foreach (explode("\n", trim($remoteProcess->getOutput())) as $line) {
+                $line = trim($line);
+                if ($line === '' || $line === 'origin' || str_contains($line, 'HEAD')) {
+                    continue;
+                }
+
+                $names[] = preg_replace('/^origin\//', '', $line) ?? $line;
+            }
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
      * Checkout the specified branch, fast-forwarding from origin if it already exists locally.
      *
      * If the local branch exists, it is checked out and fast-forward merged from origin/<branch>

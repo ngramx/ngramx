@@ -114,6 +114,127 @@ class GitRepositoryServiceTest extends TestCase
         $this->assertEquals(count($uniqueBranches), count($branches));
     }
 
+    public function test_findLocalBranchesContaining_finds_local_only_branches(): void
+    {
+        $this->createBranchWithCommit(
+            'gig-2497-allow-defect-pins-to-be-assigned-to-specific-custom-report',
+            '2024-01-06 10:00:00',
+            'Local-only feature branch'
+        );
+
+        $this->assertEmpty($this->service->findBranchesContaining($this->gitRepoPath, 'gig-2497'));
+        $this->assertSame(
+            ['gig-2497-allow-defect-pins-to-be-assigned-to-specific-custom-report'],
+            $this->service->findLocalBranchesContaining($this->gitRepoPath, 'gig-2497')
+        );
+    }
+
+    public function test_findBranchesForTicketPrefix_matches_exact_and_suffixed_branches(): void
+    {
+        $this->createBranchWithCommit('gig-2497', '2024-01-06 10:00:00', 'Exact ticket branch');
+        $this->createBranchWithCommit(
+            'gig-2497-allow-defect-pins-to-be-assigned-to-specific-custom-report',
+            '2024-01-07 10:00:00',
+            'Suffixed ticket branch'
+        );
+        $this->createBranchWithCommit('gig-24970-unrelated', '2024-01-08 10:00:00', 'Different ticket');
+
+        $matches = $this->service->findBranchesForTicketPrefix($this->gitRepoPath, 'gig-2497');
+
+        $this->assertContains('gig-2497', $matches);
+        $this->assertContains('gig-2497-allow-defect-pins-to-be-assigned-to-specific-custom-report', $matches);
+        $this->assertNotContains('gig-24970-unrelated', $matches);
+    }
+
+    public function test_mapCheckedOutBranches_maps_branch_to_worktree_path(): void
+    {
+        $worktreePath = $this->tempDir . '/wt-map-checked-out';
+        $this->service->addWorktree($this->gitRepoPath, $worktreePath, 'feature/TICKET-456');
+
+        $checkedOut = $this->service->mapCheckedOutBranches($this->gitRepoPath);
+
+        $this->assertSame($worktreePath, $checkedOut['feature/TICKET-456']);
+    }
+
+    public function test_selectBranchForWorktree_auto_selects_single_available_branch(): void
+    {
+        $branch = 'gig-2497-allow-defect-pins-to-be-assigned-to-specific-custom-report';
+        $this->createBranchWithCommit($branch, '2024-01-06 10:00:00', 'Local-only feature branch');
+
+        $infoMessages = [];
+        $input = $this->createStreamableInput('');
+        $output = new BufferedOutput();
+
+        $selected = $this->service->selectBranchForWorktree(
+            $this->gitRepoPath,
+            [$branch],
+            $input,
+            $output,
+            function (string $message) use (&$infoMessages): void {
+                $infoMessages[] = $message;
+            },
+            fn (string $message) => null,
+        );
+
+        $this->assertSame($branch, $selected);
+        $this->assertSame(['Using branch: ' . $branch], $infoMessages);
+    }
+
+    public function test_selectBranchForWorktree_excludes_checked_out_branches(): void
+    {
+        $availableBranch = 'gig-2497-available';
+        $checkedOutBranch = 'gig-2497-checked-out';
+        $this->createBranchWithCommit($availableBranch, '2024-01-06 10:00:00', 'Available branch');
+        $this->createBranchWithCommit($checkedOutBranch, '2024-01-07 10:00:00', 'Checked-out branch');
+
+        $worktreePath = $this->tempDir . '/wt-checked-out-branch';
+        $this->service->addWorktree($this->gitRepoPath, $worktreePath, $checkedOutBranch);
+
+        $warningMessages = [];
+        $input = $this->createStreamableInput('');
+        $output = new BufferedOutput();
+
+        $selected = $this->service->selectBranchForWorktree(
+            $this->gitRepoPath,
+            [$availableBranch, $checkedOutBranch],
+            $input,
+            $output,
+            fn (string $message) => null,
+            function (string $message) use (&$warningMessages): void {
+                $warningMessages[] = $message;
+            },
+        );
+
+        $this->assertSame($availableBranch, $selected);
+        $this->assertStringContainsString('already checked out elsewhere', implode("\n", $warningMessages));
+        $this->assertStringContainsString($checkedOutBranch, implode("\n", $warningMessages));
+        $this->assertStringContainsString($worktreePath, implode("\n", $warningMessages));
+    }
+
+    public function test_selectBranchForWorktree_throws_when_all_matches_are_checked_out(): void
+    {
+        $branch = 'gig-2497-only-checked-out';
+        $this->createBranchWithCommit($branch, '2024-01-06 10:00:00', 'Checked-out branch');
+
+        $worktreePath = $this->tempDir . '/wt-only-checked-out';
+        $this->service->addWorktree($this->gitRepoPath, $worktreePath, $branch);
+
+        $input = $this->createStreamableInput('');
+        $output = new BufferedOutput();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('All matching branches are already checked out in other worktrees');
+
+        $this->service->selectBranchForWorktree(
+            $this->gitRepoPath,
+            [$branch],
+            $input,
+            $output,
+            fn (string $message) => null,
+            fn (string $message) => null,
+        );
+    }
+
     public function test_findMostRecentBranch_returns_most_recent_branch(): void
     {
         $branches = ['feature/TICKET-123', 'feature/TICKET-456', 'bugfix/TICKET-123-fix'];
