@@ -90,6 +90,37 @@ class SecretsValidator
         return $missing;
     }
 
+    /**
+     * @param array<string, string[]> $missingByProvider
+     */
+    public static function buildFailureMessage(array $missingByProvider): string
+    {
+        $details = [];
+        foreach ($missingByProvider as $provider => $missing) {
+            $details[] = self::describeMissingSource($provider) . ' (' . implode(', ', $missing) . ')';
+        }
+
+        return 'Missing required secrets: ' . implode('; ', $details) . '.';
+    }
+
+    public static function describeProviderLabel(string $provider): string
+    {
+        return match ($provider) {
+            SecretsProviderConfig::PROVIDER_DOTENV => '.env file',
+            SecretsProviderConfig::PROVIDER_SHELL => 'shell environment',
+            default => "{$provider} provider",
+        };
+    }
+
+    public static function describeMissingSource(string $provider): string
+    {
+        return match ($provider) {
+            SecretsProviderConfig::PROVIDER_DOTENV => 'the .env file',
+            SecretsProviderConfig::PROVIDER_SHELL => 'shell environment variables',
+            default => $provider,
+        };
+    }
+
     protected function getEnvVar(string $name): string|false
     {
         return getenv($name);

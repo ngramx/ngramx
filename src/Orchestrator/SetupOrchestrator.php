@@ -332,28 +332,14 @@ class SetupOrchestrator
 
         if ($missingByProvider !== []) {
             foreach ($missingByProvider as $provider => $missing) {
-                $names = implode(', ', $missing);
-                $label = match ($provider) {
-                    '.env' => '.env file',
-                    'shell' => 'shell environment',
-                    default => "{$provider} provider",
-                };
-                $this->formatter->error("Missing required secrets from {$label}: {$names}");
+                $this->formatter->error(sprintf(
+                    'Missing required secrets from %s: %s',
+                    SecretsValidator::describeProviderLabel($provider),
+                    implode(', ', $missing)
+                ));
             }
 
-            $details = [];
-            foreach ($missingByProvider as $provider => $missing) {
-                $source = match ($provider) {
-                    '.env' => 'the .env file',
-                    'shell' => 'shell environment variables',
-                    default => $provider,
-                };
-                $details[] = $source . ' (' . implode(', ', $missing) . ')';
-            }
-
-            throw new \RuntimeException(
-                'Missing required secrets: ' . implode('; ', $details) . '.'
-            );
+            throw new \RuntimeException(SecretsValidator::buildFailureMessage($missingByProvider));
         }
 
         $count = $config->secrets->totalRequiredCount();

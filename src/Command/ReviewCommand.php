@@ -9,6 +9,7 @@ use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\Exception\ConfigException;
 use Ngramx\Config\LockFile;
 use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Validator\SecretsValidator;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Docker\ImageReuser;
 use Ngramx\Docker\NamespaceResolver;
@@ -48,6 +49,7 @@ class ReviewCommand extends Command
     private readonly WorktreeUrlResolver $worktreeUrlResolver;
     private readonly WorktreeDependencyPrimer $dependencyPrimer;
     private readonly WorktreeCertSeeder $certSeeder;
+    private readonly SecretsValidator $secretsValidator;
 
     public function __construct(
         protected readonly ConfigLoader $configLoader,
@@ -64,6 +66,7 @@ class ReviewCommand extends Command
         ?WorktreeUrlResolver $worktreeUrlResolver = null,
         ?WorktreeDependencyPrimer $dependencyPrimer = null,
         ?WorktreeCertSeeder $certSeeder = null,
+        ?SecretsValidator $secretsValidator = null,
     ) {
         parent::__construct();
         $this->portOffsetManager = $portOffsetManager ?? new PortOffsetManager();
@@ -74,6 +77,7 @@ class ReviewCommand extends Command
         $this->worktreeUrlResolver = $worktreeUrlResolver ?? new WorktreeUrlResolver();
         $this->dependencyPrimer = $dependencyPrimer ?? new WorktreeDependencyPrimer();
         $this->certSeeder = $certSeeder ?? new WorktreeCertSeeder();
+        $this->secretsValidator = $secretsValidator ?? new SecretsValidator();
     }
 
     protected function configure(): void
@@ -315,6 +319,11 @@ class ReviewCommand extends Command
 
         $this->seedWorktreeConfig($repositoryPath, $worktreePath, $formatter);
         $this->seedWorktreeEnv($repositoryPath, $worktreePath, $worktreeUrl, $formatter);
+
+        $secretsExit = $this->validateWorktreeSecrets($worktreePath, $formatter);
+        if ($secretsExit !== Command::SUCCESS) {
+            return $secretsExit;
+        }
 
         // For https apps, make sure the worktree's cert covers both hostnames
         // the environment may advertise (the app's own host and the
@@ -873,6 +882,56 @@ class ReviewCommand extends Command
                 . "writing storage/logs, run:\n  sudo chown -R {$result->uid}:{$result->gid} {$worktreePath}"
             );
         }
+    }
+
+    /**
+     * Validate required secrets from the worktree's own ngramx.yml against the
+     * worktree directory (after .env has been seeded from the parent checkout)
+     * so missing Flux/Nova credentials fail before Docker starts.
+     */
+    private function validateWorktreeSecrets(string $worktreePath, OutputFormatter $formatter): int
+    {
+        $worktreeConfigPath = $worktreePath . '/ngramx.yml';
+        if (!is_file($worktreeConfigPath)) {
+            return Command::SUCCESS;
+        }
+
+        try {
+            $worktreeConfig = $this->configLoader->load($worktreeConfigPath);
+        } catch (ConfigException $e) {
+            $formatter->error("Worktree configuration error: {$e->getMessage()}");
+
+            return Command::FAILURE;
+        }
+
+        if ($worktreeConfig->secrets->isEmpty()) {
+            return Command::SUCCESS;
+        }
+
+        $formatter->section('Validating secrets');
+
+        $missingByProvider = $this->secretsValidator->validate($worktreeConfig->secrets, $worktreePath);
+
+        if ($missingByProvider !== []) {
+            foreach ($missingByProvider as $provider => $missing) {
+                $formatter->error(sprintf(
+                    'Missing required secrets from %s: %s',
+                    SecretsValidator::describeProviderLabel($provider),
+                    implode(', ', $missing)
+                ));
+            }
+
+            $formatter->info(
+                'Add the missing values to the parent checkout .env before running ngramx worktree — the worktree copies that file verbatim.'
+            );
+            $formatter->error(SecretsValidator::buildFailureMessage($missingByProvider));
+
+            return Command::FAILURE;
+        }
+
+        $formatter->info('All ' . $worktreeConfig->secrets->totalRequiredCount() . ' required secret(s) available');
+
+        return Command::SUCCESS;
     }
 
     /**
