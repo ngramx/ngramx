@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.32.0](https://github.com/ngramx/ngramx/compare/v2.31.0...v2.32.0) (2026-07-21)
+
+
+### Features
+
+* detect stale Docker images and seed Flux auth for worktrees ([2a9a959](https://github.com/ngramx/ngramx/commit/2a9a959f19e3f2ebf1ec507805479c6890e00620))
+
 # [2.31.0](https://github.com/ngramx/ngramx/compare/v2.30.0...v2.31.0) (2026-07-21)
 
 
