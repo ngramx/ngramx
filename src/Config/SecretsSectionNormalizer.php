@@ -17,7 +17,7 @@ namespace Ngramx\Config;
 final class SecretsSectionNormalizer
 {
     /**
-     * @param array<string, mixed> $secrets
+     * @param array<mixed> $secrets Parsed YAML for the secrets section
      *
      * @return array<string, mixed>
      */
@@ -31,7 +31,7 @@ final class SecretsSectionNormalizer
     }
 
     /**
-     * @param array<string, mixed> $secrets
+     * @param array<mixed> $secrets Parsed YAML for the secrets section
      */
     public static function isProvidersList(array $secrets): bool
     {
