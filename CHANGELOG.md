@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.31.0](https://github.com/ngramx/ngramx/compare/v2.30.0...v2.31.0) (2026-07-21)
+
+
+### Features
+
+* resolve worktree branches from ticket prefix with checkout awareness ([ee766b2](https://github.com/ngramx/ngramx/commit/ee766b235ac6f7b263db8e9f3b0d39b7dbbcb1bc))
+
 # [2.30.0](https://github.com/ngramx/ngramx/compare/v2.29.3...v2.30.0) (2026-07-21)
 
 
