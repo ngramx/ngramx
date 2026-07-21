@@ -18,7 +18,6 @@ class ImageBuildFreshnessChecker
 {
     public function __construct(
         private readonly DockerfileBuildContextParser $dockerfileParser = new DockerfileBuildContextParser(),
-        private readonly ComposeBuildBaseline $composeBuildBaseline = new ComposeBuildBaseline(),
     ) {
     }
 
@@ -331,15 +330,6 @@ class ImageBuildFreshnessChecker
      */
     private function composeInputsChanged(string $composeFile, int $imageCreatedAt): array
     {
-        $changed = $this->composeBuildBaseline->changedInputs($composeFile);
-        if ($changed !== []) {
-            return $changed;
-        }
-
-        if ($this->composeBuildBaseline->hasBaseline($composeFile)) {
-            return [];
-        }
-
         return $this->composeInputsNewerThanImageByMtime($composeFile, $imageCreatedAt);
     }
 

@@ -24,7 +24,6 @@ use Ngramx\Orchestrator\CommandOrchestrator;
 use Ngramx\Output\OutputFormatter;
 use Ngramx\Worktree\CursorIpcHookResolver;
 use Ngramx\Worktree\WorktreeCertSeeder;
-use Ngramx\Worktree\WorktreeComposerAuthSeeder;
 use Ngramx\Worktree\WorktreeDependencyPrimer;
 use Ngramx\Worktree\WorktreeIdentity;
 use Ngramx\Worktree\WorktreeOwnershipReconciler;
@@ -50,7 +49,6 @@ class ReviewCommand extends Command
     private readonly WorktreeUrlResolver $worktreeUrlResolver;
     private readonly WorktreeDependencyPrimer $dependencyPrimer;
     private readonly WorktreeCertSeeder $certSeeder;
-    private readonly WorktreeComposerAuthSeeder $composerAuthSeeder;
     private readonly SecretsValidator $secretsValidator;
 
     public function __construct(
@@ -68,7 +66,6 @@ class ReviewCommand extends Command
         ?WorktreeUrlResolver $worktreeUrlResolver = null,
         ?WorktreeDependencyPrimer $dependencyPrimer = null,
         ?WorktreeCertSeeder $certSeeder = null,
-        ?WorktreeComposerAuthSeeder $composerAuthSeeder = null,
         ?SecretsValidator $secretsValidator = null,
     ) {
         parent::__construct();
@@ -80,7 +77,6 @@ class ReviewCommand extends Command
         $this->worktreeUrlResolver = $worktreeUrlResolver ?? new WorktreeUrlResolver();
         $this->dependencyPrimer = $dependencyPrimer ?? new WorktreeDependencyPrimer();
         $this->certSeeder = $certSeeder ?? new WorktreeCertSeeder();
-        $this->composerAuthSeeder = $composerAuthSeeder ?? new WorktreeComposerAuthSeeder();
         $this->secretsValidator = $secretsValidator ?? new SecretsValidator();
     }
 
@@ -328,8 +324,6 @@ class ReviewCommand extends Command
         if ($secretsExit !== Command::SUCCESS) {
             return $secretsExit;
         }
-
-        $this->composerAuthSeeder->seed($worktreePath, $config->secrets, $formatter);
 
         // For https apps, make sure the worktree's cert covers both hostnames
         // the environment may advertise (the app's own host and the

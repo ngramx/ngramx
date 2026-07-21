@@ -7,7 +7,6 @@ namespace Ngramx\Orchestrator;
 use Ngramx\Config\Schema\CommandDefinition;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Validator\SecretsValidator;
-use Ngramx\Docker\ComposeBuildBaseline;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Docker\Exception\ServiceNotHealthyException;
 use Ngramx\Docker\HealthChecker;
@@ -46,7 +45,6 @@ class SetupOrchestrator
         private readonly OutputFormatter $formatter,
         private readonly SecretsValidator $secretsValidator = new SecretsValidator(),
         private readonly ImageBuildFreshnessChecker $buildFreshnessChecker = new ImageBuildFreshnessChecker(),
-        private readonly ComposeBuildBaseline $composeBuildBaseline = new ComposeBuildBaseline(),
         ?ServiceReadinessWaiter $readinessWaiter = null,
         ?AppUrlProbe $appUrlProbe = null,
         ?NetworkAttachmentChecker $networkAttachmentChecker = null,
@@ -150,10 +148,6 @@ class SetupOrchestrator
         $probe = null;
         if ($verifyAppUrl && $config->docker->appUrl !== '') {
             $probe = $this->verifyAppUrl($config, $namespace, $portOffset ?? 0, $portMap);
-        }
-
-        if ($firstRun || $rebuild) {
-            $this->composeBuildBaseline->record($config->docker->composeFile);
         }
 
         return [
