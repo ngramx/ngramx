@@ -8,11 +8,12 @@ use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Detects when a locally cached Docker image was built from older Dockerfile,
- * entrypoint, or compose inputs than the current project tree.
+ * Detects when a locally cached Docker image was built from older Dockerfile
+ * or entrypoint scripts than the current project tree.
  *
- * Images do not retain docker-compose.yml, so compose drift is detected via
- * file mtime only. Entrypoint and other COPY'd scripts are compared by content.
+ * Only COPY'd boot scripts (entrypoint, service entrypoint overrides) are
+ * compared, because docker-compose.yml changes are runtime config and do not
+ * require an image rebuild.
  */
 class ImageBuildFreshnessChecker
 {
@@ -56,22 +57,6 @@ class ImageBuildFreshnessChecker
                     );
                 }
             }
-
-            $createdAt = $this->imageCreatedAt($image);
-            if ($createdAt === null) {
-                continue;
-            }
-
-            $composeChanged = $this->composeInputsChanged($composeFile, $createdAt);
-            if ($composeChanged !== []) {
-                $findings[] = new StaleBuildFinding(
-                    service: $service,
-                    image: $image,
-                    reason: StaleBuildFinding::REASON_COMPOSE_NEWER_THAN_IMAGE,
-                    hostPath: dirname($composeFile) . '/' . $composeChanged[0],
-                    composeInputPaths: $composeChanged,
-                );
-            }
         }
 
         return $this->dedupeFindings($findings);
@@ -106,19 +91,29 @@ class ImageBuildFreshnessChecker
         foreach ($findings as $finding) {
             $lines[] = '  - ' . $finding->describe();
         }
-        $lines[] = 'Run `ngramx rebuild` to bake the latest Dockerfile, entrypoint, and compose changes into the image before starting.';
+        $lines[] = 'Run `ngramx rebuild` to bake the latest Dockerfile and entrypoint into the image before starting.';
 
         return implode("\n", $lines);
     }
 
     public function contentsMatch(string $hostPath, string $imageContents): bool
     {
-        $hostHash = hash_file('sha256', $hostPath);
-        if ($hostHash === false) {
+        $hostContents = file_get_contents($hostPath);
+        if ($hostContents === false) {
             return true;
         }
 
-        return hash_equals($hostHash, hash('sha256', $imageContents));
+        return hash_equals(
+            hash('sha256', $this->normalizeScriptContent($hostContents)),
+            hash('sha256', $this->normalizeScriptContent($imageContents))
+        );
+    }
+
+    private function normalizeScriptContent(string $content): string
+    {
+        $normalized = str_replace("\r\n", "\n", $content);
+
+        return rtrim($normalized, "\n") . "\n";
     }
 
     /**
@@ -257,21 +252,6 @@ class ImageBuildFreshnessChecker
         return $process->isSuccessful();
     }
 
-    private function imageCreatedAt(string $image): ?int
-    {
-        $process = new Process(['docker', 'image', 'inspect', '--format', '{{.Created}}', $image]);
-        $process->setTimeout(30);
-        $process->run();
-
-        if (!$process->isSuccessful()) {
-            return null;
-        }
-
-        $created = strtotime(trim($process->getOutput()));
-
-        return $created === false ? null : $created;
-    }
-
     /**
      * @param list<StaleBuildFinding> $findings
      * @return list<StaleBuildFinding>
@@ -323,49 +303,5 @@ class ImageBuildFreshnessChecker
         }
 
         return $names;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function composeInputsChanged(string $composeFile, int $imageCreatedAt): array
-    {
-        return $this->composeInputsNewerThanImageByMtime($composeFile, $imageCreatedAt);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function composeInputsNewerThanImageByMtime(string $composeFile, int $imageCreatedAt): array
-    {
-        $changed = [];
-
-        foreach (ComposeFiles::allInputFiles($composeFile) as $path) {
-            if (ComposeFiles::isGeneratedOverride($path)) {
-                continue;
-            }
-
-            $mtime = filemtime($path);
-            if ($mtime === false || $mtime <= $imageCreatedAt) {
-                continue;
-            }
-
-            $changed[] = $this->relativeComposePath($composeFile, $path);
-        }
-
-        sort($changed);
-
-        return $changed;
-    }
-
-    private function relativeComposePath(string $composeFile, string $inputPath): string
-    {
-        $projectDir = dirname($composeFile);
-
-        if (str_starts_with($inputPath, $projectDir . '/')) {
-            return substr($inputPath, strlen($projectDir) + 1);
-        }
-
-        return basename($inputPath);
     }
 }

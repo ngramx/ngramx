@@ -411,6 +411,15 @@ class ReviewCommand extends Command
 
                 // Reuse the main checkout's already-built image so the worktree
                 // doesn't rebuild it from scratch under its own project name.
+                $imageSources = array_values(array_unique([
+                    $repoName,
+                    $this->namespaceResolver->deriveFromDirectory($repositoryPath),
+                ]));
+                $reused = $this->imageReuser->reuse($config->docker->composeFile, $imageSources, $namespace);
+                if ($reused !== []) {
+                    $formatter->info('Reusing existing image for: ' . implode(', ', $reused) . ' (skipping rebuild)');
+                }
+
                 $staleFindings = $this->imageReuser->findStaleBuildInputs($config->docker->composeFile, $namespace);
                 if ($staleFindings !== []) {
                     $formatter->section('Docker image out of date');
@@ -420,15 +429,6 @@ class ReviewCommand extends Command
                         }
                         $formatter->warning($line);
                     }
-                }
-
-                $imageSources = array_values(array_unique([
-                    $repoName,
-                    $this->namespaceResolver->deriveFromDirectory($repositoryPath),
-                ]));
-                $reused = $this->imageReuser->reuse($config->docker->composeFile, $imageSources, $namespace);
-                if ($reused !== []) {
-                    $formatter->info('Reusing existing image for: ' . implode(', ', $reused) . ' (skipping rebuild)');
                 }
 
                 $upExit = $this->runUpCommand($output, $namespace, $portOffset);
