@@ -16,6 +16,7 @@ use Ngramx\Command\LogsCommand;
 use Ngramx\Command\N8n\ExportCommand;
 use Ngramx\Command\N8n\ImportCommand;
 use Ngramx\Command\N8n\NormaliseCommand;
+use Ngramx\Command\PostmacloneCommand;
 use Ngramx\Command\RebuildCommand;
 use Ngramx\Command\ReviewCommand;
 use Ngramx\Command\SecureCommand;
@@ -69,6 +70,7 @@ class Application extends BaseApplication
      */
     private const SKIP_AGENTS_SYNC_FOR = [
         '_complete', 'completion', 'list', 'help', 'self-update', 'style-demo', 'sync-agents',
+        'postmaclone',
     ];
 
     /** @var list<string> */
@@ -231,6 +233,7 @@ class Application extends BaseApplication
             $portOffsetManager
         ));
         $this->add(new SecureCommand($configLoader));
+        $this->add(new PostmacloneCommand($configLoader));
         $this->add(new StyleDemoCommand());
 
         // Create HTTP client for n8n export command

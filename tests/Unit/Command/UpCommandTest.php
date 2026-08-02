@@ -65,6 +65,7 @@ class UpCommandTest extends TestCase
         $this->assertTrue($definition->hasOption('skip-init'));
         $this->assertTrue($definition->hasOption('stop-herd'));
         $this->assertTrue($definition->hasOption('rebuild'));
+        $this->assertTrue($definition->hasOption('postmaclone'));
     }
 
     public function test_it_fails_when_docker_is_not_running(): void
@@ -133,8 +134,7 @@ class UpCommandTest extends TestCase
                 'port_offset' => 0,
             ]);
 
-        // No lock file in default mode
-        $this->lockFile->expects($this->never())
+        $this->lockFile->expects($this->once())
             ->method('write');
 
         $command = $this->createCommand();
@@ -416,7 +416,7 @@ class UpCommandTest extends TestCase
         $this->overrideGenerator->expects($this->never())
             ->method('generate');
 
-        $this->lockFile->expects($this->never())
+        $this->lockFile->expects($this->once())
             ->method('write');
 
         $this->setupOrchestrator->expects($this->any())->method('setup')->willReturn([
@@ -465,8 +465,7 @@ class UpCommandTest extends TestCase
                 'port_offset' => 0,
             ]);
 
-        // No lock file in default mode
-        $this->lockFile->expects($this->never())
+        $this->lockFile->expects($this->once())
             ->method('write');
 
         $command = $this->createCommand();

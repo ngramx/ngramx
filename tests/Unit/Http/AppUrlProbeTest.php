@@ -24,6 +24,25 @@ class AppUrlProbeTest extends TestCase
         $this->assertNull($result->error);
     }
 
+    public function test_probe_connects_dot_localhost_via_loopback_with_host_header(): void
+    {
+        $seenUrl = null;
+        $seenHost = null;
+        $probe = new AppUrlProbe(function (string $method, string $url, array $options) use (&$seenUrl, &$seenHost) {
+            $seenUrl = $url;
+            $seenHost = $options['headers']['Host'] ?? null;
+
+            return new Response(200);
+        });
+
+        $result = $probe->probe('http://earl-kendrick.localhost/login');
+
+        $this->assertTrue($result->isHealthy());
+        $this->assertSame('http://earl-kendrick.localhost/login', $result->url);
+        $this->assertSame('http://127.0.0.1/login', $seenUrl);
+        $this->assertSame('earl-kendrick.localhost', $seenHost);
+    }
+
     public function test_probe_treats_302_redirect_as_healthy(): void
     {
         $probe = new AppUrlProbe($this->requesterReturning(new Response(302, ['Location' => '/login'])));

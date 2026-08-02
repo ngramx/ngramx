@@ -19,9 +19,21 @@ final class EtcHostsHintTest extends TestCase
         $this->assertNull(EtcHostsHint::suggestedHostsLine('http://127.0.0.1/'));
     }
 
-    public function test_it_returns_null_for_dot_localhost(): void
+    public function test_it_suggests_hosts_line_for_dot_localhost_when_unresolved(): void
     {
-        $this->assertNull(EtcHostsHint::suggestedHostsLine('https://myapp.localhost'));
+        $host = 'myapp.localhost';
+        $resolved = @gethostbyname($host);
+        if ($resolved !== $host) {
+            // OS already maps *.localhost (e.g. some macOS/systemd-resolved setups).
+            $this->assertNull(EtcHostsHint::suggestedHostsLine('https://'.$host));
+
+            return;
+        }
+
+        $this->assertSame(
+            '127.0.0.1 '.$host,
+            EtcHostsHint::suggestedHostsLine('https://'.$host)
+        );
     }
 
     public function test_it_returns_null_for_invalid_url_without_host(): void

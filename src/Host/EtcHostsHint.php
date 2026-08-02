@@ -21,7 +21,9 @@ final class EtcHostsHint
             return null;
         }
 
-        if (self::isLoopbackStyleHostname($host)) {
+        // Bare localhost / raw loopback IPs never need a hosts entry.
+        $h = strtolower($host);
+        if ($h === 'localhost' || $h === '127.0.0.1' || $h === '::1') {
             return null;
         }
 
@@ -30,6 +32,10 @@ final class EtcHostsHint
             return null;
         }
 
+        // *.localhost is loopback per RFC 6761 on many OSes (including Windows),
+        // but WSL/Linux often does not resolve it — suggest a hosts line then.
+        // ngramx up probes *.localhost via 127.0.0.1 regardless; this hint is
+        // for curl/other tools inside the distro.
         $resolved = @gethostbyname($host);
         if ($resolved !== $host) {
             return null;
@@ -45,13 +51,4 @@ final class EtcHostsHint
         return isset($parts['host']) ? (string) $parts['host'] : null;
     }
 
-    private static function isLoopbackStyleHostname(string $host): bool
-    {
-        $h = strtolower($host);
-        if ($h === 'localhost' || $h === '127.0.0.1' || $h === '::1') {
-            return true;
-        }
-
-        return str_ends_with($h, '.localhost');
-    }
 }

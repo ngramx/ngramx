@@ -44,7 +44,43 @@ class AppUrlProbe
      */
     public function probe(string $url, int $attempts = 1, int $retrySeconds = 2): ProbeResult
     {
-        return $this->probeWithHost($url, null, $attempts, $retrySeconds);
+        // RFC 6761: *.localhost should mean loopback, but many Linux/WSL
+        // resolvers do not implement that — Windows browsers do. Connect via
+        // 127.0.0.1 and send the original Host so nginx/vhosts still match.
+        [$connectUrl, $hostHeader] = $this->loopbackConnectTarget($url);
+        $result = $this->probeWithHost($connectUrl, $hostHeader, $attempts, $retrySeconds);
+
+        return $connectUrl === $url ? $result : $result->withUrl($url);
+    }
+
+    /**
+     * @return array{0: string, 1: ?string} [connectUrl, hostHeader]
+     */
+    private function loopbackConnectTarget(string $url): array
+    {
+        $parts = parse_url($url);
+        $host = isset($parts['host']) ? (string) $parts['host'] : '';
+        if ($host === '' || !str_ends_with(strtolower($host), '.localhost')) {
+            return [$url, null];
+        }
+
+        return [$this->replaceUrlHost($url, '127.0.0.1'), $host];
+    }
+
+    private function replaceUrlHost(string $url, string $newHost): string
+    {
+        $parts = parse_url($url);
+        if ($parts === false || !isset($parts['host'])) {
+            return $url;
+        }
+
+        $scheme = isset($parts['scheme']) ? $parts['scheme'] . '://' : '';
+        $port = isset($parts['port']) ? ':' . $parts['port'] : '';
+        $path = $parts['path'] ?? '';
+        $query = isset($parts['query']) ? '?' . $parts['query'] : '';
+        $fragment = isset($parts['fragment']) ? '#' . $parts['fragment'] : '';
+
+        return $scheme . $newHost . $port . $path . $query . $fragment;
     }
 
     /**
