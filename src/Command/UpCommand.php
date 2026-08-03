@@ -305,7 +305,7 @@ class UpCommand extends Command
         $formatter->warning('Anonymization rules are project-owned. Never point this at production for in-place writes.');
 
         try {
-            $from = $this->postmacloneService->resolveFrom(null, $config);
+            $from = $this->postmacloneService->resolveFrom(null, $config, $projectRoot);
             $mismatch = $this->postmacloneService->engineMismatchWarning($config);
             if ($mismatch !== null) {
                 $formatter->warning($mismatch);

@@ -66,6 +66,29 @@ commands:
     description: "Run all validation checks (composer, phpstan, tests)"
     timeout: 180
 
+# Post Maclone — ephemeral anonymized MySQL clone (Docker target).
+# backup.source: connection → URL from POSTMACLONE_SOURCE_URL in .env
+# (never commit the URL). Example:
+#   POSTMACLONE_SOURCE_URL=mysql://readonly:secret@db.example.com:3306/app
+# Then: ngramx postmaclone
+postmaclone:
+  engine: mysql
+  locale: en_GB
+  seed: 42
+  backup:
+    source: connection
+  target:
+    provider: docker
+    ttl_hours: 4
+    docker:
+      image: mysql:8.0
+  # Opt-in anonymization only — edit to match the source schema.
+  tables:
+    users:
+      email: uniqueSafeEmail
+      first_name: firstName
+      last_name: lastName
+
 # Dogfood the managed agent instructions and skills for both Cursor and Claude.
 agents:
   targets:

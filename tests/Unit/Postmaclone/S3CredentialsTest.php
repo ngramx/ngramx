@@ -35,7 +35,19 @@ final class S3CredentialsTest extends TestCase
         $this->setUp();
     }
 
-    public function testRequireUsesEnvironmentFirst(): void
+    public function testRequireUsesEnvironmentWhenNoConfigRefs(): void
+    {
+        putenv('POSTMACLONE_S3_KEY=pk');
+        putenv('POSTMACLONE_S3_SECRET=ps');
+
+        [$key, $secret, $token] = (new S3Credentials())->require();
+
+        self::assertSame('pk', $key);
+        self::assertSame('ps', $secret);
+        self::assertNull($token);
+    }
+
+    public function testRequirePrefersConfigRefsOverEnvironment(): void
     {
         putenv('POSTMACLONE_S3_KEY=pk');
         putenv('POSTMACLONE_S3_SECRET=ps');
@@ -45,12 +57,18 @@ final class S3CredentialsTest extends TestCase
             secret: S3Credentials::EXAMPLE_SECRET_REF,
         );
         $reader = $this->createMock(OpSecretReader::class);
-        $reader->expects(self::never())->method('read');
+        $reader->expects(self::exactly(2))
+            ->method('read')
+            ->willReturnCallback(static fn (string $ref): string => match ($ref) {
+                S3Credentials::EXAMPLE_KEY_REF => 'from-op-key',
+                S3Credentials::EXAMPLE_SECRET_REF => 'from-op-secret',
+                default => self::fail('unexpected ref'),
+            });
 
         [$key, $secret, $token] = (new S3Credentials($refs, $reader))->require();
 
-        self::assertSame('pk', $key);
-        self::assertSame('ps', $secret);
+        self::assertSame('from-op-key', $key);
+        self::assertSame('from-op-secret', $secret);
         self::assertNull($token);
     }
 

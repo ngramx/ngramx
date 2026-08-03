@@ -80,12 +80,35 @@ commands:
 # Only columns listed under tables: are rewritten (opt-in). All other columns
 # are left unchanged. Prefer `ngramx postmaclone down` when finished.
 #
+# Connection-string source (MySQL example): declare source: connection in YAML;
+# put the URL (with credentials) only in `.env` / `.env.postmaclone`:
+#   POSTMACLONE_SOURCE_URL=mysql://readonly:secret@host:3306/dbname
+# Then run `ngramx postmaclone` (or pass `--from 'mysql://…'` to override).
+#
 # postmaclone:
-#   engine: postgres              # or mysql / mariadb; auto-detected from compose if omitted
+#   engine: mysql                 # or postgres / mariadb; auto-detected from compose if omitted
 #   locale: en_GB
 #   seed: 42
 #   backup:
-#     source: local               # local | s3
+#     source: connection          # URL from POSTMACLONE_SOURCE_URL — not path/credentials here
+#   target:
+#     provider: docker
+#     ttl_hours: 4
+#     docker:
+#       image: mysql:8.0
+#   tables:
+#     users:
+#       email: uniqueSafeEmail
+#       first_name: firstName
+#       last_name: lastName
+#
+# # Dump / S3 source alternative:
+# postmaclone:
+#   engine: postgres
+#   locale: en_GB
+#   seed: 42
+#   backup:
+#     source: local               # local | s3 | connection
 #     path: "./backups/latest.dump"
 #     # DigitalOcean Spaces — shared daily Forge folders contain every project's dump.
 #     # Newest dated folder is auto-picked; the dump basename is project-specific.
@@ -103,10 +126,29 @@ commands:
 #     #   key: "op://Tech Team Vault/ngramx-db-backup-read-access/username"
 #     #   secret: "op://Tech Team Vault/ngramx-db-backup-read-access/credential"
 #     # (prod roles/ACLs are stripped on restore — no backup.roles needed)
+#
+#   # Prefer a nightly factory prebuilt for multi‑GB DBs (restore-only; no local anonymize).
+#   # Factory produce writes latest.json next to the artifact — omit file to follow the manifest.
+#   # Escape hatch: ngramx postmaclone --from-prod
+#   # prebuilt:
+#   #   source: s3
+#   #   path: "spaces://weathered-brook-anonymized-backups/earl-kendrick/"
+#   #   file: "earl_kendrick_anon.sql.gz"
+#   #   max_age_hours: 36
+#   #   region: lon1
+#   #   endpoint: "https://lon1.digitaloceanspaces.com"
+#   #   credentials:
+#   #     key: "op://Tech Team Vault/ngramx-anon-backup-read/username"
+#   #     secret: "op://Tech Team Vault/ngramx-anon-backup-read/credential"
+#
 #   target:
-#     provider: auto              # neon | docker | auto
+#     provider: auto              # neon | docker | remote | auto
 #     ttl_hours: 4                # safety-net expiry; tear down with `postmaclone down`
-#   tables:
+#     # Large prebuilts: restore into a fresh in-region DO/Neon URL (not a shared staging DB)
+#     # remote:
+#     #   url: "op://Tech Team Vault/postmaclone-remote/database_url"
+#     # remote_threshold_bytes: 2147483648
+#   tables:                       # optional when only using prebuilt
 #     users:
 #       email: uniqueSafeEmail
 #       first_name: firstName

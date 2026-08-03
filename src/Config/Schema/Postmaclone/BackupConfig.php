@@ -8,6 +8,8 @@ readonly class BackupConfig
 {
     public const SOURCE_LOCAL = 'local';
     public const SOURCE_S3 = 's3';
+    /** Live DB URL from POSTMACLONE_SOURCE_URL (.env) — never store credentials in YAML. */
+    public const SOURCE_CONNECTION = 'connection';
 
     /**
      * @param list<string>|null $roles Postgres roles to stub before plain-SQL restore.

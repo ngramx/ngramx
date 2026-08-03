@@ -11,6 +11,7 @@ use Ngramx\Output\OutputFormatter;
 use Ngramx\Postmaclone\Backup\S3Credentials;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\PostmacloneDoctor;
+use Ngramx\Postmaclone\PostmacloneProducer;
 use Ngramx\Postmaclone\PostmacloneService;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -23,6 +24,7 @@ class PostmacloneCommand extends Command
     public function __construct(
         private readonly ConfigLoader $configLoader,
         private readonly PostmacloneService $service = new PostmacloneService(),
+        private readonly PostmacloneProducer $producer = new PostmacloneProducer(),
     ) {
         parent::__construct();
     }
@@ -35,7 +37,7 @@ class PostmacloneCommand extends Command
             ->addArgument(
                 'action',
                 InputArgument::OPTIONAL,
-                'Optional lifecycle action: down | status | doctor (omit to create a clone)',
+                'Optional lifecycle action: down | status | doctor | produce (omit to create a clone)',
                 null
             )
             ->addOption('from', null, InputOption::VALUE_REQUIRED, 'Dump path, connection URL, or s3:// / spaces:// URI')
@@ -47,12 +49,23 @@ class PostmacloneCommand extends Command
             ->addOption('keep-download', null, InputOption::VALUE_NONE, 'Keep downloaded dump files under .ngramx/cache')
             ->addOption('label', null, InputOption::VALUE_REQUIRED, 'Optional label stored in the lock (e.g. ticket id)')
             ->addOption('force', null, InputOption::VALUE_NONE, 'With down: clear local state even if remote destroy fails')
-            ->addOption('no-env', null, InputOption::VALUE_NONE, 'Do not patch project .env DB_* keys');
+            ->addOption('no-env', null, InputOption::VALUE_NONE, 'Do not patch project .env DB_* keys')
+            ->addOption('from-prod', null, InputOption::VALUE_NONE, 'Skip prebuilt; run full download + anonymize pipeline')
+            ->addOption('no-prebuilt', null, InputOption::VALUE_NONE, 'Alias for --from-prod')
+            ->addOption('all', null, InputOption::VALUE_NONE, 'With produce: process every dataset in factory postmaclone.yml')
+            ->addOption('dataset', null, InputOption::VALUE_REQUIRED, 'With produce: process a single dataset name')
+            ->addOption('config', 'c', InputOption::VALUE_REQUIRED, 'With produce: path to factory postmaclone.yml');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $formatter = new OutputFormatter($output);
+        $action = $input->getArgument('action');
+        $action = is_string($action) ? strtolower($action) : null;
+
+        if ($action === 'produce') {
+            return $this->runProduce($formatter, $input);
+        }
 
         try {
             $configPath = $this->configLoader->findConfigFile();
@@ -64,8 +77,6 @@ class PostmacloneCommand extends Command
         }
 
         $projectRoot = dirname($configPath);
-        $action = $input->getArgument('action');
-        $action = is_string($action) ? strtolower($action) : null;
 
         try {
             if ($action === 'down') {
@@ -78,7 +89,7 @@ class PostmacloneCommand extends Command
                 return $this->runDoctor($formatter, $config, $projectRoot, $input);
             }
             if ($action !== null && $action !== '') {
-                $formatter->error("Unknown action '{$action}'. Use: ngramx postmaclone [|down|status|doctor]");
+                $formatter->error("Unknown action '{$action}'. Use: ngramx postmaclone [|down|status|doctor|produce]");
 
                 return Command::FAILURE;
             }
@@ -164,12 +175,23 @@ class PostmacloneCommand extends Command
 
         $from = $input->getOption('from');
         $fromPath = is_string($from) && is_file($from) ? $from : null;
-        $diagnosis = (new PostmacloneDoctor())->diagnose($config, $projectRoot, $fromPath);
+        $doctor = new PostmacloneDoctor();
+        $diagnosis = $doctor->diagnose($config, $projectRoot, $fromPath);
+        $needsS3 = $diagnosis['needs_s3'];
 
-        $formatter->info('--- auth / credentials ---');
+        if ($needsS3) {
+            $formatter->info('--- auth / credentials ---');
+        } else {
+            $formatter->info('--- source / restore checks ---');
+        }
+
         $sawRestoreHeading = false;
         foreach ($diagnosis['checks'] as $check) {
-            if (!$sawRestoreHeading && str_contains(strtolower($check['message']), 'pdo_')) {
+            if (
+                $needsS3
+                && !$sawRestoreHeading
+                && str_contains(strtolower($check['message']), 'pdo_')
+            ) {
                 $formatter->info('--- restore checks ---');
                 $sawRestoreHeading = true;
             }
@@ -187,27 +209,21 @@ class PostmacloneCommand extends Command
         }
 
         if ($diagnosis['suggestions'] !== []) {
-            $formatter->info('--- suggested ngramx.yml updates ---');
+            $formatter->info('--- suggested updates ---');
             foreach ($diagnosis['suggestions'] as $line) {
                 $formatter->info($line);
             }
         }
 
-        $needsS3 = $pm->backup->source === BackupConfig::SOURCE_S3
-            || (is_string($pm->backup->path) && (
-                str_starts_with($pm->backup->path, 's3://')
-                || str_starts_with($pm->backup->path, 'spaces://')
-            ));
-
         if ($needsS3 && $diagnosis['ok']) {
             $formatter->info('S3 path looks ready — create with: ngramx postmaclone');
-        } elseif (!$needsS3) {
-            $formatter->info('This project is not using an S3/Spaces backup source; op/S3 checks are optional.');
-        } elseif ($pm->backup->credentials === null) {
-            $formatter->info('Add to ngramx.yml under postmaclone.backup:');
+        } elseif ($needsS3 && $pm->backup->credentials === null && $pm->prebuilt?->credentials === null) {
+            $formatter->info('Add to ngramx.yml under postmaclone.backup (or prebuilt):');
             $formatter->info('  credentials:');
             $formatter->info('    key: "' . S3Credentials::EXAMPLE_KEY_REF . '"');
             $formatter->info('    secret: "' . S3Credentials::EXAMPLE_SECRET_REF . '"');
+        } elseif (!$needsS3 && $diagnosis['ok']) {
+            $formatter->info('Source looks ready — create with: ngramx postmaclone');
         }
 
         return $diagnosis['ok'] ? Command::SUCCESS : Command::FAILURE;
@@ -222,7 +238,7 @@ class PostmacloneCommand extends Command
             return Command::FAILURE;
         }
 
-        $from = $this->service->resolveFrom($fromOption, $config);
+        $from = $this->service->resolveFrom($fromOption, $config, $projectRoot);
         if ($from === null) {
             $formatter->error('Invalid --from value');
 
@@ -263,10 +279,13 @@ class PostmacloneCommand extends Command
             return Command::FAILURE;
         }
 
+        $preferPrebuilt = !(bool) $input->getOption('from-prod') && !(bool) $input->getOption('no-prebuilt');
         $from = $this->service->resolveFrom(
             is_string($input->getOption('from')) ? $input->getOption('from') : null,
-            $config
+            $config,
+            $projectRoot,
         );
+        $usePrebuilt = $preferPrebuilt && $from === null && $pm->hasPrebuilt();
         $engine = $this->service->resolveEngine($config, $from);
         $mismatch = $this->service->engineMismatchWarning($config);
         if ($mismatch !== null) {
@@ -275,13 +294,19 @@ class PostmacloneCommand extends Command
 
         $formatter->info("Engine: {$engine}");
         $formatter->info('Target provider: ' . $pm->target->provider . " (ttl {$pm->target->ttlHours}h)");
-        $formatter->info('Opt-in tables/columns (only these are anonymized):');
-        foreach ($pm->tables as $table) {
-            $cols = implode(', ', array_keys($table->columns));
-            $formatter->info("  - {$table->table}: {$cols}");
+        if ($usePrebuilt) {
+            $formatter->info('Source mode: prebuilt (restore-only, skip anonymize)');
+            $formatter->info('prebuilt.path: ' . ($pm->prebuilt?->path ?? ''));
+            $source = $this->service->buildPrebuiltSource($pm->prebuilt, $projectRoot);
+        } else {
+            $formatter->info('Source mode: full pipeline (download + anonymize)');
+            $formatter->info('Opt-in tables/columns (only these are anonymized):');
+            foreach ($pm->tables as $table) {
+                $cols = implode(', ', array_keys($table->columns));
+                $formatter->info("  - {$table->table}: {$cols}");
+            }
+            $source = $this->service->buildBackupSource($config, $projectRoot, $engine, $from);
         }
-
-        $source = $this->service->buildBackupSource($config, $projectRoot, $engine, $from);
         $probe = $source->probe();
         $formatter->info('Source: ' . ($probe['detail'] ?? 'unknown') . (isset($probe['size']) ? " ({$probe['size']} bytes)" : ''));
         if (!$probe['exists'] && $from?->isPath()) {
@@ -297,12 +322,17 @@ class PostmacloneCommand extends Command
         $formatter->welcome('Post Maclone');
         $formatter->warning('Anonymization rules are project-owned. Never point this at production for in-place writes.');
 
+        $preferPrebuilt = !(bool) $input->getOption('from-prod') && !(bool) $input->getOption('no-prebuilt');
         $from = $this->service->resolveFrom(
             is_string($input->getOption('from')) ? $input->getOption('from') : null,
-            $config
+            $config,
+            $projectRoot,
         );
         if ($from?->isConnection()) {
             $formatter->warning('Source connection will be dumped/read only; the clone is anonymized separately.');
+        }
+        if ($preferPrebuilt && $from === null && ($config->postmaclone?->hasPrebuilt() ?? false)) {
+            $formatter->info('Using published prebuilt artifact (restore-only).');
         }
 
         $mismatch = $this->service->engineMismatchWarning($config);
@@ -319,6 +349,7 @@ class PostmacloneCommand extends Command
             strict: (bool) $input->getOption('strict'),
             label: is_string($input->getOption('label')) ? $input->getOption('label') : null,
             bindEnv: !(bool) $input->getOption('no-env'),
+            preferPrebuilt: $preferPrebuilt,
         );
 
         foreach ($result['warnings'] as $warning) {
@@ -334,5 +365,63 @@ class PostmacloneCommand extends Command
         $formatter->info('  Tear down when finished: ngramx postmaclone down');
 
         return Command::SUCCESS;
+    }
+
+    private function runProduce(OutputFormatter $formatter, InputInterface $input): int
+    {
+        $formatter->welcome('Post Maclone produce (factory)');
+        $all = (bool) $input->getOption('all');
+        $datasetOpt = $input->getOption('dataset');
+        $datasetName = is_string($datasetOpt) && $datasetOpt !== '' ? $datasetOpt : null;
+        if (!$all && $datasetName === null) {
+            $formatter->error('produce requires --all or --dataset <name>');
+
+            return Command::FAILURE;
+        }
+
+        try {
+            $configOpt = $input->getOption('config');
+            $factoryPath = $this->configLoader->findFactoryConfigFile(
+                is_string($configOpt) && $configOpt !== '' ? $configOpt : null
+            );
+            $factory = $this->configLoader->loadFactory($factoryPath);
+        } catch (\Exception $e) {
+            $formatter->error($e->getMessage());
+
+            return Command::FAILURE;
+        }
+
+        $workRoot = dirname($factoryPath);
+        $formatter->info('Factory config: ' . $factoryPath);
+
+        $names = $all ? array_keys($factory->datasets) : [$datasetName];
+        $failed = false;
+        foreach ($names as $name) {
+            if (!isset($factory->datasets[$name])) {
+                $formatter->error("Unknown dataset '{$name}'");
+                $failed = true;
+                continue;
+            }
+            $formatter->info("Producing dataset: {$name}");
+            try {
+                $result = $this->producer->produceDataset(
+                    $factory->datasets[$name],
+                    $workRoot,
+                    (bool) $input->getOption('strict'),
+                );
+                foreach ($result['warnings'] as $warning) {
+                    $formatter->warning($warning);
+                }
+                $formatter->success(
+                    "Published {$result['dataset']} → {$result['artifact_key']} "
+                    . "({$result['size']} bytes, sha256 {$result['sha256']})"
+                );
+            } catch (PostmacloneException $e) {
+                $formatter->error("Dataset {$name}: {$e->getMessage()}");
+                $failed = true;
+            }
+        }
+
+        return $failed ? Command::FAILURE : Command::SUCCESS;
     }
 }

@@ -1,0 +1,46 @@
+# Factory config for nightly anonymized artifact production.
+# Lives in a dedicated factory repo (not an app). Discover as postmaclone.yml / .yaml.
+#
+#   ngramx postmaclone produce --all
+#   ngramx postmaclone produce --dataset earl-kendrick
+#   ngramx postmaclone produce --config ./configs/factory.postmaclone.yml --all
+#
+# Run the job in the same DigitalOcean region as Spaces + scratch Postgres.
+# Use a separate anonymized bucket and write-only credentials for publish.
+
+version: "1"
+locale: en_GB
+seed: 42
+
+datasets:
+  earl-kendrick:
+    engine: postgres
+    backup:
+      source: s3
+      path: "spaces://weathered-brook-object-storage/database-backups/all/"
+      file: "earl_kendrick_prod.sql.gz"
+      region: lon1
+      endpoint: "https://lon1.digitaloceanspaces.com"
+      credentials:
+        key: "op://Tech Team Vault/ngramx-db-backup-read-access/username"
+        secret: "op://Tech Team Vault/ngramx-db-backup-read-access/credential"
+    publish:
+      path: "spaces://weathered-brook-anonymized-backups/earl-kendrick/"
+      file: "earl_kendrick_anon.sql.gz"
+      region: lon1
+      endpoint: "https://lon1.digitaloceanspaces.com"
+      credentials:
+        key: "op://Tech Team Vault/ngramx-anon-backup-write/username"
+        secret: "op://Tech Team Vault/ngramx-anon-backup-write/credential"
+    # Keep artifacts smaller than prod for the 57GB class of dumps:
+    # include_tables: [users, orders, order_items]
+    # exclude_tables: [audit_log, sessions, job_batches]
+    target:
+      provider: docker            # or remote (POSTMACLONE_REMOTE_URL / target.remote.url)
+      docker:
+        image: postgres:16-alpine
+    tables:
+      users:
+        email: uniqueSafeEmail
+        first_name: firstName
+        last_name: lastName

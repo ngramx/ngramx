@@ -57,6 +57,8 @@ class ConnectionStringSource implements BackupSourceInterface
 
     private function pgDump(string $out): void
     {
+        $this->assertDumpClientOnPath('pg_dump', 'sudo apt install postgresql-client');
+
         $process = new Process(['pg_dump', '--no-owner', '--no-acl', '-f', $out, $this->connectionUrl]);
         $process->setTimeout(3600);
         $process->run();
@@ -67,6 +69,11 @@ class ConnectionStringSource implements BackupSourceInterface
 
     private function mysqlDump(string $out): void
     {
+        $this->assertDumpClientOnPath(
+            'mysqldump',
+            'sudo apt install mysql-client-core-8.0  # or: sudo apt install mariadb-client'
+        );
+
         $parts = parse_url($this->connectionUrl);
         if ($parts === false) {
             throw new PostmacloneException('Invalid MySQL connection URL');
@@ -78,13 +85,16 @@ class ConnectionStringSource implements BackupSourceInterface
         $pass = isset($parts['pass']) ? urldecode($parts['pass']) : '';
         $db = isset($parts['path']) ? ltrim($parts['path'], '/') : '';
 
-        $cmd = [
-            'mysqldump',
-            '-h', $host,
-            '-P', $port,
-            '-u', $user,
-            $db,
-        ];
+        $cmd = array_merge(
+            [
+                'mysqldump',
+                '-h', $host,
+                '-P', $port,
+                '-u', $user,
+            ],
+            MysqlDumpFlags::forRestrictedSource(),
+            [$db],
+        );
         $process = new Process($cmd);
         if ($pass !== '') {
             $process->setEnv(array_merge($_ENV, ['MYSQL_PWD' => $pass]));
@@ -92,8 +102,46 @@ class ConnectionStringSource implements BackupSourceInterface
         $process->setTimeout(3600);
         $process->run();
         if (!$process->isSuccessful()) {
-            throw new PostmacloneException('mysqldump failed: ' . $process->getErrorOutput());
+            throw new PostmacloneException(
+                $this->formatDumpFailure('mysqldump', $process->getErrorOutput())
+            );
         }
         file_put_contents($out, $process->getOutput());
+    }
+
+    private function assertDumpClientOnPath(string $binary, string $installHint): void
+    {
+        $which = new Process(['sh', '-c', 'command -v ' . escapeshellarg($binary)]);
+        $which->run();
+        if ($which->isSuccessful() && trim($which->getOutput()) !== '') {
+            return;
+        }
+
+        throw new PostmacloneException(
+            "{$binary} not found on PATH (required to dump a connection-string source).\n"
+            . "  Install the client tools (e.g. {$installHint})."
+        );
+    }
+
+    private function formatDumpFailure(string $binary, string $stderr): string
+    {
+        $message = "{$binary} failed: {$stderr}";
+        $lower = strtolower($stderr);
+        if (str_contains($lower, 'not found')) {
+            $hint = $binary === 'mysqldump'
+                ? 'sudo apt install mysql-client-core-8.0  # or: sudo apt install mariadb-client'
+                : 'sudo apt install postgresql-client';
+            $message .= "\n  Install the client tools (e.g. {$hint}).";
+        }
+        if (
+            str_contains($lower, 'lock tables')
+            || str_contains($lower, 'process privilege')
+            || str_contains($lower, 'access denied')
+        ) {
+            $message .= "\n  Tip: source user needs SELECT (and typically SHOW VIEW). "
+                . 'Postmaclone dumps with --single-transaction --no-tablespaces to avoid LOCK TABLES / PROCESS.';
+        }
+
+        return $message;
     }
 }

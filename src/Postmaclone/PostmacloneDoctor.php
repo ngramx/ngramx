@@ -24,6 +24,7 @@ final class PostmacloneDoctor
      *   checks: list<DoctorCheck>,
      *   next_steps: list<string>,
      *   suggestions: list<string>,
+     *   needs_s3: bool,
      * }
      */
     public function diagnose(NgramxConfig $config, string $projectRoot, ?string $fromPath = null): array
@@ -39,42 +40,42 @@ final class PostmacloneDoctor
                 ]],
                 'next_steps' => [],
                 'suggestions' => [],
+                'needs_s3' => false,
             ];
         }
 
         $checks = [];
-        $needsS3 = $pm->backup->source === BackupConfig::SOURCE_S3
-            || (is_string($pm->backup->path) && (
-                str_starts_with($pm->backup->path, 's3://')
-                || str_starts_with($pm->backup->path, 'spaces://')
-            ));
+        $needsS3 = $this->needsS3Credentials($config);
+        $nextSteps = [];
 
-        $auth = (new OpAuthProbe())->probe();
-        foreach (S3Credentials::doctorChecks($pm->backup->credentials) as $check) {
-            $blocking = $needsS3 && !$check['ok'];
-            $checks[] = [
-                'ok' => $check['ok'],
-                'message' => $needsS3 || $check['ok']
-                    ? $check['message']
-                    : '(optional) ' . $check['message'],
-                'blocking' => $blocking,
-            ];
-        }
+        // op / Spaces credentials only matter for S3 backup or prebuilt artifact sources.
+        if ($needsS3) {
+            $auth = (new OpAuthProbe())->probe();
+            $nextSteps = $auth['next_steps'];
+            $credentialRefs = $pm->backup->credentials ?? $pm->prebuilt?->credentials;
+            foreach (S3Credentials::doctorChecks($credentialRefs) as $check) {
+                $checks[] = [
+                    'ok' => $check['ok'],
+                    'message' => $check['message'],
+                    'blocking' => !$check['ok'],
+                ];
+            }
 
-        if ($needsS3 && $pm->backup->credentials !== null && $auth['signed_in']) {
-            try {
-                (new S3Credentials($pm->backup->credentials))->require();
-                $checks[] = [
-                    'ok' => true,
-                    'message' => 'Resolved credentials via `op read` (values not printed)',
-                    'blocking' => false,
-                ];
-            } catch (PostmacloneException $e) {
-                $checks[] = [
-                    'ok' => false,
-                    'message' => 'Could not resolve credential refs: ' . $e->getMessage(),
-                    'blocking' => true,
-                ];
+            if ($credentialRefs !== null && $auth['signed_in']) {
+                try {
+                    (new S3Credentials($credentialRefs))->require();
+                    $checks[] = [
+                        'ok' => true,
+                        'message' => 'Resolved credentials via `op read` (values not printed)',
+                        'blocking' => false,
+                    ];
+                } catch (PostmacloneException $e) {
+                    $checks[] = [
+                        'ok' => false,
+                        'message' => 'Could not resolve credential refs: ' . $e->getMessage(),
+                        'blocking' => true,
+                    ];
+                }
             }
         }
 
@@ -98,8 +99,45 @@ final class PostmacloneDoctor
         return [
             'ok' => $ok,
             'checks' => $checks,
-            'next_steps' => $auth['next_steps'],
+            'next_steps' => $nextSteps,
             'suggestions' => $restore['suggestions'],
+            'needs_s3' => $needsS3,
         ];
+    }
+
+    public function needsS3Credentials(NgramxConfig $config): bool
+    {
+        $pm = $config->postmaclone;
+        if ($pm === null) {
+            return false;
+        }
+
+        if ($pm->backup->source === BackupConfig::SOURCE_S3) {
+            return true;
+        }
+
+        if ($this->isObjectStorageUri($pm->backup->path)) {
+            return true;
+        }
+
+        if ($pm->hasPrebuilt()) {
+            $prebuilt = $pm->prebuilt;
+            if ($prebuilt === null) {
+                return false;
+            }
+            if ($prebuilt->source === BackupConfig::SOURCE_S3 || $this->isObjectStorageUri($prebuilt->path)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isObjectStorageUri(?string $uri): bool
+    {
+        return is_string($uri) && (
+            str_starts_with($uri, 's3://')
+            || str_starts_with($uri, 'spaces://')
+        );
     }
 }

@@ -36,17 +36,41 @@ final class RestoreDoctor
             $suggestions[] = $pdoCheck['message'];
         }
 
-        $checks[] = [
-            'ok' => true,
-            'message' => 'Plain-SQL restores strip prod roles/ACLs and reassign ownership to the clone login (like pg_restore -O --no-acl)',
-        ];
+        if ($backup->source === BackupConfig::SOURCE_CONNECTION) {
+            $dumpClient = $engine === PostmacloneConfig::ENGINE_POSTGRES ? 'pg_dump' : 'mysqldump';
+            $installHint = $dumpClient === 'mysqldump'
+                ? 'sudo apt install mysql-client-core-8.0  # or: sudo apt install mariadb-client'
+                : 'sudo apt install postgresql-client';
+            $which = new Process(['sh', '-c', 'command -v ' . escapeshellarg($dumpClient)]);
+            $which->run();
+            if ($which->isSuccessful() && trim($which->getOutput()) !== '') {
+                $checks[] = [
+                    'ok' => true,
+                    'message' => "Host {$dumpClient} available for connection-string source",
+                ];
+            } else {
+                $checks[] = [
+                    'ok' => false,
+                    'message' => "{$dumpClient} not found on PATH (required for backup.source: connection)",
+                ];
+                $suggestions[] = "Install client tools: {$installHint}";
+            }
+        }
 
-        if ($backup->roles !== null) {
+        $isPostgres = $engine === PostmacloneConfig::ENGINE_POSTGRES;
+        if ($isPostgres) {
             $checks[] = [
                 'ok' => true,
-                'message' => 'backup.roles is set but ignored — prod roles are not replayed into the clone',
+                'message' => 'Plain-SQL restores strip prod roles/ACLs and reassign ownership to the clone login (like pg_restore -O --no-acl)',
             ];
-            $suggestions[] = 'You can remove postmaclone.backup.roles from ngramx.yml; it is no longer used.';
+
+            if ($backup->roles !== null) {
+                $checks[] = [
+                    'ok' => true,
+                    'message' => 'backup.roles is set but ignored — prod roles are not replayed into the clone',
+                ];
+                $suggestions[] = 'You can remove postmaclone.backup.roles from ngramx.yml; it is no longer used.';
+            }
         }
 
         if ($this->needsDumpBasename($backup) && ($backup->file === null || trim($backup->file) === '')) {
@@ -58,20 +82,23 @@ final class RestoreDoctor
             $suggestions[] = '  file: "earl_kendrick_prod.sql.gz"';
         }
 
-        $psql = $this->psqlVersion();
-        if ($psql !== null) {
-            $checks[] = [
-                'ok' => true,
-                'message' => "Host psql: {$psql['version']}",
-            ];
-            if ($psql['major'] < 17) {
-                $suggestions[] = 'Host psql is older than PG 17 — dumps with \\restrict are sanitized automatically on restore.';
+        $psql = null;
+        if ($isPostgres) {
+            $psql = $this->psqlVersion();
+            if ($psql !== null) {
+                $checks[] = [
+                    'ok' => true,
+                    'message' => "Host psql: {$psql['version']}",
+                ];
+                if ($psql['major'] < 17) {
+                    $suggestions[] = 'Host psql is older than PG 17 — dumps with \\restrict are sanitized automatically on restore.';
+                }
+            } else {
+                $checks[] = [
+                    'ok' => false,
+                    'message' => 'psql not found on PATH (used for host readiness probes; Docker restores use docker exec)',
+                ];
             }
-        } else {
-            $checks[] = [
-                'ok' => false,
-                'message' => 'psql not found on PATH (used for host readiness probes; Docker restores use docker exec)',
-            ];
         }
 
         $dumpPath = $this->findDump($projectRoot, $backup, $fromPath);
@@ -85,12 +112,12 @@ final class RestoreDoctor
                 'ok' => true,
                 'message' => 'Cached dump: ' . $dumpPath,
             ];
-            if ($this->looksLikeCustomFormat($dumpPath)) {
+            if ($isPostgres && $this->looksLikeCustomFormat($dumpPath)) {
                 $checks[] = [
                     'ok' => true,
                     'message' => 'Custom-format dump — restored with pg_restore --no-owner --no-acl',
                 ];
-            } elseif ($this->dumpHasRestrict($dumpPath) && ($psql['major'] ?? 99) < 17) {
+            } elseif ($isPostgres && $this->dumpHasRestrict($dumpPath) && ($psql['major'] ?? 99) < 17) {
                 $checks[] = [
                     'ok' => true,
                     'message' => 'Dump contains \\restrict — will be stripped for restore automatically',

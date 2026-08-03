@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Ngramx\Postmaclone\Backup;
 
 /**
- * Minimal AWS Signature Version 4 signer for S3-compatible GET/HEAD.
+ * Minimal AWS Signature Version 4 signer for S3-compatible GET/HEAD/PUT.
  */
 class S3SigV4Signer
 {
+    public const UNSIGNED_PAYLOAD = 'UNSIGNED-PAYLOAD';
+
     /**
      * @return array<string, string>
      */
@@ -20,6 +22,8 @@ class S3SigV4Signer
         string $secretKey,
         ?string $sessionToken = null,
         string $service = 's3',
+        ?string $payloadHash = null,
+        ?string $contentType = null,
     ): array {
         $parsed = parse_url($url);
         if ($parsed === false || !isset($parsed['host'])) {
@@ -31,13 +35,16 @@ class S3SigV4Signer
         $query = $this->canonicalQuery($parsed['query'] ?? '');
         $amzDate = gmdate('Ymd\THis\Z');
         $dateStamp = gmdate('Ymd');
-        $payloadHash = hash('sha256', '');
+        $payloadHash = $payloadHash ?? hash('sha256', '');
 
         $headers = [
             'host' => $host,
             'x-amz-content-sha256' => $payloadHash,
             'x-amz-date' => $amzDate,
         ];
+        if ($contentType !== null && $contentType !== '') {
+            $headers['content-type'] = $contentType;
+        }
         if ($sessionToken !== null && $sessionToken !== '') {
             $headers['x-amz-security-token'] = $sessionToken;
         }
@@ -82,6 +89,9 @@ class S3SigV4Signer
             'x-amz-date' => $amzDate,
             'Host' => $host,
         ];
+        if ($contentType !== null && $contentType !== '') {
+            $out['Content-Type'] = $contentType;
+        }
         if ($sessionToken !== null && $sessionToken !== '') {
             $out['x-amz-security-token'] = $sessionToken;
         }

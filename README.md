@@ -380,8 +380,9 @@ Create a short-lived, **anonymized** database clone for bug root-cause analysis 
 Anonymization is **opt-in by column**: only columns listed under `postmaclone.tables` are rewritten. Every other column is left unchanged.
 
 ```bash
-# Create clone (backup → ephemeral target → anonymize → optional .env bind)
+# Create clone (prefer prebuilt when configured; else backup → anonymize → .env bind)
 ngramx postmaclone
+ngramx postmaclone --from-prod        # skip prebuilt; full local anonymize pipeline
 ngramx postmaclone --from ./backups/prod.dump
 ngramx postmaclone --from 'postgresql://readonly:…@host/db'
 ngramx postmaclone --replace          # destroy existing clone, then create fresh
@@ -392,15 +393,48 @@ ngramx postmaclone --sql --from ./backups/prod.dump -o anonymize.sql
 ngramx postmaclone status
 ngramx postmaclone doctor             # check op CLI + S3 env (no auto-install)
 ngramx postmaclone down               # destroy now (do not rely on TTL)
+
+# Factory (separate postmaclone.yml — no app checkout):
+ngramx postmaclone produce --all
+ngramx postmaclone produce --dataset earl-kendrick
 ```
 
-**Agent contract:** `postmaclone` → investigate/fix → `postmaclone down` per bug. Do not share one long-lived clone across agents — mutations from one session poison the next. TTL (`target.ttl_hours`, default 4h) is only a safety net.
+**Agent contract:** `postmaclone` → investigate/fix → `postmaclone down` per bug. Do not share one long-lived clone across agents — mutations from one session poison the next. TTL (`target.ttl_hours`, default 4h) is only a safety net. The anonymized Spaces bucket is an **artifact store**: each session **copies** the object to `.ngramx/cache` and restores into a **fresh** ephemeral target — never attach multiple agents to one restored DB.
 
-**Targets:** Neon (Postgres, needs `NEON_API_KEY`) or Docker (MySQL/MariaDB/Postgres). **Sources:** local dump, S3-compatible object (`POSTMACLONE_S3_*` or `AWS_*`), or a connection string (dumped/read only — never anonymized in place).
+**Targets:** Neon (Postgres, needs `NEON_API_KEY`), Docker (MySQL/MariaDB/Postgres), or `remote` (fresh in-region DO/Neon URL via `target.remote.url` / `POSTMACLONE_REMOTE_URL`). **Sources:** published **prebuilt** (preferred for large DBs), local dump, S3 prod backup, or a connection string (dumped/read only — never anonymized in place).
+
+#### Large DBs: factory produce + consumer prebuilt
+
+Downloading and anonymizing multi‑GB Forge dumps on every laptop is untenable. Use a **factory repo** with `postmaclone.yml` (see `postmaclone.example.yml`) and a scheduled container job in the **same DO region** as Spaces + scratch Postgres:
+
+1. Job: `ngramx postmaclone produce --all` — pull prod dump → restore scratch → anonymize → dump (optional `include_tables` / `exclude_tables`) → upload to a **separate anonymized bucket** + `latest.json`
+2. App `ngramx.yml`: thin `postmaclone.prebuilt` (+ `target`) — consumer downloads a copy, restores, **skips anonymize**
+
+Keep prod-read and anon-write credentials separate (`op://` refs). Local Docker remains fine for small artifacts; large restores should use in-region `remote` / Neon.
+
+```yaml
+# App ngramx.yml — consumer (prebuilt preferred)
+postmaclone:
+  engine: postgres
+  prebuilt:
+    source: s3
+    path: "spaces://weathered-brook-anonymized-backups/earl-kendrick/"
+    file: "earl_kendrick_anon.sql.gz"   # or omit file to follow latest.json
+    max_age_hours: 36
+    region: lon1
+    endpoint: "https://lon1.digitaloceanspaces.com"
+    credentials:
+      key: "op://Tech Team Vault/ngramx-anon-backup-read/username"
+      secret: "op://Tech Team Vault/ngramx-anon-backup-read/credential"
+  target:
+    provider: auto
+    ttl_hours: 4
+```
 
 Forge dumps land in a **shared** daily folder (`database-backups/all/YYYYMMDDHHMMSS/`) with one object per project (e.g. `earl_kendrick_prod.sql.gz`). Configure the dump basename for *this* project; Postmaclone only auto-picks the newest dated folder — never which dump inside it.
 
 ```yaml
+# Full local pipeline (small DBs / --from-prod)
 postmaclone:
   engine: postgres
   seed: 42
@@ -447,7 +481,7 @@ ngramx postmaclone          # resolves refs via `op read` when a session (or ser
 | Agent / CI | Ask an admin for a [service account](https://developer.1password.com/docs/service-accounts/) with **read** on Tech Team Vault, then `export OP_SERVICE_ACCOUNT_TOKEN=…` (non-interactive; no `op signin`). |
 | Skip 1Password | Export `POSTMACLONE_S3_KEY` / `POSTMACLONE_S3_SECRET` (or `AWS_*`), or use `--from ./local.dump` / a connection URL. |
 
-Env vars override config refs when set to real secrets (not `op://` strings).
+When `credentials` `op://` refs are present in YAML they are preferred over `POSTMACLONE_S3_*` / `AWS_*` so read vs write keys stay distinct. Env vars remain the fallback when no refs are configured.
 
 **Docker target networking:** Postmaclone does **not** write `docker-compose.override.yml`. It stops the compose `db` service, attaches the clone to the project network with DNS alias `db` (so hardcoded `DB_HOST=db` keeps working), and updates mounted `.env` credentials only. Host-side tools use `127.0.0.1` and the published port. Bring the stack up (`ngramx up`) before a standalone `postmaclone` so the network exists.
 

@@ -40,11 +40,8 @@ final class S3Credentials
             return $this->resolved;
         }
 
-        $fromEnv = self::fromEnvironment();
-        if ($fromEnv !== null) {
-            return $this->resolved = $fromEnv;
-        }
-
+        // Prefer YAML op:// refs when present so read vs write keys stay distinct
+        // even if POSTMACLONE_S3_* is set for another bucket in the same shell.
         if ($this->configRefs !== null) {
             $reader = $this->opReader ?? new OpSecretReader();
 
@@ -53,6 +50,11 @@ final class S3Credentials
                 $reader->read($this->configRefs->secret),
                 null,
             ];
+        }
+
+        $fromEnv = self::fromEnvironment();
+        if ($fromEnv !== null) {
+            return $this->resolved = $fromEnv;
         }
 
         throw new PostmacloneException(self::missingCredentialsMessage(false));

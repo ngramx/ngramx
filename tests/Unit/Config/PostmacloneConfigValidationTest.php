@@ -34,15 +34,46 @@ class PostmacloneConfigValidationTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function test_requires_tables(): void
+    public function test_requires_tables_or_prebuilt(): void
     {
         $this->expectException(ConfigException::class);
-        $this->expectExceptionMessage('postmaclone.tables');
+        $this->expectExceptionMessage('prebuilt');
         $this->validator->validate($this->base([
             'postmaclone' => [
                 'engine' => 'postgres',
             ],
         ]));
+    }
+
+    public function test_accepts_prebuilt_without_tables(): void
+    {
+        $this->validator->validate($this->base([
+            'postmaclone' => [
+                'engine' => 'postgres',
+                'prebuilt' => [
+                    'path' => 'spaces://anon-bucket/project/',
+                    'file' => 'anon.sql.gz',
+                    'region' => 'lon1',
+                    'endpoint' => 'https://lon1.digitaloceanspaces.com',
+                    'credentials' => [
+                        'key' => 'op://Vault/anon-read/username',
+                        'secret' => 'op://Vault/anon-read/credential',
+                    ],
+                ],
+            ],
+        ]));
+        $this->assertTrue(true);
+    }
+
+    public function test_factory_config_loads(): void
+    {
+        $path = dirname(__DIR__, 2) . '/fixtures/postmaclone/factory-postmaclone.yml';
+        $loader = new ConfigLoader($this->validator);
+        $factory = $loader->loadFactory($path);
+        $this->assertArrayHasKey('demo', $factory->datasets);
+        $this->assertSame(['users'], $factory->datasets['demo']->includeTables);
+        $this->assertSame(['audit_log'], $factory->datasets['demo']->excludeTables);
+        $this->assertSame('spaces://anon-bucket/demo/', $factory->datasets['demo']->publish->path);
     }
 
     public function test_rejects_unknown_engine(): void
@@ -90,6 +121,35 @@ class PostmacloneConfigValidationTest extends TestCase
             ],
         ]));
         $this->assertTrue(true);
+    }
+
+    public function test_accepts_connection_backup_source(): void
+    {
+        $this->validator->validate($this->base([
+            'postmaclone' => [
+                'engine' => 'mysql',
+                'tables' => ['users' => ['email' => 'safeEmail']],
+                'backup' => [
+                    'source' => 'connection',
+                ],
+            ],
+        ]));
+        $this->assertTrue(true);
+    }
+
+    public function test_rejects_unknown_backup_source(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('postmaclone.backup.source');
+        $this->validator->validate($this->base([
+            'postmaclone' => [
+                'engine' => 'mysql',
+                'tables' => ['users' => ['email' => 'safeEmail']],
+                'backup' => [
+                    'source' => 'ftp',
+                ],
+            ],
+        ]));
     }
 
     public function test_loader_builds_opt_in_columns(): void

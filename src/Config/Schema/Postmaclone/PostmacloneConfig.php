@@ -22,10 +22,18 @@ readonly class PostmacloneConfig
         public string $locale = self::DEFAULT_LOCALE,
         public ?int $seed = 42,
         public BackupConfig $backup = new BackupConfig(),
+        public ?PrebuiltConfig $prebuilt = null,
         public TargetConfig $target = new TargetConfig(),
         public array $tables = [],
         public string $testPassword = self::DEFAULT_TEST_PASSWORD,
         public array $denyHosts = [],
     ) {
+    }
+
+    public function hasPrebuilt(): bool
+    {
+        return $this->prebuilt !== null
+            && $this->prebuilt->path !== null
+            && $this->prebuilt->path !== '';
     }
 }
