@@ -32,7 +32,7 @@ Every ticket gets a `.ngramx/tickets/[ticket-id]/` directory at the repo root co
 
 ## Completion record
 
-When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion.json`. This file **must** be valid JSON matching this exact schema — do not use markdown, do not add extra keys, do not omit required fields:
+When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion.json`. **Commit and push this file before opening the PR** — automated reviewers inspect the head commit at PR-open time, so a follow-up commit that only adds `completion.json` triggers false "missing completion.json" comments. Use `pr_url: ""` until `gh pr create` returns the URL, then update and push. This file **must** be valid JSON matching this exact schema — do not use markdown, do not add extra keys, do not omit required fields:
 
 ```json
 {
@@ -64,7 +64,7 @@ When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion
 |-------|----------|-------------|
 | `title` | Yes | PR title including ticket ID, e.g. `GIG-123: Short Title In Title Case`. |
 | `description` | Yes | One or two sentences describing what the ticket resolves or what the changes are. |
-| `pr_url` | Yes | Full URL of the GitHub pull request. |
+| `pr_url` | Yes | Full URL of the GitHub pull request. Before the PR exists, use `""`, then set the real URL immediately after create and push. |
 | `linear_url` | No | Full URL of the Linear ticket. Set to `null` or omit for non-Linear work. |
 | `test_urls` | Yes | Array of `{ "label", "url" }` objects. Deep-links into the running application at routes that demonstrate the change. Use the local development URL. Include bypass tokens if the project requires them. |
 | `test_plan` | Yes | Array of test blocks. Each has `description` (one sentence), `status` (`"active"` or `"stale"`), and `steps` (ordered array of testing instructions). When creating a PR, all blocks are `"active"`. When updating a PR after review feedback, existing blocks become `"stale"` and new blocks are added as `"active"`. |
@@ -72,5 +72,6 @@ When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion
 ## Hard rules
 
 - **Never open draft PRs.** CI and automated review should run against the PR from the moment it is created.
+- **Never open a PR without `completion.json` already committed and pushed** on the branch head.
 - **Never add a `cursor/` (or any other tool-specific) prefix to branch names.** The branch name should describe the work, not the tool that produced it.
 - One ticket = one branch = one PR.

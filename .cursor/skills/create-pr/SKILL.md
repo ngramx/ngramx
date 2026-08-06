@@ -47,7 +47,9 @@ Do **not** change the Linear issue status when creating or updating the PR. The 
 
 ## Completion record
 
-After the PR is created, add `.ngramx/tickets/[ticket-id]/completion.json`. This file **must** be valid JSON — do not use markdown, do not add extra keys:
+**Commit and push `completion.json` before opening the PR.** Automated reviewers inspect the head commit at PR-open time; adding the file in a follow-up commit causes false "missing completion.json" comments.
+
+Write `.ngramx/tickets/[ticket-id]/completion.json` first. This file **must** be valid JSON — do not use markdown, do not add extra keys:
 
 ```json
 {
@@ -77,14 +79,16 @@ After the PR is created, add `.ngramx/tickets/[ticket-id]/completion.json`. This
 
 - `title` (required): PR title including ticket ID, e.g. `GIG-123: Short Title`.
 - `description` (required): One or two sentences describing what the changes are.
-- `pr_url` (required): Full URL of the GitHub pull request.
+- `pr_url` (required): Full URL of the GitHub pull request. Before the PR exists, use an empty string `""`, then set the real URL immediately after `gh pr create` and push that update.
 - `linear_url` (optional): Full URL of the Linear ticket. Set to `null` or omit for non-Linear work.
 - `test_urls` (required): Array of `{ "label", "url" }` objects. Deep-links into the running application. Use the local development URL and include bypass tokens if needed.
 - `test_plan` (required): Array of test blocks. Each has `description` (short summary), `status` (always `"active"` when creating a PR), and `steps` (ordered testing instructions).
 
 ## Workflow
 
-1. Ensure all changes are committed and pushed.
-2. Run `gh pr create` with title, body (including risk/size rationale), and labels.
-3. Create `completion.json` in the ticket folder.
-4. Report the PR URL to the user.
+1. Ensure implementation changes are committed.
+2. Create `completion.json` in the ticket folder (`pr_url` may be `""` until the PR exists).
+3. Commit and push — **including** `completion.json` — so the file is on the remote branch before the PR opens.
+4. Run `gh pr create` with title, body (including risk/size rationale), and labels.
+5. Set `pr_url` in `completion.json` to the real PR URL, commit, and push.
+6. Report the PR URL to the user.

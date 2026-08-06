@@ -34,6 +34,7 @@ class AgentsManagedBodyProviderTest extends TestCase
         $markdown = $provider->getMarkdown();
 
         $this->assertStringContainsString('Never open draft PRs', $markdown);
+        $this->assertStringContainsString('Never open a PR without `completion.json` already committed and pushed', $markdown);
         $this->assertStringContainsString('completion.json', $markdown);
         $this->assertStringContainsString('test_urls', $markdown);
     }
