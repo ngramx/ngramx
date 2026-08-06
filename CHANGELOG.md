@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.3](https://github.com/ngramx/ngramx/compare/v2.32.2...v2.32.3) (2026-08-06)
+
+
+### Bug Fixes
+
+* **agents:** require completion.json before opening a PR ([5328729](https://github.com/ngramx/ngramx/commit/5328729ccabd2c8b73c805ef58af582e1c1f02f5))
+
 ## [2.32.2](https://github.com/ngramx/ngramx/compare/v2.32.1...v2.32.2) (2026-07-21)
 
 
