@@ -63,6 +63,21 @@ readonly class ProbeResult
     }
 
     /**
+     * Return a copy that reports $url (e.g. the original hostname after a
+     * loopback connect) so user-facing diagnostics match docker.app_url.
+     */
+    public function withUrl(string $url): self
+    {
+        return new self(
+            url: $url,
+            reachable: $this->reachable,
+            statusCode: $this->statusCode,
+            error: $this->error,
+            connectionRefused: $this->connectionRefused,
+        );
+    }
+
+    /**
      * A short, human-friendly description of what went wrong, designed to be
      * surfaced as a single line in `ngramx up` failure output.
      */

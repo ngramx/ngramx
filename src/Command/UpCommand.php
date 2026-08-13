@@ -172,6 +172,40 @@ class UpCommand extends Command
             $timeoutOption = $input->getOption('timeout');
             $timeout = $timeoutOption !== null ? (int) $timeoutOption : null;
 
+            // Write the lock as soon as the namespaced/offset stack is up —
+            // before (and regardless of) the URL probe. A DNS miss on WSL must
+            // not leave `ngramx shell` looking at the default compose project.
+            $lockWritten = false;
+            $writeLock = function () use (
+                &$lockWritten,
+                $needsOverride,
+                $herdStopped,
+                $caddyStopped,
+                $namespace,
+                $portOffset,
+                $noHostMapping,
+                $portMap,
+                $formatter,
+                $output,
+            ): void {
+                if ($lockWritten || (!$needsOverride && !$herdStopped && !$caddyStopped)) {
+                    return;
+                }
+
+                $this->lockFile->write(new LockFileData(
+                    namespace: $namespace,
+                    portOffset: $portOffset > 0 ? $portOffset : null,
+                    startedAt: date('c'),
+                    noHostMapping: $noHostMapping,
+                    herdStopped: $herdStopped,
+                    caddyStopped: $caddyStopped,
+                    portMap: $portMap,
+                ));
+                $lockWritten = true;
+                $output->writeln('');
+                $formatter->info('Instance details saved to .ngramx.lock');
+            };
+
             $result = $this->setupOrchestrator->setup(
                 $config,
                 $input->getOption('no-wait'),
@@ -183,7 +217,12 @@ class UpCommand extends Command
                 !$input->getOption('no-verify'),
                 $portMap,
                 dirname($configPath),
+                $writeLock,
             );
+
+            // Tests (and any caller that does not invoke onReady) still persist
+            // the lock after a successful setup.
+            $writeLock();
 
             // In a linked worktree the container's root entrypoint (composer
             // install, migrations, ...) has just written runtime files as root,
@@ -195,22 +234,6 @@ class UpCommand extends Command
             // restart) must as well, or ownership drifts back to root.
             if ($inWorktree) {
                 $this->reconcileWorktreeOwnership($worktreeRoot, $formatter);
-            }
-
-            // Write lock file if we generated an override file or stopped Herd/Caddy
-            if ($needsOverride || $herdStopped || $caddyStopped) {
-                $lockData = new LockFileData(
-                    namespace: $namespace,
-                    portOffset: $portOffset > 0 ? $portOffset : null,
-                    startedAt: date('c'),
-                    noHostMapping: $noHostMapping,
-                    herdStopped: $herdStopped,
-                    caddyStopped: $caddyStopped,
-                    portMap: $portMap,
-                );
-                $this->lockFile->write($lockData);
-                $output->writeln('');
-                $formatter->info('Instance details saved to .ngramx.lock');
             }
 
             // Display completion summary with port information

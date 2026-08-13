@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Ngramx\Tests\Unit\Orchestrator;
 
+use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use Ngramx\Config\Schema\DockerConfig;
 use Ngramx\Config\Schema\N8nConfig;
@@ -160,6 +162,7 @@ class SetupOrchestratorTest extends TestCase
 
         $probe = $this->createMock(AppUrlProbe::class);
         $probe->expects($this->never())->method('probe');
+        $probe->expects($this->never())->method('probeWithHost');
 
         $orchestrator = $this->createOrchestrator(appUrlProbe: $probe);
         $result = $orchestrator->setup($config, skipWait: true, verifyAppUrl: false);
@@ -174,17 +177,19 @@ class SetupOrchestratorTest extends TestCase
         $this->dockerCompose->method('hasExistingImages')->willReturn(true);
         $this->dockerCompose->expects($this->once())->method('up');
 
-        $probedUrls = [];
-        $probe = new AppUrlProbe(static function (string $method, string $url) use (&$probedUrls): Response {
-            $probedUrls[] = $url;
+        $probed = [];
+        $probe = new AppUrlProbe(static function (string $method, string $url, array $options) use (&$probed): Response {
+            $probed[] = ['url' => $url, 'host' => $options['headers']['Host'] ?? null];
             return new Response(200);
         });
 
         $orchestrator = $this->createOrchestrator(appUrlProbe: $probe);
         $orchestrator->setup($config, skipWait: true, portOffset: 8100);
 
-        $this->assertNotEmpty($probedUrls, 'Probe should fire at least once with offset applied.');
-        $this->assertStringContainsString(':8180', $probedUrls[0], 'http://localhost:80 + offset 8100 = :8180');
+        $this->assertNotEmpty($probed, 'Probe should fire at least once with offset applied.');
+        $this->assertStringContainsString(':8180', $probed[0]['url'], 'http://localhost:80 + offset 8100 = :8180');
+        $this->assertSame('localhost', $probed[0]['host']);
+        $this->assertStringContainsString('127.0.0.1', $probed[0]['url']);
     }
 
     public function test_setup_derives_probe_attempts_from_configured_verify_timeout(): void
@@ -197,8 +202,8 @@ class SetupOrchestratorTest extends TestCase
 
         $probe = $this->createMock(AppUrlProbe::class);
         $probe->expects($this->once())
-            ->method('probe')
-            ->with($this->anything(), 60, 2)
+            ->method('probeWithHost')
+            ->with($this->anything(), $this->anything(), 60, 2)
             ->willReturn(ProbeResult::fromResponse('http://localhost:80', new Response(200)));
 
         $orchestrator = $this->createOrchestrator(
@@ -218,8 +223,8 @@ class SetupOrchestratorTest extends TestCase
 
         $probe = $this->createMock(AppUrlProbe::class);
         $probe->expects($this->once())
-            ->method('probe')
-            ->with($this->anything(), 30, 2)
+            ->method('probeWithHost')
+            ->with($this->anything(), $this->anything(), 30, 2)
             ->willReturn(ProbeResult::fromResponse('http://localhost:80', new Response(200)));
 
         $orchestrator = $this->createOrchestrator(
@@ -472,6 +477,123 @@ class SetupOrchestratorTest extends TestCase
         $this->assertGreaterThanOrEqual(0.0, $result['time']);
     }
 
+    public function test_setup_probes_dot_localhost_via_loopback_with_host_header(): void
+    {
+        $config = $this->createConfig(appUrl: 'https://terrablock.localhost');
+
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+        $this->dockerCompose->expects($this->once())->method('up');
+
+        $seen = [];
+        $probe = new AppUrlProbe(static function (string $method, string $url, array $options) use (&$seen): Response {
+            $seen = ['url' => $url, 'host' => $options['headers']['Host'] ?? null];
+
+            return new Response(302, ['Location' => '/login']);
+        });
+
+        $orchestrator = $this->createOrchestrator(appUrlProbe: $probe);
+        $result = $orchestrator->setup($config, skipWait: true);
+
+        $this->assertSame('https://127.0.0.1:443/', $seen['url']);
+        $this->assertSame('terrablock.localhost', $seen['host']);
+        $this->assertNotNull($result['app_url_probe']);
+        $this->assertTrue($result['app_url_probe']->isHealthy());
+        $this->assertSame('https://terrablock.localhost', $result['app_url_probe']->url);
+        $this->assertStringContainsString('via 127.0.0.1', $this->output->fetch());
+    }
+
+    public function test_setup_still_throws_on_5xx_when_probing_via_loopback(): void
+    {
+        $config = $this->createConfig(appUrl: 'https://terrablock.localhost:8543');
+
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+        $this->dockerCompose->expects($this->once())->method('up');
+        $this->dockerCompose->method('getLatestLogLines')->willReturn([]);
+
+        $probe = new AppUrlProbe(static fn () => new Response(502));
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/HTTP 502/');
+
+        $this->createOrchestrator(appUrlProbe: $probe)->setup($config, skipWait: true);
+    }
+
+    public function test_setup_warns_instead_of_throwing_when_loopback_probe_cannot_connect(): void
+    {
+        $config = $this->createConfig(appUrl: 'https://unresolvable-cor-291.localhost:8543');
+
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+        $this->dockerCompose->expects($this->once())->method('up');
+
+        $exception = new ConnectException(
+            'cURL error 7: Failed to connect',
+            new Request('GET', 'https://127.0.0.1:8543/'),
+        );
+        $probe = new AppUrlProbe(static function () use ($exception): never {
+            throw $exception;
+        });
+
+        $orchestrator = $this->createOrchestrator(appUrlProbe: $probe);
+        $result = $orchestrator->setup($config, skipWait: true);
+
+        $this->assertNotNull($result['app_url_probe']);
+        $this->assertFalse($result['app_url_probe']->isHealthy());
+        $this->assertTrue($result['app_url_probe']->connectionRefused);
+        $display = $this->output->fetch();
+        $this->assertStringContainsString('connection refused', strtolower($display));
+        $host = 'unresolvable-cor-291.localhost';
+        if (@gethostbyname($host) === $host) {
+            $this->assertStringContainsString('127.0.0.1 '.$host, $display);
+        }
+    }
+
+    public function test_setup_invokes_on_ready_before_app_url_probe(): void
+    {
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+        $this->dockerCompose->expects($this->once())->method('up');
+
+        $order = [];
+        $probe = new AppUrlProbe(static function () use (&$order): Response {
+            $order[] = 'probe';
+
+            return new Response(200);
+        });
+
+        $this->createOrchestrator(appUrlProbe: $probe)->setup(
+            $this->createConfig(),
+            skipWait: true,
+            onReady: static function () use (&$order): void {
+                $order[] = 'ready';
+            },
+        );
+
+        $this->assertSame(['ready', 'probe'], $order);
+    }
+
+    public function test_setup_invokes_on_ready_before_throwing_on_5xx_probe(): void
+    {
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+        $this->dockerCompose->expects($this->once())->method('up');
+        $this->dockerCompose->method('getLatestLogLines')->willReturn([]);
+
+        $ready = false;
+        $probe = new AppUrlProbe(static fn () => new Response(502));
+
+        try {
+            $this->createOrchestrator(appUrlProbe: $probe)->setup(
+                $this->createConfig(),
+                skipWait: true,
+                onReady: static function () use (&$ready): void {
+                    $ready = true;
+                },
+            );
+            $this->fail('Expected RuntimeException');
+        } catch (\RuntimeException $e) {
+            $this->assertTrue($ready, 'Lock callback must run before a 5xx probe failure.');
+            $this->assertStringContainsString('HTTP 502', $e->getMessage());
+        }
+    }
+
     private function createOrchestrator(
         ?AppUrlProbe $appUrlProbe = null,
         ?NetworkAttachmentChecker $checker = null,
@@ -518,14 +640,17 @@ class SetupOrchestratorTest extends TestCase
     /**
      * @param ServiceWaitConfig[] $waitFor
      */
-    private function createConfig(array $waitFor = [], ?int $verifyTimeout = null): NgramxConfig
-    {
+    private function createConfig(
+        array $waitFor = [],
+        ?int $verifyTimeout = null,
+        string $appUrl = 'http://localhost:80',
+    ): NgramxConfig {
         return new NgramxConfig(
             version: '1.0',
             docker: new DockerConfig(
                 composeFile: 'docker-compose.yml',
                 primaryService: 'app',
-                appUrl: 'http://localhost:80',
+                appUrl: $appUrl,
                 waitFor: $waitFor,
                 verifyTimeout: $verifyTimeout,
             ),

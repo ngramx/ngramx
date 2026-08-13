@@ -1,0 +1,14 @@
+{
+  "id": "COR-291",
+  "title": "Probe *.localhost via loopback so ngramx up still writes .ngramx.lock on WSL",
+  "url": "https://linear.app/gigabyte/issue/COR-291/probe-localhost-via-loopback-so-ngramx-up-still-writes-ngramxlock-on",
+  "gitBranchName": "cor-291-probe-localhost-via-loopback-so-ngramx-up-still-writes",
+  "status": "In Progress",
+  "priority": "Medium",
+  "estimate": "2 Points",
+  "team": "Cortex",
+  "project": "Ngramx CLI",
+  "assignee": "Cameron Smith",
+  "createdAt": "2026-08-13T12:57:03.420Z",
+  "description": "On WSL2, ngramx up --avoid-conflicts can start a healthy namespaced stack, then hard-fail the docker.app_url probe because *.localhost does not resolve inside the distro. .ngramx.lock is never written. Probe via loopback, write the lock once the stack is up, and hint /etc/hosts without sudo."
+}

@@ -15,7 +15,9 @@ use Ngramx\Docker\NetworkAttachmentChecker;
 use Ngramx\Docker\ServiceReadinessWaiter;
 use Ngramx\Executor\ContainerCommandExecutor;
 use Ngramx\Executor\HostCommandExecutor;
+use Ngramx\Host\EtcHostsHint;
 use Ngramx\Http\AppUrlProbe;
+use Ngramx\Http\LoopbackUrl;
 use Ngramx\Http\ProbeResult;
 use Ngramx\Http\UrlPortOffset;
 use Ngramx\Output\LiveLogPanel;
@@ -71,10 +73,16 @@ class SetupOrchestrator
      * @param string|null $namespace Container namespace
      * @param int|null $portOffset Port offset to apply
      * @param bool $verifyAppUrl When true, probe `docker.app_url` after setup and
-     *        throw on 5xx / connection refused. Disable with `ngramx up --no-verify`
+     *        throw on 5xx. Connection/DNS failures after a healthy stack are
+     *        warnings so `.ngramx.lock` still lets `ngramx shell` attach.
+     *        Disable with `ngramx up --no-verify`
      *        for CI / non-HTTP stacks.
      * @param array<int, int> $portMap Per-port conflict remap (conflicted base host
      *        port => replacement) so the post-start probe follows a remapped web port.
+     * @param (callable(): void)|null $onReady Invoked after containers are healthy
+     *        (and initialize commands have run) and before the HTTP probe. Used
+     *        by `ngramx up` to write `.ngramx.lock` so a later probe warning or
+     *        5xx cannot leave `ngramx shell` looking at the default compose project.
      * @return array{time: float, namespace: string, port_offset: int, app_url_probe: ?ProbeResult} Setup results
      * @throws \RuntimeException
      * @throws ServiceNotHealthyException
@@ -89,7 +97,8 @@ class SetupOrchestrator
         ?int $timeout = null,
         bool $verifyAppUrl = true,
         array $portMap = [],
-        string $configDirectory = ''
+        string $configDirectory = '',
+        ?callable $onReady = null,
     ): array {
         $startTime = microtime(true);
 
@@ -141,7 +150,13 @@ class SetupOrchestrator
             );
         }
 
-        // Phase 5: HTTP probe of app_url. Catches the "containers are running
+        // Phase 5: persist instance identity (lock file) before the HTTP probe
+        // so a DNS/connect miss on WSL cannot strand `ngramx shell`.
+        if ($onReady !== null) {
+            $onReady();
+        }
+
+        // Phase 6: HTTP probe of app_url. Catches the "containers are running
         // but the upstream is broken" failure mode that Docker-level checks
         // cannot detect (e.g. nginx returns 502 because php-fpm is stuck in
         // its own entrypoint waiting for a desynced db container).
@@ -206,10 +221,10 @@ class SetupOrchestrator
      * times because php-fpm / Laravel boot can race the first request even
      * after Docker says the container is up.
      *
-     * Throws {@see \RuntimeException} on 5xx or connection failure, with a
-     * diagnostic message that includes the latest line from the most likely
-     * culprit's logs (the primary service) so the user sees the actual error
-     * rather than just "502 Bad Gateway".
+     * Throws {@see \RuntimeException} on 5xx. Connection/DNS failures after
+     * containers are healthy are returned as a warning (the lock is already
+     * written). `localhost` / `*.localhost` are probed via 127.0.0.1 with
+     * the original Host header so WSL's resolver cannot mask a running stack.
      */
     /**
      * @param array<int, int> $portMap
@@ -237,13 +252,26 @@ class SetupOrchestrator
             $attempts = max(1, (int) ceil($verifyTimeout / $retrySeconds));
         }
 
-        $this->formatter->info("Probing {$url} ...");
+        $probeUrl = $url;
+        $hostHeader = null;
+        $loopback = LoopbackUrl::probeTarget($url);
+        if ($loopback !== null) {
+            $probeUrl = $loopback['url'];
+            $hostHeader = $loopback['host'];
+            $this->formatter->info("Probing {$url} via 127.0.0.1 (Host: {$hostHeader}) ...");
+        } else {
+            $this->formatter->info("Probing {$url} ...");
+        }
 
-        $result = $this->appUrlProbe->probe(
-            $url,
+        $result = $this->appUrlProbe->probeWithHost(
+            $probeUrl,
+            $hostHeader,
             attempts: $attempts,
             retrySeconds: $retrySeconds,
         );
+        if ($loopback !== null) {
+            $result = $result->withUrl($url);
+        }
 
         if ($result->isHealthy()) {
             $this->formatter->info(sprintf(
@@ -251,6 +279,21 @@ class SetupOrchestrator
                 $url,
                 (int) $result->statusCode,
             ));
+            return $result;
+        }
+
+        // DNS / connect failures after a healthy stack are a warning: the
+        // namespaced containers are up and the lock is already written.
+        // 5xx still fails the command — that is a real php-fpm/nginx miss.
+        if (!$result->reachable) {
+            $this->formatter->warning($result->describeFailure());
+            $hostsLine = EtcHostsHint::suggestedHostsLine($url);
+            if ($hostsLine !== null) {
+                $this->formatter->warning('This hostname does not resolve on your machine yet (normal for made-up dev domains).');
+                $this->formatter->info('Add this line to /etc/hosts so your browser can open the URL:');
+                $this->formatter->info('  '.$hostsLine);
+            }
+
             return $result;
         }
 

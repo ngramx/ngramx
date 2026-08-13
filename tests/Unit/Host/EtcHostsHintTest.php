@@ -19,9 +19,29 @@ final class EtcHostsHintTest extends TestCase
         $this->assertNull(EtcHostsHint::suggestedHostsLine('http://127.0.0.1/'));
     }
 
-    public function test_it_returns_null_for_dot_localhost(): void
+    public function test_it_returns_null_for_dot_localhost_when_it_resolves(): void
     {
+        $host = 'myapp.localhost';
+        $resolved = @gethostbyname($host);
+        if ($resolved === $host) {
+            $this->markTestSkipped('myapp.localhost does not resolve in this environment');
+        }
+
         $this->assertNull(EtcHostsHint::suggestedHostsLine('https://myapp.localhost'));
+    }
+
+    public function test_it_suggests_hosts_line_for_unresolvable_dot_localhost(): void
+    {
+        $host = 'unresolvable-cor-291.localhost';
+        $resolved = @gethostbyname($host);
+        if ($resolved !== $host) {
+            $this->markTestSkipped('*.localhost resolves in this environment; cannot assert unresolvable behaviour');
+        }
+
+        $this->assertSame(
+            '127.0.0.1 '.$host,
+            EtcHostsHint::suggestedHostsLine('https://'.$host.':8543')
+        );
     }
 
     public function test_it_returns_null_for_invalid_url_without_host(): void

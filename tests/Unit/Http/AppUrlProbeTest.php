@@ -13,6 +13,22 @@ use PHPUnit\Framework\TestCase;
 
 class AppUrlProbeTest extends TestCase
 {
+    public function test_probe_with_host_sends_host_header(): void
+    {
+        $seen = [];
+        $probe = new AppUrlProbe(static function (string $method, string $url, array $options) use (&$seen): Response {
+            $seen = ['url' => $url, 'host' => $options['headers']['Host'] ?? null];
+
+            return new Response(200);
+        });
+
+        $result = $probe->probeWithHost('https://127.0.0.1:8543/', 'terrablock.localhost');
+
+        $this->assertTrue($result->isHealthy());
+        $this->assertSame('https://127.0.0.1:8543/', $seen['url']);
+        $this->assertSame('terrablock.localhost', $seen['host']);
+    }
+
     public function test_probe_returns_healthy_for_200(): void
     {
         $probe = new AppUrlProbe($this->requesterReturning(new Response(200)));
@@ -108,6 +124,17 @@ class AppUrlProbeTest extends TestCase
 
         $this->assertFalse($result->isHealthy());
         $this->assertSame('Could not reach https://app.localhost — kapow', $result->describeFailure());
+    }
+
+    public function test_with_url_preserves_probe_outcome(): void
+    {
+        $result = ProbeResult::fromResponse('https://127.0.0.1:8543/', new Response(502))
+            ->withUrl('https://terrablock.localhost:8543');
+
+        $this->assertSame('https://terrablock.localhost:8543', $result->url);
+        $this->assertSame(502, $result->statusCode);
+        $this->assertFalse($result->isHealthy());
+        $this->assertStringContainsString('https://terrablock.localhost:8543 responded with HTTP 502', $result->describeFailure());
     }
 
     private function requesterReturning(Response $response): \Closure
