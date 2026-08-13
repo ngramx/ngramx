@@ -1,12 +1,12 @@
 {
   "title": "COR-291: Probe *.localhost Via Loopback So Ngramx Up Still Writes .ngramx.lock On WSL",
   "description": "Probes localhost-family app URLs via 127.0.0.1 with the correct Host header, writes .ngramx.lock before the HTTP probe, and hints /etc/hosts when *.localhost does not resolve on WSL.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/2",
   "linear_url": "https://linear.app/gigabyte/issue/COR-291/probe-localhost-via-loopback-so-ngramx-up-still-writes-ngramxlock-on",
   "test_urls": [
     {
-      "label": "GitHub repository",
-      "url": "https://github.com/ngramx/ngramx"
+      "label": "GitHub PR",
+      "url": "https://github.com/ngramx/ngramx/pull/2"
     }
   ],
   "test_plan": [
