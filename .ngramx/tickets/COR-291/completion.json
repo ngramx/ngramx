@@ -1,0 +1,44 @@
+{
+  "title": "COR-291: Probe *.localhost Via Loopback So Ngramx Up Still Writes .ngramx.lock On WSL",
+  "description": "Probes localhost-family app URLs via 127.0.0.1 with the correct Host header, writes .ngramx.lock before the HTTP probe, and hints /etc/hosts when *.localhost does not resolve on WSL.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/COR-291/probe-localhost-via-loopback-so-ngramx-up-still-writes-ngramxlock-on",
+  "test_urls": [
+    {
+      "label": "GitHub repository",
+      "url": "https://github.com/ngramx/ngramx"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Namespaced up on WSL still writes the lock when *.localhost does not resolve",
+      "status": "active",
+      "steps": [
+        "On WSL, with another stack occupying ports 80/443, run ngramx up --avoid-conflicts in a project whose docker.app_url is https://<name>.localhost",
+        "Confirm containers become healthy",
+        "Confirm .ngramx.lock is written with the namespaced compose project",
+        "Confirm ngramx shell attaches to the namespaced primary service"
+      ]
+    },
+    {
+      "description": "HTTP probe still flags a real 5xx via loopback Host header",
+      "status": "active",
+      "steps": [
+        "With a *.localhost app_url, stop or break php-fpm so nginx returns 502",
+        "Run ngramx up (or wait for the post-start probe)",
+        "Confirm up exits non-zero citing HTTP 502",
+        "Confirm .ngramx.lock was still written before the failure"
+      ]
+    },
+    {
+      "description": "Unresolvable *.localhost prints an /etc/hosts hint without writing the file",
+      "status": "active",
+      "steps": [
+        "Ensure <name>.localhost is not in /etc/hosts and does not resolve in WSL",
+        "Run ngramx up --avoid-conflicts",
+        "Confirm output suggests 127.0.0.1 <name>.localhost",
+        "Confirm ngramx did not modify /etc/hosts"
+      ]
+    }
+  ]
+}
