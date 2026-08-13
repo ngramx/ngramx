@@ -753,6 +753,66 @@ class UpCommandTest extends TestCase
         $this->assertSame(0, $exitCode);
     }
 
+    public function test_it_writes_lock_when_probe_fails_after_stack_is_ready(): void
+    {
+        $config = $this->createMockConfig();
+
+        $this->lockFile->expects($this->once())
+            ->method('exists')
+            ->willReturn(false);
+
+        $this->configLoader->expects($this->once())
+            ->method('findConfigFile')
+            ->willReturn('/path/to/ngramx.yml');
+
+        $this->configLoader->expects($this->once())
+            ->method('load')
+            ->willReturn($config);
+
+        $this->namespaceResolver->expects($this->once())
+            ->method('validate')
+            ->with('custom-namespace');
+
+        $this->overrideGenerator->expects($this->once())
+            ->method('generate');
+
+        $this->setupOrchestrator->expects($this->once())
+            ->method('setup')
+            ->willReturnCallback(function (
+                $config,
+                $skipWait,
+                $skipInit,
+                $namespace,
+                $portOffset,
+                $rebuild,
+                $timeout,
+                $verifyAppUrl,
+                $portMap,
+                $configDirectory,
+                $onReady = null,
+            ): never {
+                if (is_callable($onReady)) {
+                    $onReady();
+                }
+
+                throw new \RuntimeException('https://app.localhost responded with HTTP 502');
+            });
+
+        $this->lockFile->expects($this->once())
+            ->method('write')
+            ->with($this->callback(function (LockFileData $data) {
+                return $data->namespace === 'custom-namespace';
+            }));
+
+        $command = $this->createCommand();
+        $tester = new CommandTester($command);
+        $exitCode = $tester->execute(['--namespace' => 'custom-namespace']);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('Instance details saved to .ngramx.lock', $tester->getDisplay());
+        $this->assertStringContainsString('HTTP 502', $tester->getDisplay());
+    }
+
     private function createCommand(): UpCommand
     {
         return new UpCommand(

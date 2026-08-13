@@ -78,18 +78,20 @@ class AppUrlProbe
             $headers['Host'] = $hostHeader;
         }
 
+        $options = [
+            'allow_redirects' => false,
+            'connect_timeout' => $this->connectTimeout,
+            'timeout' => $this->requestTimeout,
+            'verify' => false,
+            'http_errors' => false,
+            'headers' => $headers,
+        ];
+
         try {
             $response = ($this->httpRequester ?? $this->defaultRequester())(
                 'GET',
                 $url,
-                [
-                    'allow_redirects' => false,
-                    'connect_timeout' => $this->connectTimeout,
-                    'timeout' => $this->requestTimeout,
-                    'verify' => false,
-                    'http_errors' => false,
-                    'headers' => $headers,
-                ]
+                $options,
             );
 
             return ProbeResult::fromResponse($url, $response);
@@ -113,11 +115,56 @@ class AppUrlProbe
         }
     }
 
+    /**
+     * Production HTTP client. When the URL host is an IP and a `Host` header
+     * is set, pin DNS to that IP via CURLOPT_RESOLVE so curl still uses the
+     * hostname for TLS SNI (nginx name-based vhosts).
+     */
     private function defaultRequester(): \Closure
     {
         return static function (string $method, string $url, array $options): ResponseInterface {
+            [$url, $options] = self::applySniForIpTarget($url, $options);
+
             $client = new \GuzzleHttp\Client();
+
             return $client->request($method, $url, $options);
         };
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array{0: string, 1: array<string, mixed>}
+     */
+    private static function applySniForIpTarget(string $url, array $options): array
+    {
+        $hostHeader = $options['headers']['Host'] ?? null;
+        if (!is_string($hostHeader) || $hostHeader === '' || !\defined('CURLOPT_RESOLVE')) {
+            return [$url, $options];
+        }
+
+        $parts = parse_url($url);
+        if (!is_array($parts) || !isset($parts['host'], $parts['scheme'])) {
+            return [$url, $options];
+        }
+
+        $ip = (string) $parts['host'];
+        if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
+            return [$url, $options];
+        }
+
+        $port = $parts['port'] ?? match (strtolower((string) $parts['scheme'])) {
+            'https' => 443,
+            'http' => 80,
+            default => null,
+        };
+        if ($port === null) {
+            return [$url, $options];
+        }
+
+        $curl = is_array($options['curl'] ?? null) ? $options['curl'] : [];
+        $curl[\CURLOPT_RESOLVE] = [sprintf('%s:%d:%s', $hostHeader, $port, $ip)];
+        $options['curl'] = $curl;
+
+        return [LoopbackUrl::withHost($url, $hostHeader), $options];
     }
 }

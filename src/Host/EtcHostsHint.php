@@ -21,7 +21,10 @@ final class EtcHostsHint
             return null;
         }
 
-        if (self::isLoopbackStyleHostname($host)) {
+        $h = strtolower($host);
+        // `localhost` and raw loopback IPs always resolve. `*.localhost` does
+        // *not* on WSL (or glibc without nss-myhostname) — fall through to DNS.
+        if ($h === 'localhost' || $h === '127.0.0.1' || $h === '::1') {
             return null;
         }
 
@@ -43,15 +46,5 @@ final class EtcHostsHint
         $parts = parse_url($appUrl);
 
         return isset($parts['host']) ? (string) $parts['host'] : null;
-    }
-
-    private static function isLoopbackStyleHostname(string $host): bool
-    {
-        $h = strtolower($host);
-        if ($h === 'localhost' || $h === '127.0.0.1' || $h === '::1') {
-            return true;
-        }
-
-        return str_ends_with($h, '.localhost');
     }
 }

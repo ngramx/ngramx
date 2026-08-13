@@ -17,3 +17,7 @@ Do not fix this by auto-writing `/etc/hosts`. Probe `*.localhost` via loopback w
 ## Changes
 
 - Ticket folder created.
+- `LoopbackUrl` rewrites `localhost` / `*.localhost` probes to `127.0.0.1` with the original Host header; production Guzzle uses `CURLOPT_RESOLVE` so TLS SNI matches the hostname.
+- `SetupOrchestrator::verifyAppUrl()` uses that loopback probe. 5xx still fails `up`; DNS/connect failures after a healthy stack are warnings and include an `/etc/hosts` hint when the name does not resolve.
+- `UpCommand` writes `.ngramx.lock` via an `onReady` callback before the HTTP probe, so `ngramx shell` still finds the namespaced stack if the probe later fails or warns.
+- `EtcHostsHint` no longer treats `*.localhost` as always-resolvable; it suggests `127.0.0.1 <host>` when `gethostbyname()` fails. It does not write `/etc/hosts`.
