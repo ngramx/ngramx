@@ -6,7 +6,9 @@ namespace Ngramx\Command;
 
 use Exception;
 use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\LockFile;
 use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Http\UrlPortOffset;
 use Ngramx\Output\OutputFormatter;
 use Ngramx\Worktree\WorktreeIdentity;
 use RuntimeException;
@@ -33,10 +35,11 @@ class WorktreeCommand extends ReviewCommand
         $this
             ->setName('worktree')
             ->setDescription('Create (or reuse) a git worktree with an isolated dev environment for working on a ticket')
-            ->addArgument('ticket', InputArgument::OPTIONAL, 'The ticket to work on: a bare number ("2345", prefixed with the configured default team), or a full reference ("gig-2345" / "gig2345"). Omit on a feature branch to move the current branch into a worktree. Optional with --cleanup, where it targets a single worktree (omit it to clean up every worktree).')
+            ->addArgument('ticket', InputArgument::OPTIONAL, 'The ticket to work on: a bare number ("2345", prefixed with the configured default team), or a full reference ("gig-2345" / "gig2345"). Omit on a feature branch to move the current branch into a worktree. With --cleanup, a bare number is treated as the 1-based index from `ngramx worktree --list` (use a ticket reference like "gig-2345" to target by ticket instead).')
             ->addOption('quick', null, InputOption::VALUE_NONE, 'Use the "clear" command instead of "fresh" — skips the database reset. Only safe on branches with no schema or seed changes.')
             ->addOption('cursor', 'c', InputOption::VALUE_NONE, 'Open the worktree in a new Cursor window once it is ready')
-            ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. Targets one ticket when given, or every worktree when no ticket is provided.');
+            ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. Targets one worktree when a ticket or list index is given, or every worktree when no argument is provided.')
+            ->addOption('list', 'l', InputOption::VALUE_NONE, 'List every worktree under .ngramx/worktrees/ with its branch, running state and URL.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -50,9 +53,30 @@ class WorktreeCommand extends ReviewCommand
             $config = $this->configLoader->load($configPath);
             $repositoryPath = dirname($configPath);
 
+            if ((bool) $input->getOption('list')) {
+                return $this->runWorktreeStatus($output, $formatter, $config, $repositoryPath);
+            }
+
             if ((bool) $input->getOption('cleanup')) {
                 if ($rawTicket === '') {
                     return $this->runWorktreeCleanupAll($output, $formatter, $repositoryPath);
+                }
+
+                // A bare positive integer that falls within the worktree list
+                // range is treated as a 1-based index from `ngramx worktree
+                // --list`, so the developer can clean up by number without
+                // typing the full ticket slug. Out-of-range integers and
+                // non-numeric arguments fall through to ticket-based cleanup.
+                $worktrees = $this->listWorktreeDirectories($repositoryPath);
+                $index = $this->parseListIndex($rawTicket, count($worktrees));
+                if ($index !== null) {
+                    return $this->runWorktreeCleanupByIndex(
+                        $output,
+                        $formatter,
+                        $repositoryPath,
+                        $worktrees,
+                        $index,
+                    );
                 }
 
                 $ticketSlug = WorktreeIdentity::normalizeTicket($rawTicket, $config->defaultTeam);
@@ -254,5 +278,157 @@ class WorktreeCommand extends ReviewCommand
             $ticketSlug,
             popStash: $didStash
         );
+    }
+
+    /**
+     * List every worktree under .ngramx/worktrees/ with a 1-based index,
+     * its checked-out branch, whether its environment is running, and the
+     * URL it was brought up on. The indices are what `--cleanup <n>` uses.
+     */
+    private function runWorktreeStatus(
+        OutputInterface $output,
+        OutputFormatter $formatter,
+        NgramxConfig $config,
+        string $repositoryPath
+    ): int {
+        $worktrees = $this->listWorktreeDirectories($repositoryPath);
+
+        if ($worktrees === []) {
+            $formatter->info('No worktrees found under .ngramx/worktrees/.');
+            return Command::SUCCESS;
+        }
+
+        // Sort alphabetically so the numbering is stable across runs.
+        sort($worktrees);
+
+        $branchMap = $this->gitRepositoryService->listWorktreeBranches($repositoryPath);
+        $appUrl = $config->docker->appUrl;
+
+        $formatter->section('Active worktrees (' . count($worktrees) . ')');
+
+        $rows = [];
+        foreach ($worktrees as $i => $worktreePath) {
+            $folder = basename($worktreePath);
+            $branch = $branchMap[$worktreePath] ?? '—';
+            $running = $this->isWorktreeRunning($worktreePath, $config, $folder);
+            $url = $this->worktreeUrl($worktreePath, $appUrl);
+
+            $rows[] = sprintf(
+                '  <fg=yellow>%d</>  %-40s  %-30s  %-9s  %s',
+                $i + 1,
+                $folder,
+                $branch,
+                $running ? 'running' : 'stopped',
+                $url ?? '—',
+            );
+        }
+
+        $output->writeln('');
+        $output->writeln(sprintf(
+            '  <fg=#D2DCE5>%-3s  %-40s  %-30s  %-9s  %s</>',
+            '#',
+            'worktree',
+            'branch',
+            'status',
+            'url',
+        ));
+        foreach ($rows as $row) {
+            $output->writeln($row);
+        }
+        $output->writeln('');
+        $formatter->info('Clean up by index: ngramx worktree --cleanup <#>, or by ticket: ngramx worktree --cleanup <ticket>');
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Tear down a single worktree identified by its 1-based position in the
+     * sorted directory listing (the same order `--list` displays).
+     *
+     * @param list<string> $worktrees
+     */
+    private function runWorktreeCleanupByIndex(
+        OutputInterface $output,
+        OutputFormatter $formatter,
+        string $repositoryPath,
+        array $worktrees,
+        int $index
+    ): int {
+        sort($worktrees);
+
+        $worktreePath = $worktrees[$index - 1] ?? null;
+        if ($worktreePath === null) {
+            $formatter->error("No worktree at index $index. Run `ngramx worktree --list` to see the available indices.");
+            return Command::FAILURE;
+        }
+
+        $formatter->section('Cleaning up worktree #' . $index . ': ' . basename($worktreePath));
+
+        if (!$this->teardownWorktree($output, $formatter, $repositoryPath, $worktreePath)) {
+            return Command::FAILURE;
+        }
+
+        $formatter->success('✓ Removed worktree #' . $index . ' (' . basename($worktreePath) . ')');
+        $output->writeln('');
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Parse a bare positive integer as a 1-based list index, returning null
+     * when the argument is not a number or is outside the list range.
+     */
+    private function parseListIndex(string $rawTicket, int $worktreeCount): ?int
+    {
+        if ($worktreeCount === 0 || preg_match('/^[1-9]\d*$/', $rawTicket) !== 1) {
+            return null;
+        }
+
+        $index = (int) $rawTicket;
+
+        return $index >= 1 && $index <= $worktreeCount ? $index : null;
+    }
+
+    /**
+     * Whether the worktree's environment appears to be running. Probes the
+     * primary service container via Docker Compose so a stale lock file
+     * (left behind by a crash or manual `docker compose down`) does not
+     * produce a false "running".
+     */
+    private function isWorktreeRunning(string $worktreePath, NgramxConfig $config, string $folder): bool
+    {
+        if (!file_exists($worktreePath . '/.ngramx.lock')) {
+            return false;
+        }
+
+        $namespace = WorktreeIdentity::namespaceFor($folder);
+
+        return $this->dockerCompose->isServiceRunning(
+            $config->docker->composeFile,
+            $config->docker->primaryService,
+            $namespace,
+        );
+    }
+
+    /**
+     * Resolve the URL the worktree was brought up on, from its lock file's
+     * port offset applied to the app's configured URL. Returns null when
+     * there is no lock file.
+     */
+    private function worktreeUrl(string $worktreePath, string $appUrl): ?string
+    {
+        $lock = new LockFile($worktreePath);
+        if (!$lock->exists()) {
+            return null;
+        }
+
+        $data = $lock->read();
+        if ($data === null) {
+            return null;
+        }
+
+        $url = UrlPortOffset::apply($appUrl, $data->portOffset ?? 0);
+
+        return UrlPortOffset::applyMap($url, $data->portMap);
     }
 }

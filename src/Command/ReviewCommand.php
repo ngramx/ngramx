@@ -53,7 +53,7 @@ class ReviewCommand extends Command
 
     public function __construct(
         protected readonly ConfigLoader $configLoader,
-        private readonly DockerCompose $dockerCompose,
+        protected readonly DockerCompose $dockerCompose,
         private readonly LockFile $lockFile,
         protected readonly GitRepositoryService $gitRepositoryService,
         private readonly LaravelService $laravelService,
@@ -601,7 +601,7 @@ class ReviewCommand extends Command
      * pruning the git worktree admin entry. Returns false if the directory could
      * not be removed.
      */
-    private function teardownWorktree(
+    protected function teardownWorktree(
         OutputInterface $output,
         OutputFormatter $formatter,
         string $repositoryPath,
@@ -723,7 +723,7 @@ class ReviewCommand extends Command
      *
      * @return list<string> Absolute paths to worktree directories
      */
-    private function listWorktreeDirectories(string $repositoryPath): array
+    protected function listWorktreeDirectories(string $repositoryPath): array
     {
         $worktreesDir = $repositoryPath . '/' . self::WORKTREE_DIR;
 

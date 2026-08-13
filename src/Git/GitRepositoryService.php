@@ -507,6 +507,62 @@ class GitRepositoryService
     }
 
     /**
+     * Return a map of worktree path => checked-out branch name for every
+     * registered worktree, parsed from `git worktree list --porcelain`.
+     *
+     * The branch name is the short ref (e.g. "gig-123-fix-thing") when the
+     * worktree is on a branch, or the detached HEAD sha when it is not.
+     * Worktrees that git lists but whose directories no longer exist on
+     * disk (stale admin entries) are excluded.
+     *
+     * @return array<string, string> normalised absolute path => branch name
+     */
+    public function listWorktreeBranches(string $repositoryPath): array
+    {
+        $process = new Process(['git', 'worktree', 'list', '--porcelain'], $repositoryPath);
+        $process->setTimeout(30);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            return [];
+        }
+
+        $result = [];
+        $currentPath = null;
+        $currentBranch = null;
+
+        foreach (explode("\n", $process->getOutput()) as $line) {
+            if ($line === '') {
+                // Blank line separates worktree records.
+                if ($currentPath !== null && $currentBranch !== null && is_dir($currentPath)) {
+                    $result[$this->normalizePath($currentPath)] = $currentBranch;
+                }
+                $currentPath = null;
+                $currentBranch = null;
+                continue;
+            }
+
+            if (str_starts_with($line, 'worktree ')) {
+                $currentPath = trim(substr($line, strlen('worktree ')));
+            } elseif (str_starts_with($line, 'branch ')) {
+                $ref = trim(substr($line, strlen('branch ')));
+                $currentBranch = str_starts_with($ref, 'refs/heads/')
+                    ? substr($ref, strlen('refs/heads/'))
+                    : $ref;
+            } elseif (str_starts_with($line, 'detached')) {
+                $currentBranch = '(detached)';
+            }
+        }
+
+        // The last record may not be followed by a trailing blank line.
+        if ($currentPath !== null && $currentBranch !== null && is_dir($currentPath)) {
+            $result[$this->normalizePath($currentPath)] = $currentBranch;
+        }
+
+        return $result;
+    }
+
+    /**
      * Create a git worktree at $worktreePath checked out to $branch.
      *
      * Uses git's DWIM behaviour so a branch that only exists on origin is created

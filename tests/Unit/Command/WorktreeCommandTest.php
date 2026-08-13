@@ -71,6 +71,8 @@ class WorktreeCommandTest extends TestCase
         $this->assertSame('c', $definition->getOption('cursor')->getShortcut());
         $this->assertFalse($definition->hasOption('worktree'));
         $this->assertTrue($definition->hasOption('cleanup'));
+        $this->assertTrue($definition->hasOption('list'));
+        $this->assertSame('l', $definition->getOption('list')->getShortcut());
     }
 
     public function test_it_warns_when_no_ticket_on_integration_branch(): void
@@ -481,6 +483,142 @@ class WorktreeCommandTest extends TestCase
 
         $this->assertSame(1, $exitCode);
         $this->assertStringContainsString('Failed to fetch from origin', $tester->getDisplay());
+    }
+
+    public function test_list_shows_numbered_worktrees_with_branch_and_status(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-foo', 0755, true);
+        mkdir($worktreesDir . '/gig-2-bar', 0755, true);
+
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $this->gitRepositoryService->expects($this->any())
+            ->method('listWorktreeBranches')
+            ->with($this->tmpDir)
+            ->willReturn([
+                $worktreesDir . '/gig-1-foo' => 'gig-1-fix-thing',
+                $worktreesDir . '/gig-2-bar' => 'gig-2-another-thing',
+            ]);
+
+        // Both worktrees lack a lock file, so both should show "stopped".
+        $this->dockerCompose->expects($this->never())->method('isServiceRunning');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['--list' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('Active worktrees (2)', $display);
+        $this->assertStringContainsString('gig-1-foo', $display);
+        $this->assertStringContainsString('gig-2-bar', $display);
+        $this->assertStringContainsString('gig-1-fix-thing', $display);
+        $this->assertStringContainsString('gig-2-another-thing', $display);
+        $this->assertStringContainsString('stopped', $display);
+        $this->assertStringContainsString('--cleanup <#>', $display);
+    }
+
+    public function test_list_shows_running_status_when_lock_and_service_are_up(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        $wtPath = $worktreesDir . '/gig-1-foo';
+        mkdir($wtPath, 0755, true);
+        // Simulate a running environment by writing a lock file.
+        file_put_contents($wtPath . '/.ngramx.lock', json_encode([
+            'namespace' => 'ngramx-gig-1-foo',
+            'port_offset' => 1000,
+            'started_at' => '2026-01-01T00:00:00+00:00',
+            'no_host_mapping' => false,
+            'herd_stopped' => false,
+            'caddy_stopped' => false,
+            'port_map' => null,
+        ], JSON_PRETTY_PRINT));
+
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $this->gitRepositoryService->expects($this->any())
+            ->method('listWorktreeBranches')
+            ->willReturn([$wtPath => 'gig-1-fix-thing']);
+
+        $this->dockerCompose->expects($this->any())
+            ->method('isServiceRunning')
+            ->willReturn(true);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['--list' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('running', $display);
+        // The URL should reflect the port offset from the lock file.
+        $this->assertStringContainsString(':1080', $display);
+    }
+
+    public function test_list_shows_nothing_to_clean_up_message_when_empty(): void
+    {
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['--list' => true]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('No worktrees found', $tester->getDisplay());
+    }
+
+    public function test_cleanup_by_index_removes_the_indexed_worktree(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-foo', 0755, true);
+        mkdir($worktreesDir . '/gig-2-bar', 0755, true);
+
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => '2', '--cleanup' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('Removed worktree #2', $display);
+        $this->assertStringContainsString('gig-2-bar', $display);
+        // Worktree #1 (gig-1-foo) should still exist.
+        $this->assertDirectoryExists($worktreesDir . '/gig-1-foo');
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-2-bar');
+    }
+
+    public function test_cleanup_by_index_preserves_ticket_matching_for_out_of_range_numbers(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/cor-55-foo', 0755, true);
+        mkdir($worktreesDir . '/gig-2-bar', 0755, true);
+
+        $this->setupConfigLoader($this->createMockConfig(defaultTeam: 'cor'));
+
+        // "55" is out of range (only 2 worktrees), so it falls back to
+        // ticket-based cleanup and normalises to "cor-55".
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => '55', '--cleanup' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('Removed worktree for ticket cor-55', $display);
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/cor-55-foo');
+        $this->assertDirectoryExists($worktreesDir . '/gig-2-bar');
+    }
+
+    public function test_cleanup_by_out_of_range_index_errors(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-foo', 0755, true);
+
+        $this->setupConfigLoader($this->createMockConfig());
+
+        // "99" is numeric but out of range — and there's no ticket "99"
+        // either, so the ticket-based cleanup should report no match.
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => '99', '--cleanup' => true]);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('No worktree found', $tester->getDisplay());
     }
 
     private function stubNoTicketPrefixMatches(): void
