@@ -9,6 +9,7 @@ use Ngramx\Config\Exception\ConfigException;
 use Ngramx\Config\LockFile;
 use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\DockerLauncher;
 use Ngramx\Docker\Exception\ServiceNotHealthyException;
 use Ngramx\Docker\HealthChecker;
 use Ngramx\Docker\ServiceReadinessWaiter;
@@ -28,6 +29,7 @@ class RebuildCommand extends Command
         private readonly CommandOrchestrator $commandOrchestrator,
         private readonly LockFile $lockFile,
         private readonly ComposeOverrideGenerator $overrideGenerator,
+        private readonly DockerLauncher $dockerLauncher,
     ) {
         parent::__construct();
     }
@@ -46,9 +48,11 @@ class RebuildCommand extends Command
         try {
             $formatter->welcome('Rebuilding Development Environment');
 
-            // Check Docker daemon is running
-            if (!$this->dockerCompose->isDockerRunning()) {
-                $formatter->error('You must start Docker before running ngramx rebuild');
+            // Ensure the Docker daemon is running, launching it automatically
+            // (Docker Desktop on macOS/Windows/WSL, or the systemd unit on
+            // Linux) when it isn't.
+            if (!$this->dockerLauncher->ensureRunning($formatter)) {
+                $formatter->error('Docker is not running. Please start Docker and re-run `ngramx rebuild`.');
                 return Command::FAILURE;
             }
 

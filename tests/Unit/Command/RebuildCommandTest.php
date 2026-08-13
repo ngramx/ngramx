@@ -16,6 +16,7 @@ use Ngramx\Config\Schema\ServiceWaitConfig;
 use Ngramx\Config\Schema\SetupConfig;
 use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\DockerLauncher;
 use Ngramx\Docker\HealthChecker;
 use Ngramx\Orchestrator\CommandOrchestrator;
 use Ngramx\Output\OutputFormatter;
@@ -31,6 +32,7 @@ class RebuildCommandTest extends TestCase
     private CommandOrchestrator $commandOrchestrator;
     private LockFile $lockFile;
     private ComposeOverrideGenerator $overrideGenerator;
+    private DockerLauncher $dockerLauncher;
 
     protected function setUp(): void
     {
@@ -39,12 +41,13 @@ class RebuildCommandTest extends TestCase
         $this->healthChecker = $this->createMock(HealthChecker::class);
         $this->lockFile = $this->createMock(LockFile::class);
         $this->overrideGenerator = $this->createMock(ComposeOverrideGenerator::class);
+        $this->dockerLauncher = $this->createMock(DockerLauncher::class);
 
         $output = $this->createMock(OutputInterface::class);
         $formatter = new OutputFormatter($output);
         $this->commandOrchestrator = $this->createMock(CommandOrchestrator::class);
 
-        $this->dockerCompose->method('isDockerRunning')->willReturn(true);
+        $this->dockerLauncher->method('ensureRunning')->willReturn(true);
     }
 
     public function test_command_is_configured_correctly(): void
@@ -57,15 +60,15 @@ class RebuildCommandTest extends TestCase
 
     public function test_it_fails_when_docker_is_not_running(): void
     {
-        $this->dockerCompose = $this->createMock(DockerCompose::class);
-        $this->dockerCompose->method('isDockerRunning')->willReturn(false);
+        $this->dockerLauncher = $this->createMock(DockerLauncher::class);
+        $this->dockerLauncher->method('ensureRunning')->willReturn(false);
 
         $command = $this->createCommand();
         $tester = new CommandTester($command);
         $exitCode = $tester->execute([]);
 
         $this->assertSame(1, $exitCode);
-        $this->assertStringContainsString('You must start Docker before running ngramx rebuild', $tester->getDisplay());
+        $this->assertStringContainsString('Docker is not running', $tester->getDisplay());
     }
 
     public function test_it_tears_down_rebuilds_and_runs_fresh(): void
@@ -280,6 +283,7 @@ class RebuildCommandTest extends TestCase
             $this->commandOrchestrator,
             $this->lockFile,
             $this->overrideGenerator,
+            $this->dockerLauncher,
         );
     }
 

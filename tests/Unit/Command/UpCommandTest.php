@@ -15,6 +15,7 @@ use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Schema\SetupConfig;
 use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\DockerLauncher;
 use Ngramx\Docker\NamespaceResolver;
 use Ngramx\Docker\PortOffsetManager;
 use Ngramx\Herd\HerdService;
@@ -33,6 +34,7 @@ class UpCommandTest extends TestCase
     private DockerCompose $dockerCompose;
     private HerdService $herdService;
     private CaddyService $caddyService;
+    private DockerLauncher $dockerLauncher;
 
     protected function setUp(): void
     {
@@ -45,8 +47,9 @@ class UpCommandTest extends TestCase
         $this->dockerCompose = $this->createMock(DockerCompose::class);
         $this->herdService = $this->createMock(HerdService::class);
         $this->caddyService = $this->createMock(CaddyService::class);
+        $this->dockerLauncher = $this->createMock(DockerLauncher::class);
 
-        $this->dockerCompose->method('isDockerRunning')->willReturn(true);
+        $this->dockerLauncher->method('ensureRunning')->willReturn(true);
     }
 
     public function test_command_is_configured_correctly(): void
@@ -69,15 +72,15 @@ class UpCommandTest extends TestCase
 
     public function test_it_fails_when_docker_is_not_running(): void
     {
-        $this->dockerCompose = $this->createMock(DockerCompose::class);
-        $this->dockerCompose->method('isDockerRunning')->willReturn(false);
+        $this->dockerLauncher = $this->createMock(DockerLauncher::class);
+        $this->dockerLauncher->method('ensureRunning')->willReturn(false);
 
         $command = $this->createCommand();
         $tester = new CommandTester($command);
         $exitCode = $tester->execute([]);
 
         $this->assertSame(1, $exitCode);
-        $this->assertStringContainsString('You must start Docker before running ngramx up', $tester->getDisplay());
+        $this->assertStringContainsString('Docker is not running', $tester->getDisplay());
     }
 
     public function test_it_prevents_duplicate_instances(): void
@@ -824,7 +827,8 @@ class UpCommandTest extends TestCase
             $this->overrideGenerator,
             $this->dockerCompose,
             $this->herdService,
-            $this->caddyService
+            $this->caddyService,
+            $this->dockerLauncher
         );
     }
 

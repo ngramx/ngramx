@@ -35,6 +35,7 @@ use Ngramx\Config\Validator\ConfigValidator;
 use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\ContainerExecutor;
 use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\DockerLauncher;
 use Ngramx\Docker\HealthChecker;
 use Ngramx\Docker\ImageReuser;
 use Ngramx\Docker\NamespaceResolver;
@@ -121,6 +122,7 @@ class Application extends BaseApplication
         $configValidator = new ConfigValidator();
         $configLoader = new ConfigLoader($configValidator);
         $dockerCompose = new DockerCompose();
+        $dockerLauncher = new DockerLauncher($dockerCompose);
         $hostExecutor = new HostCommandExecutor();
         $containerExecutor = new ContainerExecutor();
         $healthChecker = new HealthChecker();
@@ -173,7 +175,8 @@ class Application extends BaseApplication
             $overrideGenerator,
             $dockerCompose,
             $herdService,
-            $caddyService
+            $caddyService,
+            $dockerLauncher
         ));
         $this->add(new DownCommand(
             $configLoader,
@@ -260,7 +263,8 @@ class Application extends BaseApplication
             $healthChecker,
             $commandOrchestrator,
             $lockFile,
-            $overrideGenerator
+            $overrideGenerator,
+            $dockerLauncher
         ));
 
         // Try to load ngramx.yml and register custom commands dynamically.

@@ -11,6 +11,7 @@ use Ngramx\Config\LockFile;
 use Ngramx\Config\LockFileData;
 use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\DockerLauncher;
 use Ngramx\Docker\Exception\ServiceNotHealthyException;
 use Ngramx\Docker\NamespaceResolver;
 use Ngramx\Docker\PortOffsetManager;
@@ -46,6 +47,7 @@ class UpCommand extends Command
         private readonly DockerCompose $dockerCompose,
         private readonly HerdService $herdService,
         private readonly CaddyService $caddyService,
+        private readonly DockerLauncher $dockerLauncher,
         ?CertInspector $certInspector = null,
         ?WorktreeOwnershipReconciler $ownershipReconciler = null,
     ) {
@@ -79,9 +81,11 @@ class UpCommand extends Command
         try {
             $formatter->welcome();
 
-            // Check Docker daemon is running
-            if (!$this->dockerCompose->isDockerRunning()) {
-                $formatter->error('You must start Docker before running ngramx up');
+            // Ensure the Docker daemon is running, launching it automatically
+            // (Docker Desktop on macOS/Windows/WSL, or the systemd unit on
+            // Linux) when it isn't.
+            if (!$this->dockerLauncher->ensureRunning($formatter)) {
+                $formatter->error('Docker is not running. Please start Docker and re-run `ngramx up`.');
                 return Command::FAILURE;
             }
 
