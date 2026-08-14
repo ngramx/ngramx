@@ -50,6 +50,21 @@ readonly class ProbeResult
     }
 
     /**
+     * Preserve the user-facing app URL in messages when the probe connected
+     * via a rewritten host (e.g. *.localhost → 127.0.0.1 on WSL).
+     */
+    public function withUrl(string $url): self
+    {
+        return new self(
+            url: $url,
+            reachable: $this->reachable,
+            statusCode: $this->statusCode,
+            error: $this->error,
+            connectionRefused: $this->connectionRefused,
+        );
+    }
+
+    /**
      * Did the upstream produce a non-5xx response? See class doc for rationale
      * on why 3xx/4xx count as healthy here.
      */

@@ -76,6 +76,10 @@ class DownCommandTest extends TestCase
             ->method('down')
             ->with('docker-compose.yml', false, 'ngramx-agent-1-project');
 
+        $this->dockerCompose->expects($this->once())
+            ->method('downProject')
+            ->with('ngramx-agent-1-project', false);
+
         $this->overrideGenerator->expects($this->once())
             ->method('cleanup');
 

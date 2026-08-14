@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Ngramx\Config\Schema;
 
+use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
+
 readonly class NgramxConfig
 {
     public const DEFAULT_TEAM = 'gig';
@@ -22,6 +24,7 @@ readonly class NgramxConfig
         public AgentsConfig $agents = new AgentsConfig(),
         public array $commands = [],
         public string $defaultTeam = self::DEFAULT_TEAM,
+        public ?PostmacloneConfig $postmaclone = null,
     ) {
     }
 }

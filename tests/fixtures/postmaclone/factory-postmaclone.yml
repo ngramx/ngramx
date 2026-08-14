@@ -1,0 +1,24 @@
+version: "1"
+locale: en_GB
+seed: 42
+datasets:
+  demo:
+    engine: postgres
+    backup:
+      source: local
+      path: "./demo.sql"
+    publish:
+      path: "spaces://anon-bucket/demo/"
+      file: "demo_anon.sql.gz"
+      region: lon1
+      endpoint: "https://lon1.digitaloceanspaces.com"
+      credentials:
+        key: "op://Vault/anon-write/username"
+        secret: "op://Vault/anon-write/credential"
+    include_tables:
+      - users
+    exclude_tables:
+      - audit_log
+    tables:
+      users:
+        email: uniqueSafeEmail

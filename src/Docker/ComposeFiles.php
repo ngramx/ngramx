@@ -13,9 +13,9 @@ namespace Ngramx\Docker;
  *
  *   1. The base compose file (`docker-compose.yml`).
  *   2. The Ngramx-generated override (`docker-compose.override.yml`) — port
- *      offsets, namespace prefixes, the worktree git bind mount. This file is
- *      regenerated on every `ngramx up` / `ngramx review`, so it must NOT be
- *      hand-edited; any manual changes are silently lost on the next run.
+ *      offsets, namespace prefixes, the worktree git bind mount. Regenerated
+ *      on every `ngramx up` / `ngramx review`, so it must NOT be hand-edited.
+ *      (Postmaclone does not use this file — it takes over the `db` network alias.)
  *   3. An optional, never-regenerated user override (`docker-compose.user.yml`).
  *      Ngramx always layers this last when it exists, so local customisations
  *      (extra mounts, env vars, services) win and survive override regeneration.

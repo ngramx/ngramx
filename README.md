@@ -163,12 +163,13 @@ This will:
 3. Wait for services to be healthy
 4. Run initialize commands in container
 
-After a successful start, if `docker.app_url` uses a hostname that does not resolve (for example `http://dev.myproduct`), Ngramx prints a suggested `/etc/hosts` line. That check is generic; it only knows about the hostname in `app_url`, not other vhosts your compose stack might use (add those lines yourself if needed).
+After a successful start, if `docker.app_url` uses a hostname that does not resolve (for example `http://dev.myproduct`, or `*.localhost` under WSL where the distro resolver ignores RFC 6761), Ngramx prints a suggested `/etc/hosts` line. The post-start HTTP probe connects to `*.localhost` URLs via `127.0.0.1` with the correct `Host` header, so verification still works without editing hosts. Ngramx does not write `/etc/hosts` itself (that needs `sudo`).
 
 Options:
 - `--no-wait` - Skip health checks
 - `--skip-init` - Skip initialize commands
 - `--avoid-conflicts` - Automatically avoid container name and port conflicts by generating a unique namespace and port offset
+- `--postmaclone` - Run Postmaclone doctor first; if it passes, create a clone after the stack is up (same as `ngramx postmaclone --replace`). Blocking doctor failures or a later clone error only skip/warn — `up` still finishes and always writes `.ngramx.lock`
 - `--no-host-mapping` - Do not expose container ports to the host (useful for running multiple instances)
 - `--namespace <name>` - Use a custom container namespace prefix
 - `--port-offset <n>` - Add offset to all exposed ports (e.g., `--port-offset 100` maps port 80 to 180)
@@ -186,6 +187,9 @@ ngramx up --namespace feature-x --port-offset 100
 
 # Option 3: No host ports (access via Docker network only)
 ngramx up --no-host-mapping
+
+# Bring up the stack and bind a Postmaclone clone in one step
+ngramx up --postmaclone
 ```
 
 ### `ngramx down`
@@ -248,7 +252,7 @@ This command:
 
 - Creates a git worktree at `.ngramx/worktrees/<ticket>-<repo>/` (e.g. `.ngramx/worktrees/gig-178-ill-kendrick/`). The folder name is the ticket slug + repository name, so it reads clearly in the Cursor title bar.
 - Brings up a **separate Docker stack** with its own namespace and an automatically-chosen port offset, so it never conflicts with your main `ngramx up` or other worktrees.
-- Generates a ticket-prefixed dev URL like `http://gig-178-ill-kendrick.localhost:8080`. Browsers resolve `*.localhost` to loopback automatically — no `/etc/hosts` edits or `sudo` required.
+- Generates a ticket-prefixed dev URL like `http://gig-178-ill-kendrick.localhost:8080`. Windows/macOS browsers resolve `*.localhost` to loopback automatically; under WSL you may still want a `/etc/hosts` line for tools inside the distro (the `ngramx up` probe does not need one).
 - Copies your **parent `.env`** into the worktree and patches `APP_URL` to the worktree URL. Other values (DB creds, etc.) are safe to share because each worktree gets its own namespaced containers and volumes.
 - **Reuses your already-built Docker image** (re-tags the main checkout's image for the worktree's Compose project) instead of rebuilding from scratch, and **copies `vendor/` and `node_modules/`** from the parent so `composer install` / `npm ci` is a near-instant no-op. In practice this turns a multi-minute cold start into seconds.
 - Adds `/.ngramx/worktrees/` to `.git/info/exclude` and `.cursorignore` so the parent checkout neither tracks nor indexes the nested worktrees.
@@ -368,6 +372,120 @@ docker:
 ```
 
 **When to run:** Once per project clone. The generated certificates are typically gitignored and don't need to be regenerated unless you change the hostname.
+
+### `ngramx postmaclone`
+
+Create a short-lived, **anonymized** database clone for bug root-cause analysis — without giving agents (or humans) production credentials or raw PII.
+
+Anonymization is **opt-in by column**: only columns listed under `postmaclone.tables` are rewritten. Every other column is left unchanged.
+
+```bash
+# Create clone (prefer prebuilt when configured; else backup → anonymize → .env bind)
+ngramx postmaclone
+ngramx postmaclone --from-prod        # skip prebuilt; full local anonymize pipeline
+ngramx postmaclone --from ./backups/prod.dump
+ngramx postmaclone --from 'postgresql://readonly:…@host/db'
+ngramx postmaclone --replace          # destroy existing clone, then create fresh
+
+# Emit anonymization SQL only (no provision)
+ngramx postmaclone --sql --from ./backups/prod.dump -o anonymize.sql
+
+ngramx postmaclone status
+ngramx postmaclone doctor             # check op CLI + S3 env (no auto-install)
+ngramx postmaclone down               # destroy now (do not rely on TTL)
+
+# Factory (separate postmaclone.yml — no app checkout):
+ngramx postmaclone produce --all
+ngramx postmaclone produce --dataset earl-kendrick
+```
+
+**Agent contract:** `postmaclone` → investigate/fix → `postmaclone down` per bug. Do not share one long-lived clone across agents — mutations from one session poison the next. TTL (`target.ttl_hours`, default 4h) is only a safety net. The anonymized Spaces bucket is an **artifact store**: each session **copies** the object to `.ngramx/cache` and restores into a **fresh** ephemeral target — never attach multiple agents to one restored DB.
+
+**Targets:** Neon (Postgres, needs `NEON_API_KEY`), Docker (MySQL/MariaDB/Postgres), or `remote` (fresh in-region DO/Neon URL via `target.remote.url` / `POSTMACLONE_REMOTE_URL`). **Sources:** published **prebuilt** (preferred for large DBs), local dump, S3 prod backup, or a connection string (dumped/read only — never anonymized in place).
+
+#### Large DBs: factory produce + consumer prebuilt
+
+Downloading and anonymizing multi‑GB Forge dumps on every laptop is untenable. Use a **factory repo** with `postmaclone.yml` (see `postmaclone.example.yml`) and a scheduled container job in the **same DO region** as Spaces + scratch Postgres:
+
+1. Job: `ngramx postmaclone produce --all` — pull prod dump → restore scratch → anonymize → dump (optional `include_tables` / `exclude_tables`) → upload to a **separate anonymized bucket** + `latest.json`
+2. App `ngramx.yml`: thin `postmaclone.prebuilt` (+ `target`) — consumer downloads a copy, restores, **skips anonymize**
+
+Keep prod-read and anon-write credentials separate (`op://` refs). Local Docker remains fine for small artifacts; large restores should use in-region `remote` / Neon.
+
+```yaml
+# App ngramx.yml — consumer (prebuilt preferred)
+postmaclone:
+  engine: postgres
+  prebuilt:
+    source: s3
+    path: "spaces://weathered-brook-anonymized-backups/earl-kendrick/"
+    file: "earl_kendrick_anon.sql.gz"   # or omit file to follow latest.json
+    max_age_hours: 36
+    region: lon1
+    endpoint: "https://lon1.digitaloceanspaces.com"
+    credentials:
+      key: "op://Tech Team Vault/ngramx-anon-backup-read/username"
+      secret: "op://Tech Team Vault/ngramx-anon-backup-read/credential"
+  target:
+    provider: auto
+    ttl_hours: 4
+```
+
+Forge dumps land in a **shared** daily folder (`database-backups/all/YYYYMMDDHHMMSS/`) with one object per project (e.g. `earl_kendrick_prod.sql.gz`). Configure the dump basename for *this* project; Postmaclone only auto-picks the newest dated folder — never which dump inside it.
+
+```yaml
+# Full local pipeline (small DBs / --from-prod)
+postmaclone:
+  engine: postgres
+  seed: 42
+  backup:
+    source: s3
+    # Option A: trailing "/" + file basename
+    path: "spaces://weathered-brook-object-storage/database-backups/all/"
+    file: "earl_kendrick_prod.sql.gz"
+    # Option B: single-line glob (equivalent)
+    # path: "spaces://weathered-brook-object-storage/database-backups/all/*/earl_kendrick_prod.sql.gz"
+    region: lon1
+    endpoint: "https://lon1.digitaloceanspaces.com"
+    # 1Password secret references (safe to commit — not the raw key)
+    credentials:
+      key: "op://Tech Team Vault/ngramx-db-backup-read-access/username"
+      secret: "op://Tech Team Vault/ngramx-db-backup-read-access/credential"
+  target:
+    provider: auto
+    ttl_hours: 4
+  tables:
+    users:
+      email: uniqueSafeEmail
+      first_name: firstName
+      # Chain formatters + literals (either form):
+      # address_line_1: "{{numberBetween(1, 999)}} {{firstName}} Street"
+      # address_line_1: 'numberBetween(1, 999) + " " + firstName + " Street"'
+      # omit non-PII columns — they stay as-is
+```
+
+Faker values may be a single formatter (`firstName`, `uniqueSafeEmail`), a `{{formatter}}` template mixed with literal text, or a ` + `-joined expression of formatters and quoted strings. Formatter args work inside both forms (`numberBetween(1, 999)`, `numerify("###")`). Set `unique: true` on the column rule to uniquify the whole composed string.
+
+
+**Spaces credentials (1Password):** put `op://` refs under `postmaclone.backup.credentials` in `ngramx.yml` (safe to commit). Item: **Tech Team Vault** → `ngramx-db-backup-read-access`. Plaintext keys in YAML are rejected.
+
+```bash
+ngramx postmaclone doctor   # auth + restore checks (prod roles/ACLs are stripped; clone login owns data)
+ngramx postmaclone          # resolves refs via `op read` when a session (or service account) is available
+```
+
+| Who | How to authenticate |
+|-----|---------------------|
+| Human on **WSL** (typical for us) | Install [op](https://developer.1password.com/docs/cli/get-started/) **inside the distro**. Once: `op account add` (sign-in address `gigabytesoftware.1password.com`). Each shell: `eval $(op signin)`. `ngramx postmaclone doctor` detects WSL and prints these steps — it will **not** collect your password or assume Windows desktop-app CLI integration. |
+| Human on macOS / native Linux | Prefer **1Password app → Developer → Integrate with 1Password CLI**, or the same `op account add` / `eval $(op signin)` flow. |
+| Agent / CI | Ask an admin for a [service account](https://developer.1password.com/docs/service-accounts/) with **read** on Tech Team Vault, then `export OP_SERVICE_ACCOUNT_TOKEN=…` (non-interactive; no `op signin`). |
+| Skip 1Password | Export `POSTMACLONE_S3_KEY` / `POSTMACLONE_S3_SECRET` (or `AWS_*`), or use `--from ./local.dump` / a connection URL. |
+
+When `credentials` `op://` refs are present in YAML they are preferred over `POSTMACLONE_S3_*` / `AWS_*` so read vs write keys stay distinct. Env vars remain the fallback when no refs are configured.
+
+**Docker target networking:** Postmaclone does **not** write `docker-compose.override.yml`. It stops the compose `db` service, attaches the clone to the project network with DNS alias `db` (so hardcoded `DB_HOST=db` keeps working), and updates mounted `.env` credentials only. Host-side tools use `127.0.0.1` and the published port. Bring the stack up (`ngramx up`) before a standalone `postmaclone` so the network exists.
+
+`ngramx postmaclone down` and `ngramx down` remove the clone and start the real `db` service again; `ngramx down` also restores `.env` and tears down compose with `--remove-orphans`.
 
 ### Custom Commands
 

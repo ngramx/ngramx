@@ -10,6 +10,16 @@ use Ngramx\Config\Schema\CommandDefinition;
 use Ngramx\Config\Schema\DockerConfig;
 use Ngramx\Config\Schema\N8nConfig;
 use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\Postmaclone\BackupConfig;
+use Ngramx\Config\Schema\Postmaclone\BackupCredentialsConfig;
+use Ngramx\Config\Schema\Postmaclone\ColumnRule;
+use Ngramx\Config\Schema\Postmaclone\FactoryConfig;
+use Ngramx\Config\Schema\Postmaclone\FactoryDatasetConfig;
+use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
+use Ngramx\Config\Schema\Postmaclone\PrebuiltConfig;
+use Ngramx\Config\Schema\Postmaclone\PublishConfig;
+use Ngramx\Config\Schema\Postmaclone\TableRule;
+use Ngramx\Config\Schema\Postmaclone\TargetConfig;
 use Ngramx\Config\Schema\SecretsConfig;
 use Ngramx\Config\Schema\SecretsProviderConfig;
 use Ngramx\Config\Schema\ServiceWaitConfig;
@@ -131,6 +141,9 @@ class ConfigLoader
         $secrets = $this->buildSecretsConfig($config['secrets'] ?? []);
         $agents = $this->buildAgentsConfig($config['agents'] ?? []);
         $commands = $this->buildCommandsMap($config['commands'] ?? []);
+        $postmaclone = isset($config['postmaclone']) && is_array($config['postmaclone'])
+            ? $this->buildPostmacloneConfig($config['postmaclone'])
+            : null;
 
         $defaultTeam = $config['default_team'] ?? NgramxConfig::DEFAULT_TEAM;
 
@@ -143,7 +156,360 @@ class ConfigLoader
             agents: $agents,
             commands: $commands,
             defaultTeam: strtolower((string) $defaultTeam),
+            postmaclone: $postmaclone,
         );
+    }
+
+    /**
+     * Discover factory postmaclone.yml / .yaml (walk up like ngramx.yml).
+     *
+     * @throws ConfigException
+     */
+    public function findFactoryConfigFile(?string $explicit = null): string
+    {
+        if ($explicit !== null && $explicit !== '') {
+            $path = $this->resolveConfigPath($explicit);
+            if (!file_exists($path)) {
+                throw new ConfigException("Factory configuration file not found: {$path}");
+            }
+
+            return $path;
+        }
+
+        $currentDir = getcwd();
+        if ($currentDir === false) {
+            throw new ConfigException('Failed to get current working directory');
+        }
+
+        $maxDepth = 10;
+        $depth = 0;
+        while ($depth < $maxDepth) {
+            foreach (['postmaclone.yml', 'postmaclone.yaml'] as $name) {
+                $candidate = $currentDir . '/' . $name;
+                if (file_exists($candidate)) {
+                    return $candidate;
+                }
+            }
+            if (file_exists($currentDir . '/.git')) {
+                break;
+            }
+            $parent = dirname($currentDir);
+            if ($parent === $currentDir) {
+                break;
+            }
+            $currentDir = $parent;
+            $depth++;
+        }
+
+        throw new ConfigException(
+            'Factory config not found. Create postmaclone.yml (or pass --config) in the factory repo.'
+        );
+    }
+
+    /**
+     * @throws ConfigException
+     */
+    public function loadFactory(string $path): FactoryConfig
+    {
+        $filePath = $this->resolveConfigPath($path);
+        if (!file_exists($filePath)) {
+            throw new ConfigException("Factory configuration file not found: {$filePath}");
+        }
+
+        $content = file_get_contents($filePath);
+        if ($content === false) {
+            throw new ConfigException("Failed to read factory configuration: {$filePath}");
+        }
+
+        try {
+            $config = Yaml::parse($content);
+        } catch (\Exception $e) {
+            throw new ConfigException("Failed to parse factory YAML: {$e->getMessage()}", 0, $e);
+        }
+
+        if (!is_array($config)) {
+            throw new ConfigException('Invalid factory configuration: expected array');
+        }
+
+        $this->validator->validateFactory($config);
+
+        return $this->buildFactoryConfig($config);
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function buildFactoryConfig(array $config): FactoryConfig
+    {
+        $locale = isset($config['locale']) && is_string($config['locale'])
+            ? $config['locale']
+            : PostmacloneConfig::DEFAULT_LOCALE;
+        $seed = array_key_exists('seed', $config) ? (is_int($config['seed']) ? $config['seed'] : null) : 42;
+        $datasets = [];
+        $raw = is_array($config['datasets'] ?? null) ? $config['datasets'] : [];
+        foreach ($raw as $name => $dataset) {
+            if (!is_string($name) || !is_array($dataset)) {
+                continue;
+            }
+            $datasets[$name] = $this->buildFactoryDataset($name, $dataset, $locale, $seed);
+        }
+
+        return new FactoryConfig(
+            version: isset($config['version']) ? (string) $config['version'] : '1',
+            datasets: $datasets,
+            locale: $locale,
+            seed: $seed,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $dataset
+     */
+    private function buildFactoryDataset(
+        string $name,
+        array $dataset,
+        string $defaultLocale,
+        ?int $defaultSeed,
+    ): FactoryDatasetConfig {
+        $backupRaw = is_array($dataset['backup'] ?? null) ? $dataset['backup'] : [];
+        $publishRaw = is_array($dataset['publish'] ?? null) ? $dataset['publish'] : [];
+        $targetRaw = is_array($dataset['target'] ?? null) ? $dataset['target'] : [];
+
+        return new FactoryDatasetConfig(
+            name: $name,
+            engine: isset($dataset['engine']) && is_string($dataset['engine']) ? $dataset['engine'] : null,
+            locale: isset($dataset['locale']) && is_string($dataset['locale']) ? $dataset['locale'] : $defaultLocale,
+            seed: array_key_exists('seed', $dataset)
+                ? (is_int($dataset['seed']) ? $dataset['seed'] : null)
+                : $defaultSeed,
+            backup: $this->buildBackupConfig($backupRaw),
+            publish: new PublishConfig(
+                path: isset($publishRaw['path']) && is_string($publishRaw['path']) ? $publishRaw['path'] : null,
+                region: isset($publishRaw['region']) && is_string($publishRaw['region']) ? $publishRaw['region'] : null,
+                endpoint: isset($publishRaw['endpoint']) && is_string($publishRaw['endpoint']) ? $publishRaw['endpoint'] : null,
+                pathStyle: isset($publishRaw['path_style']) && is_bool($publishRaw['path_style']) ? $publishRaw['path_style'] : null,
+                file: isset($publishRaw['file']) && is_string($publishRaw['file']) ? $publishRaw['file'] : null,
+                credentials: $this->loadBackupCredentials($publishRaw['credentials'] ?? null),
+            ),
+            target: $this->buildTargetConfig($targetRaw, TargetConfig::PROVIDER_DOCKER),
+            tables: $this->buildTables(is_array($dataset['tables'] ?? null) ? $dataset['tables'] : []),
+            includeTables: $this->loadStringList($dataset['include_tables'] ?? null),
+            excludeTables: $this->loadStringList($dataset['exclude_tables'] ?? null),
+            testPassword: isset($dataset['test_password']) && is_string($dataset['test_password'])
+                ? $dataset['test_password']
+                : PostmacloneConfig::DEFAULT_TEST_PASSWORD,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function buildPostmacloneConfig(array $config): PostmacloneConfig
+    {
+        $backupRaw = is_array($config['backup'] ?? null) ? $config['backup'] : [];
+        $prebuiltRaw = is_array($config['prebuilt'] ?? null) ? $config['prebuilt'] : null;
+        $targetRaw = is_array($config['target'] ?? null) ? $config['target'] : [];
+
+        $denyHosts = [];
+        if (isset($config['deny_hosts']) && is_array($config['deny_hosts'])) {
+            foreach ($config['deny_hosts'] as $host) {
+                if (is_string($host) && $host !== '') {
+                    $denyHosts[] = $host;
+                }
+            }
+        }
+
+        $prebuilt = null;
+        if ($prebuiltRaw !== null) {
+            $prebuilt = new PrebuiltConfig(
+                source: isset($prebuiltRaw['source']) && is_string($prebuiltRaw['source'])
+                    ? $prebuiltRaw['source']
+                    : BackupConfig::SOURCE_S3,
+                path: isset($prebuiltRaw['path']) && is_string($prebuiltRaw['path']) ? $prebuiltRaw['path'] : null,
+                region: isset($prebuiltRaw['region']) && is_string($prebuiltRaw['region']) ? $prebuiltRaw['region'] : null,
+                endpoint: isset($prebuiltRaw['endpoint']) && is_string($prebuiltRaw['endpoint']) ? $prebuiltRaw['endpoint'] : null,
+                pathStyle: isset($prebuiltRaw['path_style']) && is_bool($prebuiltRaw['path_style']) ? $prebuiltRaw['path_style'] : null,
+                file: isset($prebuiltRaw['file']) && is_string($prebuiltRaw['file']) ? $prebuiltRaw['file'] : null,
+                credentials: $this->loadBackupCredentials($prebuiltRaw['credentials'] ?? null),
+                maxAgeHours: isset($prebuiltRaw['max_age_hours']) && is_int($prebuiltRaw['max_age_hours'])
+                    ? $prebuiltRaw['max_age_hours']
+                    : null,
+            );
+        }
+
+        return new PostmacloneConfig(
+            engine: isset($config['engine']) && is_string($config['engine']) ? $config['engine'] : null,
+            locale: isset($config['locale']) && is_string($config['locale']) ? $config['locale'] : PostmacloneConfig::DEFAULT_LOCALE,
+            seed: array_key_exists('seed', $config) ? (is_int($config['seed']) ? $config['seed'] : null) : 42,
+            backup: $this->buildBackupConfig($backupRaw),
+            prebuilt: $prebuilt,
+            target: $this->buildTargetConfig($targetRaw, TargetConfig::PROVIDER_AUTO),
+            tables: $this->buildTables(is_array($config['tables'] ?? null) ? $config['tables'] : []),
+            testPassword: isset($config['test_password']) && is_string($config['test_password'])
+                ? $config['test_password']
+                : PostmacloneConfig::DEFAULT_TEST_PASSWORD,
+            denyHosts: $denyHosts,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $backupRaw
+     */
+    private function buildBackupConfig(array $backupRaw): BackupConfig
+    {
+        return new BackupConfig(
+            source: isset($backupRaw['source']) && is_string($backupRaw['source']) ? $backupRaw['source'] : BackupConfig::SOURCE_LOCAL,
+            path: isset($backupRaw['path']) && is_string($backupRaw['path']) ? $backupRaw['path'] : null,
+            region: isset($backupRaw['region']) && is_string($backupRaw['region']) ? $backupRaw['region'] : null,
+            endpoint: isset($backupRaw['endpoint']) && is_string($backupRaw['endpoint']) ? $backupRaw['endpoint'] : null,
+            pathStyle: isset($backupRaw['path_style']) && is_bool($backupRaw['path_style']) ? $backupRaw['path_style'] : null,
+            file: isset($backupRaw['file']) && is_string($backupRaw['file']) ? $backupRaw['file'] : null,
+            credentials: $this->loadBackupCredentials($backupRaw['credentials'] ?? null),
+            roles: $this->loadBackupRoles($backupRaw['roles'] ?? null),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $targetRaw
+     */
+    private function buildTargetConfig(array $targetRaw, string $defaultProvider): TargetConfig
+    {
+        $neon = is_array($targetRaw['neon'] ?? null) ? $targetRaw['neon'] : [];
+        $docker = is_array($targetRaw['docker'] ?? null) ? $targetRaw['docker'] : [];
+        $remote = is_array($targetRaw['remote'] ?? null) ? $targetRaw['remote'] : [];
+
+        return new TargetConfig(
+            provider: isset($targetRaw['provider']) && is_string($targetRaw['provider'])
+                ? $targetRaw['provider']
+                : $defaultProvider,
+            ttlHours: isset($targetRaw['ttl_hours']) && is_int($targetRaw['ttl_hours'])
+                ? $targetRaw['ttl_hours']
+                : TargetConfig::DEFAULT_TTL_HOURS,
+            neonProjectId: isset($neon['project_id']) && is_string($neon['project_id']) ? $neon['project_id'] : null,
+            neonRegionId: isset($neon['region_id']) && is_string($neon['region_id']) ? $neon['region_id'] : null,
+            dockerImage: isset($docker['image']) && is_string($docker['image']) ? $docker['image'] : null,
+            dockerPort: isset($docker['port']) && is_int($docker['port']) ? $docker['port'] : 0,
+            remoteUrl: isset($remote['url']) && is_string($remote['url']) ? $remote['url'] : null,
+            remoteThresholdBytes: isset($targetRaw['remote_threshold_bytes']) && is_int($targetRaw['remote_threshold_bytes'])
+                ? $targetRaw['remote_threshold_bytes']
+                : TargetConfig::DEFAULT_REMOTE_THRESHOLD_BYTES,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $tablesRaw
+     * @return array<string, TableRule>
+     */
+    private function buildTables(array $tablesRaw): array
+    {
+        $tables = [];
+        foreach ($tablesRaw as $tableName => $tableConfig) {
+            if (!is_string($tableName) || !is_array($tableConfig)) {
+                continue;
+            }
+
+            $primaryKey = isset($tableConfig['primary_key']) && is_string($tableConfig['primary_key'])
+                ? $tableConfig['primary_key']
+                : null;
+
+            $columnsRaw = $tableConfig;
+            if (isset($tableConfig['columns']) && is_array($tableConfig['columns'])) {
+                $columnsRaw = $tableConfig['columns'];
+            }
+            unset($columnsRaw['primary_key'], $columnsRaw['columns']);
+
+            $columns = [];
+            foreach ($columnsRaw as $columnName => $rule) {
+                if (!is_string($columnName)) {
+                    continue;
+                }
+                if (is_string($rule)) {
+                    $unique = str_starts_with($rule, 'unique')
+                        && strlen($rule) > 6
+                        && ctype_upper($rule[6] ?? '');
+                    $columns[$columnName] = new ColumnRule(
+                        column: $columnName,
+                        faker: $rule,
+                        unique: $unique,
+                    );
+                    continue;
+                }
+                if (!is_array($rule) || !isset($rule['faker']) || !is_string($rule['faker'])) {
+                    continue;
+                }
+                $columns[$columnName] = new ColumnRule(
+                    column: $columnName,
+                    faker: $rule['faker'],
+                    unique: (bool) ($rule['unique'] ?? false),
+                    preserveNulls: (bool) ($rule['preserve_nulls'] ?? true),
+                    where: isset($rule['where']) && is_string($rule['where']) ? $rule['where'] : null,
+                );
+            }
+
+            $tables[$tableName] = new TableRule(
+                table: $tableName,
+                columns: $columns,
+                primaryKey: $primaryKey,
+            );
+        }
+
+        return $tables;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function loadStringList(mixed $raw): ?array
+    {
+        if ($raw === null) {
+            return null;
+        }
+        if (!is_array($raw)) {
+            return null;
+        }
+        $out = [];
+        foreach ($raw as $item) {
+            if (is_string($item) && trim($item) !== '') {
+                $out[] = trim($item);
+            }
+        }
+
+        return $out;
+    }
+
+    private function loadBackupCredentials(mixed $raw): ?BackupCredentialsConfig
+    {
+        if (!is_array($raw)) {
+            return null;
+        }
+        $key = $raw['key'] ?? null;
+        $secret = $raw['secret'] ?? null;
+        if (!is_string($key) || !is_string($secret)) {
+            return null;
+        }
+
+        return new BackupCredentialsConfig(key: $key, secret: $secret);
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function loadBackupRoles(mixed $raw): ?array
+    {
+        if ($raw === null) {
+            return null;
+        }
+        if (!is_array($raw)) {
+            return null;
+        }
+        $roles = [];
+        foreach ($raw as $role) {
+            if (is_string($role) && trim($role) !== '') {
+                $roles[] = trim($role);
+            }
+        }
+
+        return $roles;
     }
 
     /**

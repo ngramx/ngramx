@@ -11,10 +11,13 @@ use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Herd\HerdService;
 use Ngramx\Output\OutputFormatter;
+use Ngramx\Postmaclone\PostmacloneLock;
+use Ngramx\Postmaclone\PostmacloneService;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Process\Process;
 
 class DownCommand extends Command
 {
@@ -24,6 +27,7 @@ class DownCommand extends Command
         private readonly LockFile $lockFile,
         private readonly ComposeOverrideGenerator $overrideGenerator,
         private readonly HerdService $herdService,
+        private readonly PostmacloneService $postmacloneService = new PostmacloneService(),
     ) {
         parent::__construct();
     }
@@ -41,13 +45,12 @@ class DownCommand extends Command
         $formatter = new OutputFormatter($output);
 
         try {
-            // Load configuration to get compose file path
             $configPath = $this->configLoader->findConfigFile();
             $config = $this->configLoader->load($configPath);
+            $projectRoot = dirname($configPath);
 
             $formatter->section('Stopping environment');
 
-            // Read lock file to get namespace and Herd state
             $namespace = null;
             $herdStopped = false;
             $caddyStopped = false;
@@ -60,15 +63,31 @@ class DownCommand extends Command
                 }
             }
 
-            $removeVolumes = $input->getOption('volumes');
+            // Tear down Postmaclone clone first (restores .env, restarts real db).
+            if ((new PostmacloneLock($projectRoot))->exists()) {
+                $formatter->info('Tearing down Postmaclone clone…');
+                try {
+                    $this->postmacloneService->destroy($config, $projectRoot, force: true);
+                    $formatter->info('Postmaclone clone removed');
+                } catch (\Throwable $e) {
+                    $formatter->warning('Postmaclone teardown: ' . $e->getMessage());
+                }
+            }
 
-            // Stop Docker services
+            $removeVolumes = $input->getOption('volumes');
+            $composeProject = $namespace ?? $this->defaultComposeProjectName($config->docker->composeFile);
+
             $this->dockerCompose->down($config->docker->composeFile, $removeVolumes, $namespace);
 
-            // Clean up override file
-            $this->overrideGenerator->cleanup($config->docker->composeFile);
+            // Catch stragglers (e.g. services recreated with a different compose file set).
+            try {
+                $this->dockerCompose->downProject($composeProject, $removeVolumes);
+            } catch (\Throwable $e) {
+                $formatter->warning('Project cleanup: ' . $e->getMessage());
+            }
+            $this->removeLabeledLeftovers($composeProject, $formatter);
 
-            // Delete lock file
+            $this->overrideGenerator->cleanup($config->docker->composeFile);
             $this->lockFile->delete();
 
             if ($removeVolumes) {
@@ -77,7 +96,6 @@ class DownCommand extends Command
                 $formatter->info('Docker services stopped');
             }
 
-            // Restart Herd if it was stopped during "ngramx up"
             if ($herdStopped) {
                 $formatter->info('Restarting Herd services...');
                 try {
@@ -100,10 +118,45 @@ class DownCommand extends Command
             return Command::SUCCESS;
         } catch (ConfigException $e) {
             $formatter->error("Configuration error: {$e->getMessage()}");
+
             return Command::FAILURE;
         } catch (\Exception $e) {
             $formatter->error("Error: {$e->getMessage()}");
+
             return Command::FAILURE;
+        }
+    }
+
+    private function defaultComposeProjectName(string $composeFile): string
+    {
+        $dir = realpath($composeFile) !== false
+            ? dirname((string) realpath($composeFile))
+            : dirname($composeFile);
+
+        return strtolower(basename($dir));
+    }
+
+    private function removeLabeledLeftovers(string $composeProject, OutputFormatter $formatter): void
+    {
+        $list = new Process([
+            'docker', 'ps', '-aq',
+            '--filter', 'label=com.docker.compose.project=' . $composeProject,
+        ]);
+        $list->run();
+        if (!$list->isSuccessful()) {
+            return;
+        }
+
+        $ids = array_filter(preg_split('/\s+/', trim($list->getOutput())) ?: []);
+        if ($ids === []) {
+            return;
+        }
+
+        $rm = new Process(array_merge(['docker', 'rm', '-f'], $ids));
+        $rm->setTimeout(60);
+        $rm->run();
+        if ($rm->isSuccessful()) {
+            $formatter->info('Removed ' . count($ids) . ' leftover compose container(s)');
         }
     }
 }
