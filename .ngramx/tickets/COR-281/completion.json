@@ -31,10 +31,18 @@
     },
     {
       "description": "PHPStan level 8 is clean after the CI failure",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Confirm Tests / PHP 8.2 and Tests / PHP 8.3 pass on the PR",
         "Or locally: composer phpstan"
+      ]
+    },
+    {
+      "description": "Full PHPUnit suite passes after lock-write and risky-test fixes",
+      "status": "active",
+      "steps": [
+        "Confirm Tests / PHP 8.2 and Tests / PHP 8.3 pass on the PR",
+        "Or locally: vendor/bin/phpunit --coverage-clover coverage.xml"
       ]
     }
   ]

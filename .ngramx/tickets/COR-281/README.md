@@ -26,3 +26,4 @@ Land Cam's Postmaclone work from `origin/postmaclone` as the COR-281 solution: `
 - Adjusted Postmaclone tests so Windows paths can be embedded in YAML.
 - Opened PR: https://github.com/ngramx/ngramx/pull/3
 - Fixed eight PHPStan level-8 errors that failed CI (duplicate `ProbeResult::withUrl`, tautologies, unnecessary nullsafe).
+- Restored main's default-mode `UpCommand` tests (`never()` write lock) after the postmaclone merge overwrote them; ComposeNetworkResolver test always asserts so CI is not risky.

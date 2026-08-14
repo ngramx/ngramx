@@ -137,7 +137,8 @@ class UpCommandTest extends TestCase
                 'port_offset' => 0,
             ]);
 
-        $this->lockFile->expects($this->once())
+        // No lock file in default mode
+        $this->lockFile->expects($this->never())
             ->method('write');
 
         $command = $this->createCommand();
@@ -419,7 +420,7 @@ class UpCommandTest extends TestCase
         $this->overrideGenerator->expects($this->never())
             ->method('generate');
 
-        $this->lockFile->expects($this->once())
+        $this->lockFile->expects($this->never())
             ->method('write');
 
         $this->setupOrchestrator->expects($this->any())->method('setup')->willReturn([
@@ -468,7 +469,8 @@ class UpCommandTest extends TestCase
                 'port_offset' => 0,
             ]);
 
-        $this->lockFile->expects($this->once())
+        // No lock file in default mode
+        $this->lockFile->expects($this->never())
             ->method('write');
 
         $command = $this->createCommand();

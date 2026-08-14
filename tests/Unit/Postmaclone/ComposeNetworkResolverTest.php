@@ -26,10 +26,11 @@ YAML);
 
         try {
             $resolved = (new ComposeNetworkResolver())->resolve($compose, 'app');
-            // May be null if docker isn't available / network not created — only assert shape when present.
-            if ($resolved !== null) {
-                self::assertStringContainsString('earl_kendrick_network', $resolved);
-            }
+            // Null when docker isn't available / the compose network is not created yet.
+            self::assertTrue(
+                $resolved === null || str_contains($resolved, 'earl_kendrick_network'),
+                'Expected null (no docker network) or a name containing earl_kendrick_network'
+            );
         } finally {
             @unlink($compose);
             @rmdir($dir);
