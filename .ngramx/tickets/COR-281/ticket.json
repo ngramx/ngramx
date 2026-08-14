@@ -1,0 +1,17 @@
+{
+  "id": "COR-281",
+  "title": "Ship Postmaclone CLI For Ephemeral Anonymized Prod Clones",
+  "url": "https://linear.app/gigabyte/issue/COR-281/ship-postmaclone-cli-for-ephemeral-anonymized-prod-clones",
+  "gitBranchName": "cor-281-ship-postmaclone-cli-for-ephemeral-anonymized-prod-clones",
+  "status": "In Progress",
+  "priority": "Low",
+  "estimate": "4 Points",
+  "team": "Cortex",
+  "project": "Coding Agent",
+  "milestone": "Safe Production Data Access",
+  "assignee": "Wilkie Hoare",
+  "createdAt": "2026-07-24T17:22:10.025Z",
+  "blocks": ["COR-297", "COR-274"],
+  "relatedTo": ["COR-280"],
+  "description": "Ship ngramx postmaclone from Cam's branch: ephemeral anonymized DB clones from Spaces/local/connection-string sources. Factory schedule is COR-297; per-app and agent wiring is COR-274."
+}
