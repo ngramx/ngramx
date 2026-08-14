@@ -29,8 +29,6 @@ YAML);
             // May be null if docker isn't available / network not created — only assert shape when present.
             if ($resolved !== null) {
                 self::assertStringContainsString('earl_kendrick_network', $resolved);
-            } else {
-                self::assertNull($resolved);
             }
         } finally {
             @unlink($compose);

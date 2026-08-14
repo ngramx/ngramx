@@ -93,7 +93,7 @@ class S3KeyResolver
 
         // "*foo" or "bar*" without being a full path segment is not supported
         if (($before !== '' && !str_ends_with($before, '/'))
-            || ($after !== '' && !str_starts_with($after, '/') && $after !== '')) {
+            || ($after !== '' && !str_starts_with($after, '/'))) {
             // allow trailing "/*" with file from backup.file
             if (str_ends_with($key, '/*') || str_ends_with($key, '*')) {
                 if ($file === null) {

@@ -296,7 +296,7 @@ class PostmacloneCommand extends Command
         $formatter->info('Target provider: ' . $pm->target->provider . " (ttl {$pm->target->ttlHours}h)");
         if ($usePrebuilt) {
             $formatter->info('Source mode: prebuilt (restore-only, skip anonymize)');
-            $formatter->info('prebuilt.path: ' . ($pm->prebuilt?->path ?? ''));
+            $formatter->info('prebuilt.path: ' . ($pm->prebuilt->path ?? ''));
             $source = $this->service->buildPrebuiltSource($pm->prebuilt, $projectRoot);
         } else {
             $formatter->info('Source mode: full pipeline (download + anonymize)');

@@ -72,7 +72,7 @@ class S3ObjectUploader
         } catch (GuzzleException $e) {
             throw new PostmacloneException('S3 upload failed: ' . $e->getMessage(), 0, $e);
         } finally {
-            if (isset($options['body']) && is_resource($options['body'])) {
+            if (is_resource($options['body'])) {
                 fclose($options['body']);
             }
         }

@@ -427,7 +427,7 @@ class PostmacloneService
             $message = $e instanceof PostmacloneException ? $e->getMessage() : $e->getMessage();
             $message .= "\nDump kept under .ngramx/cache — run: ngramx postmaclone doctor";
 
-            throw new PostmacloneException($message, 0, $e instanceof \Throwable ? $e : null);
+            throw new PostmacloneException($message, 0, $e);
         }
     }
 

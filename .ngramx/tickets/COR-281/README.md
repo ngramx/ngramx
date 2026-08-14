@@ -25,3 +25,4 @@ Land Cam's Postmaclone work from `origin/postmaclone` as the COR-281 solution: `
 - Doctor no longer fails when host `psql` is missing and the target is Docker/auto; dump-client detection uses `ExecutableFinder` instead of `sh -c command -v`.
 - Adjusted Postmaclone tests so Windows paths can be embedded in YAML.
 - Opened PR: https://github.com/ngramx/ngramx/pull/3
+- Fixed eight PHPStan level-8 errors that failed CI (duplicate `ProbeResult::withUrl`, tautologies, unnecessary nullsafe).

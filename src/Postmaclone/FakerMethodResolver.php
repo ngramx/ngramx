@@ -189,7 +189,7 @@ class FakerMethodResolver
     {
         preg_match_all('/\{\{\s*(.+?)\s*\}\}/', $template, $matches);
 
-        return array_values(array_filter($matches[1] ?? [], is_string(...)));
+        return array_values(array_filter($matches[1], is_string(...)));
     }
 
     /**
@@ -294,7 +294,8 @@ class FakerMethodResolver
         }
 
         $name = $matches[1];
-        $args = trim($matches[2] ?? '') === '' ? [] : $this->parseArgs($matches[2]);
+        $rawArgs = $matches[2] ?? '';
+        $args = trim($rawArgs) === '' ? [] : $this->parseArgs($rawArgs);
         $this->assertFormatterExists($name);
 
         $target = $unique ? $this->faker->unique() : $this->faker;

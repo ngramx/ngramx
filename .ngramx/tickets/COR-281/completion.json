@@ -12,7 +12,7 @@
   "test_plan": [
     {
       "description": "Postmaclone unit tests and doctor against a configured source",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run the Postmaclone and Filesystem unit tests",
         "In a project with a postmaclone block, run ngramx postmaclone doctor",
@@ -21,12 +21,20 @@
     },
     {
       "description": "Create and tear down an ephemeral clone",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run ngramx postmaclone --dry-run and confirm the resolved source",
         "Run ngramx postmaclone (or ngramx up --postmaclone) against a small dump or prebuilt",
         "Confirm the app uses the clone as db",
         "Run ngramx postmaclone down and confirm compose db is restored"
+      ]
+    },
+    {
+      "description": "PHPStan level 8 is clean after the CI failure",
+      "status": "active",
+      "steps": [
+        "Confirm Tests / PHP 8.2 and Tests / PHP 8.3 pass on the PR",
+        "Or locally: composer phpstan"
       ]
     }
   ]
