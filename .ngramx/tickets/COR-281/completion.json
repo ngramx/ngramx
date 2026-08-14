@@ -1,0 +1,33 @@
+{
+  "title": "COR-281: Ship Postmaclone CLI For Ephemeral Anonymized Prod Clones",
+  "description": "Adds ngramx postmaclone for ephemeral anonymized database clones from Spaces backups, local dumps, or dump-only connection strings, plus ngramx up --postmaclone.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/3",
+  "linear_url": "https://linear.app/gigabyte/issue/COR-281/ship-postmaclone-cli-for-ephemeral-anonymized-prod-clones",
+  "test_urls": [
+    {
+      "label": "GitHub PR",
+      "url": "https://github.com/ngramx/ngramx/pull/3"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Postmaclone unit tests and doctor against a configured source",
+      "status": "active",
+      "steps": [
+        "Run the Postmaclone and Filesystem unit tests",
+        "In a project with a postmaclone block, run ngramx postmaclone doctor",
+        "Confirm checks pass and the source is not mutated"
+      ]
+    },
+    {
+      "description": "Create and tear down an ephemeral clone",
+      "status": "active",
+      "steps": [
+        "Run ngramx postmaclone --dry-run and confirm the resolved source",
+        "Run ngramx postmaclone (or ngramx up --postmaclone) against a small dump or prebuilt",
+        "Confirm the app uses the clone as db",
+        "Run ngramx postmaclone down and confirm compose db is restored"
+      ]
+    }
+  ]
+}

@@ -24,3 +24,4 @@ Land Cam's Postmaclone work from `origin/postmaclone` as the COR-281 solution: `
 - Fixed Windows absolute-path handling (`C:\...` was treated as relative) in config load, compose paths, dump resolve, and factory config.
 - Doctor no longer fails when host `psql` is missing and the target is Docker/auto; dump-client detection uses `ExecutableFinder` instead of `sh -c command -v`.
 - Adjusted Postmaclone tests so Windows paths can be embedded in YAML.
+- Opened PR: https://github.com/ngramx/ngramx/pull/3
