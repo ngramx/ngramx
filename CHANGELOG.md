@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.34.0](https://github.com/ngramx/ngramx/compare/v2.33.0...v2.34.0) (2026-08-14)
+
+
+### Features
+
+* add `ngramx worktree --list` status display and index-based cleanup ([8473546](https://github.com/ngramx/ngramx/commit/8473546a3eda47791a0ddc4b086cbf7fd65bfc45))
+
 # [2.33.0](https://github.com/ngramx/ngramx/compare/v2.32.3...v2.33.0) (2026-08-13)
 
 
