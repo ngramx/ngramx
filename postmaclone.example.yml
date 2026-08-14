@@ -1,5 +1,7 @@
 # Factory config for nightly anonymized artifact production.
-# Lives in a dedicated factory repo (not an app). Discover as postmaclone.yml / .yaml.
+# Lives in the dedicated factory repo (not an app):
+#   https://github.com/ngramx/postmaclone-factory
+# Discover as postmaclone.yml / .yaml.
 #
 #   ngramx postmaclone produce --all
 #   ngramx postmaclone produce --dataset earl-kendrick

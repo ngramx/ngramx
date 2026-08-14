@@ -17,3 +17,5 @@ Run `ngramx postmaclone produce` on a schedule in lon1 so Hydra (59GB) and then 
 ## Changes
 
 - Ticket folder created.
+- Chose Cam's dedicated factory repo (not an app checkout).
+- Created https://github.com/ngramx/postmaclone-factory with `postmaclone.yml` (Hydra MySQL + Earl Kendrick Postgres), Dockerfile, compose, and lon1 schedule notes.
