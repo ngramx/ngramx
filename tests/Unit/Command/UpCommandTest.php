@@ -68,6 +68,7 @@ class UpCommandTest extends TestCase
         $this->assertTrue($definition->hasOption('skip-init'));
         $this->assertTrue($definition->hasOption('stop-herd'));
         $this->assertTrue($definition->hasOption('rebuild'));
+        $this->assertTrue($definition->hasOption('postmaclone'));
     }
 
     public function test_it_fails_when_docker_is_not_running(): void

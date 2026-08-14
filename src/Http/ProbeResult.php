@@ -50,21 +50,8 @@ readonly class ProbeResult
     }
 
     /**
-     * Did the upstream produce a non-5xx response? See class doc for rationale
-     * on why 3xx/4xx count as healthy here.
-     */
-    public function isHealthy(): bool
-    {
-        if (!$this->reachable || $this->statusCode === null) {
-            return false;
-        }
-
-        return $this->statusCode < 500;
-    }
-
-    /**
-     * Return a copy that reports $url (e.g. the original hostname after a
-     * loopback connect) so user-facing diagnostics match docker.app_url.
+     * Preserve the user-facing app URL in messages when the probe connected
+     * via a rewritten host (e.g. *.localhost → 127.0.0.1 on WSL).
      */
     public function withUrl(string $url): self
     {
@@ -75,6 +62,19 @@ readonly class ProbeResult
             error: $this->error,
             connectionRefused: $this->connectionRefused,
         );
+    }
+
+    /**
+     * Did the upstream produce a non-5xx response? See class doc for rationale
+     * on why 3xx/4xx count as healthy here.
+     */
+    public function isHealthy(): bool
+    {
+        if (!$this->reachable || $this->statusCode === null) {
+            return false;
+        }
+
+        return $this->statusCode < 500;
     }
 
     /**

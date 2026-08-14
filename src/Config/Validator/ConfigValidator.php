@@ -46,6 +46,405 @@ class ConfigValidator
                 throw new ConfigException('default_team must be a short alphabetic team prefix (e.g. "gig")');
             }
         }
+
+        if (isset($config['postmaclone'])) {
+            $this->validatePostmacloneSection($config['postmaclone']);
+        }
+    }
+
+    /**
+     * @param mixed $postmaclone
+     * @throws ConfigException
+     */
+    private function validatePostmacloneSection(mixed $postmaclone): void
+    {
+        if (!is_array($postmaclone)) {
+            throw new ConfigException('postmaclone must be an array');
+        }
+
+        if (isset($postmaclone['engine'])) {
+            if (!is_string($postmaclone['engine']) || !in_array($postmaclone['engine'], ['postgres', 'mysql', 'mariadb'], true)) {
+                throw new ConfigException('postmaclone.engine must be one of: postgres, mysql, mariadb');
+            }
+        }
+
+        if (isset($postmaclone['locale']) && !is_string($postmaclone['locale'])) {
+            throw new ConfigException('postmaclone.locale must be a string');
+        }
+
+        if (array_key_exists('seed', $postmaclone) && $postmaclone['seed'] !== null && !is_int($postmaclone['seed'])) {
+            throw new ConfigException('postmaclone.seed must be an integer or null');
+        }
+
+        if (isset($postmaclone['test_password']) && !is_string($postmaclone['test_password'])) {
+            throw new ConfigException('postmaclone.test_password must be a string');
+        }
+
+        if (isset($postmaclone['deny_hosts'])) {
+            if (!is_array($postmaclone['deny_hosts'])) {
+                throw new ConfigException('postmaclone.deny_hosts must be an array');
+            }
+            foreach ($postmaclone['deny_hosts'] as $i => $host) {
+                if (!is_string($host) || $host === '') {
+                    throw new ConfigException("postmaclone.deny_hosts[$i] must be a non-empty string");
+                }
+            }
+        }
+
+        if (isset($postmaclone['backup'])) {
+            $this->validatePostmacloneBackup($postmaclone['backup'], 'postmaclone.backup');
+        }
+
+        if (isset($postmaclone['prebuilt'])) {
+            $this->validatePostmaclonePrebuilt($postmaclone['prebuilt']);
+        }
+
+        if (isset($postmaclone['target'])) {
+            $this->validatePostmacloneTarget($postmaclone['target']);
+        }
+
+        $hasPrebuilt = isset($postmaclone['prebuilt'])
+            && is_array($postmaclone['prebuilt'])
+            && isset($postmaclone['prebuilt']['path'])
+            && is_string($postmaclone['prebuilt']['path'])
+            && $postmaclone['prebuilt']['path'] !== '';
+
+        $hasTables = isset($postmaclone['tables']) && is_array($postmaclone['tables']) && $postmaclone['tables'] !== [];
+        if (!$hasTables && !$hasPrebuilt) {
+            throw new ConfigException(
+                'postmaclone requires either prebuilt (consumer) or tables (anonymize rules / full pipeline)'
+            );
+        }
+
+        if ($hasTables) {
+            $this->validatePostmacloneTables($postmaclone['tables'], 'postmaclone.tables');
+        }
+    }
+
+    /**
+     * Validate a factory postmaclone.yml document (no ngramx docker section).
+     *
+     * @param array<string, mixed> $config
+     * @throws ConfigException
+     */
+    public function validateFactory(array $config): void
+    {
+        if (!isset($config['datasets']) || !is_array($config['datasets']) || $config['datasets'] === []) {
+            throw new ConfigException('Factory postmaclone.yml requires a non-empty datasets map');
+        }
+
+        foreach ($config['datasets'] as $name => $dataset) {
+            if (!is_string($name) || $name === '') {
+                throw new ConfigException('Factory datasets keys must be non-empty strings');
+            }
+            if (!is_array($dataset)) {
+                throw new ConfigException("Factory datasets.{$name} must be an object");
+            }
+            if (isset($dataset['engine'])
+                && (!is_string($dataset['engine']) || !in_array($dataset['engine'], ['postgres', 'mysql', 'mariadb'], true))) {
+                throw new ConfigException("Factory datasets.{$name}.engine must be postgres, mysql, or mariadb");
+            }
+            if (!isset($dataset['backup']) || !is_array($dataset['backup'])) {
+                throw new ConfigException("Factory datasets.{$name}.backup is required");
+            }
+            $this->validatePostmacloneBackup($dataset['backup'], "datasets.{$name}.backup");
+            if (!isset($dataset['publish']) || !is_array($dataset['publish'])) {
+                throw new ConfigException("Factory datasets.{$name}.publish is required");
+            }
+            $this->validatePublish($dataset['publish'], "datasets.{$name}.publish");
+            if (!isset($dataset['tables']) || !is_array($dataset['tables']) || $dataset['tables'] === []) {
+                throw new ConfigException("Factory datasets.{$name}.tables is required");
+            }
+            $this->validatePostmacloneTables($dataset['tables'], "datasets.{$name}.tables");
+            foreach (['include_tables', 'exclude_tables'] as $listKey) {
+                if (!isset($dataset[$listKey])) {
+                    continue;
+                }
+                if (!is_array($dataset[$listKey])) {
+                    throw new ConfigException("Factory datasets.{$name}.{$listKey} must be a list of table names");
+                }
+                foreach ($dataset[$listKey] as $i => $table) {
+                    if (!is_string($table) || trim($table) === '') {
+                        throw new ConfigException("Factory datasets.{$name}.{$listKey}[{$i}] must be a non-empty string");
+                    }
+                }
+            }
+            if (isset($dataset['target'])) {
+                $this->validatePostmacloneTarget($dataset['target'], "datasets.{$name}.target");
+            }
+        }
+    }
+
+    /**
+     * @param mixed $tables
+     * @throws ConfigException
+     */
+    private function validatePostmacloneTables(mixed $tables, string $prefix): void
+    {
+        if (!is_array($tables) || $tables === []) {
+            throw new ConfigException("{$prefix} must list at least one table with columns to anonymize (opt-in)");
+        }
+
+        foreach ($tables as $tableName => $tableConfig) {
+            if (!is_string($tableName) || $tableName === '') {
+                throw new ConfigException("{$prefix} keys must be non-empty table names");
+            }
+            if (!is_array($tableConfig)) {
+                throw new ConfigException("{$prefix}.{$tableName} must be an array of column rules");
+            }
+
+            $columns = $tableConfig;
+            if (isset($tableConfig['columns']) && is_array($tableConfig['columns'])) {
+                $columns = $tableConfig['columns'];
+            }
+            unset($columns['primary_key'], $columns['columns']);
+
+            if ($columns === []) {
+                throw new ConfigException(
+                    "{$prefix}.{$tableName} must list at least one column to anonymize"
+                );
+            }
+
+            if (isset($tableConfig['primary_key']) && (!is_string($tableConfig['primary_key']) || $tableConfig['primary_key'] === '')) {
+                throw new ConfigException("{$prefix}.{$tableName}.primary_key must be a non-empty string");
+            }
+
+            foreach ($columns as $columnName => $rule) {
+                if (!is_string($columnName) || $columnName === '') {
+                    throw new ConfigException("{$prefix}.{$tableName} column keys must be non-empty strings");
+                }
+                if (is_string($rule)) {
+                    if (trim($rule) === '') {
+                        throw new ConfigException("{$prefix}.{$tableName}.{$columnName} faker method must be a non-empty string");
+                    }
+                    continue;
+                }
+                if (!is_array($rule)) {
+                    throw new ConfigException(
+                        "{$prefix}.{$tableName}.{$columnName} must be a faker method string or an object"
+                    );
+                }
+                if (!isset($rule['faker']) || !is_string($rule['faker']) || trim($rule['faker']) === '') {
+                    throw new ConfigException("{$prefix}.{$tableName}.{$columnName}.faker is required");
+                }
+                if (isset($rule['unique']) && !is_bool($rule['unique'])) {
+                    throw new ConfigException("{$prefix}.{$tableName}.{$columnName}.unique must be a boolean");
+                }
+                if (isset($rule['preserve_nulls']) && !is_bool($rule['preserve_nulls'])) {
+                    throw new ConfigException("{$prefix}.{$tableName}.{$columnName}.preserve_nulls must be a boolean");
+                }
+                if (isset($rule['where']) && (!is_string($rule['where']) || $rule['where'] === '')) {
+                    throw new ConfigException("{$prefix}.{$tableName}.{$columnName}.where must be a non-empty string");
+                }
+            }
+        }
+    }
+
+    /**
+     * @param mixed $prebuilt
+     * @throws ConfigException
+     */
+    private function validatePostmaclonePrebuilt(mixed $prebuilt): void
+    {
+        if (!is_array($prebuilt)) {
+            throw new ConfigException('postmaclone.prebuilt must be an array');
+        }
+        if (isset($prebuilt['source']) && !in_array($prebuilt['source'], ['local', 's3'], true)) {
+            throw new ConfigException('postmaclone.prebuilt.source must be local or s3');
+        }
+        if (!isset($prebuilt['path']) || !is_string($prebuilt['path']) || $prebuilt['path'] === '') {
+            throw new ConfigException('postmaclone.prebuilt.path is required');
+        }
+        if (isset($prebuilt['region']) && !is_string($prebuilt['region'])) {
+            throw new ConfigException('postmaclone.prebuilt.region must be a string');
+        }
+        if (isset($prebuilt['endpoint']) && !is_string($prebuilt['endpoint'])) {
+            throw new ConfigException('postmaclone.prebuilt.endpoint must be a string');
+        }
+        if (isset($prebuilt['path_style']) && !is_bool($prebuilt['path_style'])) {
+            throw new ConfigException('postmaclone.prebuilt.path_style must be a boolean');
+        }
+        if (isset($prebuilt['file'])) {
+            if (!is_string($prebuilt['file']) || trim($prebuilt['file']) === '') {
+                throw new ConfigException('postmaclone.prebuilt.file must be a non-empty string');
+            }
+            if (str_contains($prebuilt['file'], '/') || str_contains($prebuilt['file'], '\\')) {
+                throw new ConfigException('postmaclone.prebuilt.file must be a basename only');
+            }
+        }
+        if (isset($prebuilt['max_age_hours']) && (!is_int($prebuilt['max_age_hours']) || $prebuilt['max_age_hours'] <= 0)) {
+            throw new ConfigException('postmaclone.prebuilt.max_age_hours must be a positive integer');
+        }
+        if (isset($prebuilt['credentials'])) {
+            $this->validateOpCredentials($prebuilt['credentials'], 'postmaclone.prebuilt.credentials');
+        }
+    }
+
+    /**
+     * @param mixed $publish
+     * @throws ConfigException
+     */
+    private function validatePublish(mixed $publish, string $prefix): void
+    {
+        if (!is_array($publish)) {
+            throw new ConfigException("{$prefix} must be an array");
+        }
+        if (!isset($publish['path']) || !is_string($publish['path']) || $publish['path'] === '') {
+            throw new ConfigException("{$prefix}.path is required");
+        }
+        if (isset($publish['region']) && !is_string($publish['region'])) {
+            throw new ConfigException("{$prefix}.region must be a string");
+        }
+        if (isset($publish['endpoint']) && !is_string($publish['endpoint'])) {
+            throw new ConfigException("{$prefix}.endpoint must be a string");
+        }
+        if (isset($publish['path_style']) && !is_bool($publish['path_style'])) {
+            throw new ConfigException("{$prefix}.path_style must be a boolean");
+        }
+        if (isset($publish['file'])) {
+            if (!is_string($publish['file']) || trim($publish['file']) === '') {
+                throw new ConfigException("{$prefix}.file must be a non-empty string");
+            }
+            if (str_contains($publish['file'], '/') || str_contains($publish['file'], '\\')) {
+                throw new ConfigException("{$prefix}.file must be a basename only");
+            }
+        }
+        if (isset($publish['credentials'])) {
+            $this->validateOpCredentials($publish['credentials'], "{$prefix}.credentials");
+        }
+    }
+
+    /**
+     * @param mixed $credentials
+     * @throws ConfigException
+     */
+    private function validateOpCredentials(mixed $credentials, string $prefix): void
+    {
+        if (!is_array($credentials)) {
+            throw new ConfigException("{$prefix} must be an object with key and secret");
+        }
+        $key = $credentials['key'] ?? null;
+        $secret = $credentials['secret'] ?? null;
+        if (!is_string($key) || trim($key) === '' || !is_string($secret) || trim($secret) === '') {
+            throw new ConfigException("{$prefix} requires non-empty key and secret");
+        }
+        if (!str_starts_with($key, 'op://') || !str_starts_with($secret, 'op://')) {
+            throw new ConfigException(
+                "{$prefix} key/secret must be 1Password references (op://vault/item/field). "
+                . 'Do not put plaintext access keys in YAML.'
+            );
+        }
+    }
+
+    /**
+     * @param mixed $backup
+     * @throws ConfigException
+     */
+    private function validatePostmacloneBackup(mixed $backup, string $prefix = 'postmaclone.backup'): void
+    {
+        if (!is_array($backup)) {
+            throw new ConfigException("{$prefix} must be an array");
+        }
+
+        if (isset($backup['source']) && !in_array($backup['source'], ['local', 's3', 'connection'], true)) {
+            throw new ConfigException("{$prefix}.source must be local, s3, or connection");
+        }
+
+        if (isset($backup['path']) && !is_string($backup['path'])) {
+            throw new ConfigException("{$prefix}.path must be a string");
+        }
+
+        if (isset($backup['region']) && !is_string($backup['region'])) {
+            throw new ConfigException("{$prefix}.region must be a string");
+        }
+
+        if (isset($backup['endpoint']) && !is_string($backup['endpoint'])) {
+            throw new ConfigException("{$prefix}.endpoint must be a string");
+        }
+
+        if (isset($backup['path_style']) && !is_bool($backup['path_style'])) {
+            throw new ConfigException("{$prefix}.path_style must be a boolean");
+        }
+
+        if (isset($backup['file'])) {
+            if (!is_string($backup['file']) || trim($backup['file']) === '') {
+                throw new ConfigException("{$prefix}.file must be a non-empty string");
+            }
+            if (str_contains($backup['file'], '/') || str_contains($backup['file'], '\\')) {
+                throw new ConfigException("{$prefix}.file must be a basename only (e.g. earl_kendrick_prod.sql.gz)");
+            }
+        }
+
+        if (isset($backup['credentials'])) {
+            $this->validateOpCredentials($backup['credentials'], "{$prefix}.credentials");
+        }
+
+        if (isset($backup['roles'])) {
+            if (!is_array($backup['roles'])) {
+                throw new ConfigException("{$prefix}.roles must be a list of role name strings");
+            }
+            foreach ($backup['roles'] as $role) {
+                if (!is_string($role) || trim($role) === '' || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $role)) {
+                    throw new ConfigException(
+                        "{$prefix}.roles entries must be simple identifiers (e.g. earl_kendrick_prod)"
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * @param mixed $target
+     * @throws ConfigException
+     */
+    private function validatePostmacloneTarget(mixed $target, string $prefix = 'postmaclone.target'): void
+    {
+        if (!is_array($target)) {
+            throw new ConfigException("{$prefix} must be an array");
+        }
+
+        if (isset($target['provider']) && !in_array($target['provider'], ['neon', 'docker', 'remote', 'auto'], true)) {
+            throw new ConfigException("{$prefix}.provider must be neon, docker, remote, or auto");
+        }
+
+        if (isset($target['ttl_hours']) && (!is_int($target['ttl_hours']) || $target['ttl_hours'] <= 0)) {
+            throw new ConfigException("{$prefix}.ttl_hours must be a positive integer");
+        }
+
+        if (isset($target['remote_threshold_bytes'])
+            && (!is_int($target['remote_threshold_bytes']) || $target['remote_threshold_bytes'] <= 0)) {
+            throw new ConfigException("{$prefix}.remote_threshold_bytes must be a positive integer");
+        }
+
+        if (isset($target['neon']) && is_array($target['neon'])) {
+            if (array_key_exists('project_id', $target['neon'])
+                && $target['neon']['project_id'] !== null
+                && !is_string($target['neon']['project_id'])) {
+                throw new ConfigException("{$prefix}.neon.project_id must be a string or null");
+            }
+            if (array_key_exists('region_id', $target['neon'])
+                && $target['neon']['region_id'] !== null
+                && !is_string($target['neon']['region_id'])) {
+                throw new ConfigException("{$prefix}.neon.region_id must be a string or null");
+            }
+        }
+
+        if (isset($target['docker']) && is_array($target['docker'])) {
+            if (array_key_exists('image', $target['docker'])
+                && $target['docker']['image'] !== null
+                && !is_string($target['docker']['image'])) {
+                throw new ConfigException("{$prefix}.docker.image must be a string or null");
+            }
+            if (isset($target['docker']['port']) && (!is_int($target['docker']['port']) || $target['docker']['port'] < 0)) {
+                throw new ConfigException("{$prefix}.docker.port must be a non-negative integer");
+            }
+        }
+
+        if (isset($target['remote']) && is_array($target['remote'])) {
+            if (isset($target['remote']['url']) && (!is_string($target['remote']['url']) || $target['remote']['url'] === '')) {
+                throw new ConfigException("{$prefix}.remote.url must be a non-empty string");
+            }
+        }
     }
 
     /**

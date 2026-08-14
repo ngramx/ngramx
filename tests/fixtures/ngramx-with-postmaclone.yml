@@ -1,0 +1,23 @@
+version: "1.0"
+
+docker:
+  compose_file: "docker-compose.yml"
+  primary_service: "app"
+  app_url: "http://localhost:8080"
+
+postmaclone:
+  engine: postgres
+  locale: en_GB
+  seed: 42
+  backup:
+    source: local
+    path: "./backups/latest.dump"
+  target:
+    provider: docker
+    ttl_hours: 4
+  tables:
+    users:
+      email: uniqueSafeEmail
+      first_name: firstName
+      last_name: lastName
+      # status is intentionally omitted — must remain unchanged

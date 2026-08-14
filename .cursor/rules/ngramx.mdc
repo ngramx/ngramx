@@ -48,6 +48,8 @@ Common patterns (adapt names and types to match the codebase):
 
 Do not assume every Ngramx project uses the same audit column names; copy the conventions from nearby migrations in the same repository.
 
+When nearby models use UUID primary keys (often UUID v7 via Laravel's `HasUuids` trait), match that: `$table->uuid('id')->primary()`, `$incrementing = false`, `$keyType = 'string'`, and `foreignUuid()->constrained('explicit_table')` for prefixed tables.
+
 NEVER edit migrations. Always create new ones.
 
 ---
@@ -99,7 +101,7 @@ Every ticket gets a `.ngramx/tickets/[ticket-id]/` directory at the repo root co
 
 ## Completion record
 
-When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion.json`. This file **must** be valid JSON matching this exact schema — do not use markdown, do not add extra keys, do not omit required fields:
+When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion.json`. **Commit and push this file before opening the PR** — automated reviewers inspect the head commit at PR-open time, so a follow-up commit that only adds `completion.json` triggers false "missing completion.json" comments. Use `pr_url: ""` until `gh pr create` returns the URL, then update and push. This file **must** be valid JSON matching this exact schema — do not use markdown, do not add extra keys, do not omit required fields:
 
 ```json
 {
@@ -131,7 +133,7 @@ When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion
 |-------|----------|-------------|
 | `title` | Yes | PR title including ticket ID, e.g. `GIG-123: Short Title In Title Case`. |
 | `description` | Yes | One or two sentences describing what the ticket resolves or what the changes are. |
-| `pr_url` | Yes | Full URL of the GitHub pull request. |
+| `pr_url` | Yes | Full URL of the GitHub pull request. Before the PR exists, use `""`, then set the real URL immediately after create and push. |
 | `linear_url` | No | Full URL of the Linear ticket. Set to `null` or omit for non-Linear work. |
 | `test_urls` | Yes | Array of `{ "label", "url" }` objects. Deep-links into the running application at routes that demonstrate the change. Use the local development URL. Include bypass tokens if the project requires them. |
 | `test_plan` | Yes | Array of test blocks. Each has `description` (one sentence), `status` (`"active"` or `"stale"`), and `steps` (ordered array of testing instructions). When creating a PR, all blocks are `"active"`. When updating a PR after review feedback, existing blocks become `"stale"` and new blocks are added as `"active"`. |
@@ -139,5 +141,33 @@ When work on the ticket is complete, add `.ngramx/tickets/[ticket-id]/completion
 ## Hard rules
 
 - **Never open draft PRs.** CI and automated review should run against the PR from the moment it is created.
+- **Never open a PR without `completion.json` already committed and pushed** on the branch head.
 - **Never add a `cursor/` (or any other tool-specific) prefix to branch names.** The branch name should describe the work, not the tool that produced it.
 - One ticket = one branch = one PR.
+
+---
+
+# Git, review, and pull requests
+
+## Feature branch upstream
+
+**Never** create a feature branch with `git checkout -b <branch> origin/main` or `git switch -c <branch> origin/main`. Git then sets upstream to `origin/main`, and a bare `git push` updates `main`.
+
+Use `git checkout -b <branch> origin/main --no-track`, or update local `main` and run `git checkout -b <branch>` with no start-point. First publish with `git push -u origin HEAD` only. See the `start-ticket` skill.
+
+## Bugbot / review "verify and fix" comments
+
+When a review comment (Bugbot, Devin, human, etc.) asks you to **verify an issue exists and fix it**, and you confirm it is real and ship a fix: **commit and push to the open PR branch by default** — do not wait for an explicit "commit/push" ask. Follow the **update-pr** skill (stale/active test blocks, ticket README changes log, then push).
+
+If you verify it is a **non-issue**, explain why in the reply and do not change code. Do not invent unrelated commits.
+
+## Code style before opening a PR
+
+Before opening a pull request that touches formatted source files, either:
+
+1. Run the project's formatter and include any fixes in the branch. For PHP Laravel apps that is typically Laravel Pint (`composer pint` or `./vendor/bin/pint` **inside the app container**, then confirm `./vendor/bin/pint --test` is clean). Other stacks should use whatever the repo already wires (Prettier, PHP CS Fixer, etc.); or
+2. Ask the user whether they want formatting run/fixed before the PR is opened.
+
+Do not open a PR with a dirty formatter check unless the user explicitly skips it.
+
+If the formatter config excludes `database/migrations`, leave those files alone. The hard rule against editing shipped migrations is about schema/data; we still do not rewrite them with style tooling.

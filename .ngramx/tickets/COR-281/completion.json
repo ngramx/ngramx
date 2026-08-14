@@ -1,0 +1,123 @@
+{
+  "title": "COR-281: Ship Postmaclone CLI For Ephemeral Anonymized Prod Clones",
+  "description": "Adds ngramx postmaclone for ephemeral anonymized database clones from Spaces backups, local dumps, or dump-only connection strings, plus ngramx up --postmaclone.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/3",
+  "linear_url": "https://linear.app/gigabyte/issue/COR-281/ship-postmaclone-cli-for-ephemeral-anonymized-prod-clones",
+  "test_urls": [
+    {
+      "label": "GitHub PR",
+      "url": "https://github.com/ngramx/ngramx/pull/3"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Postmaclone unit tests and doctor against a configured source",
+      "status": "stale",
+      "steps": [
+        "Run the Postmaclone and Filesystem unit tests",
+        "In a project with a postmaclone block, run ngramx postmaclone doctor",
+        "Confirm checks pass and the source is not mutated"
+      ]
+    },
+    {
+      "description": "Create and tear down an ephemeral clone",
+      "status": "stale",
+      "steps": [
+        "Run ngramx postmaclone --dry-run and confirm the resolved source",
+        "Run ngramx postmaclone (or ngramx up --postmaclone) against a small dump or prebuilt",
+        "Confirm the app uses the clone as db",
+        "Run ngramx postmaclone down and confirm compose db is restored"
+      ]
+    },
+    {
+      "description": "PHPStan level 8 is clean after the CI failure",
+      "status": "stale",
+      "steps": [
+        "Confirm Tests / PHP 8.2 and Tests / PHP 8.3 pass on the PR",
+        "Or locally: composer phpstan"
+      ]
+    },
+    {
+      "description": "Full PHPUnit suite passes after lock-write and risky-test fixes",
+      "status": "stale",
+      "steps": [
+        "Confirm Tests / PHP 8.2 and Tests / PHP 8.3 pass on the PR",
+        "Or locally: vendor/bin/phpunit --coverage-clover coverage.xml"
+      ]
+    },
+    {
+      "description": "Synced agent templates include git, Bugbot, and formatter conventions",
+      "status": "stale",
+      "steps": [
+        "Confirm AGENTS.md and .cursor/rules/ngramx.mdc include Feature branch upstream, Bugbot verify-and-fix, and Code style before opening a PR",
+        "Confirm start-ticket uses git checkout -b ... origin/main --no-track",
+        "Run vendor/bin/phpunit tests/Unit/Agents"
+      ]
+    },
+    {
+      "description": "MySQL/MariaDB Docker restore uses docker exec, not the compose alias",
+      "status": "stale",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/MysqlRunnerTest.php tests/Unit/Postmaclone/RestoreDoctorTest.php",
+        "Confirm MysqlRunnerTest asserts docker exec for a Docker target whose host is db:3306",
+        "On a MySQL project: ngramx postmaclone against a small dump and confirm restore succeeds instead of failing to reach db:3306"
+      ]
+    },
+    {
+      "description": "Forced teardown still restarts compose db if docker rm fails",
+      "status": "stale",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/DockerDbTargetDestroyTest.php",
+        "Confirm the test asserts compose startService runs even when container removal throws",
+        "On a Docker project with a Postmaclone lock: ngramx postmaclone down --force (or ngramx down) after the clone container is already gone, and confirm the compose db service comes back"
+      ]
+    },
+    {
+      "description": "Prebuilt max_age_hours rejects stale S3 objects even when prebuilt.file is set",
+      "status": "stale",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/S3BackupSourceTest.php tests/Unit/Postmaclone/LocalBackupSourceTest.php tests/Unit/Postmaclone/PostmacloneServicePrebuiltFreshTest.php",
+        "Confirm S3BackupSourceTest asserts Last-Modified is used even when the downloaded cache file mtime is now",
+        "In a project with prebuilt.file and max_age_hours: point at an object older than the limit and confirm ngramx postmaclone fails before restore, then pass --from-prod or refresh the factory artifact"
+      ]
+    },
+    {
+      "description": "Namespaced compose stacks stop and attach using the lock project name",
+      "status": "stale",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/ComposeNetworkResolverTest.php tests/Unit/Postmaclone/ComposeDbServiceSwitcherTest.php tests/Unit/Postmaclone/DockerDbTargetDestroyTest.php tests/Unit/Postmaclone/PostmacloneServiceComposeProjectTest.php",
+        "Confirm ComposeNetworkResolverTest includes -p for a namespaced project and prefers {project}_default over another stack's default network",
+        "On a namespaced stack (ngramx up --namespace or a worktree): run ngramx postmaclone, confirm compose db in that project stops and the clone claims db, then ngramx postmaclone down restores that same db"
+      ]
+    },
+    {
+      "description": "Auto Postgres target falls back to Docker without NEON_API_KEY",
+      "status": "stale",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/PostmacloneServiceBuildTargetTest.php",
+        "Confirm auto + postgres without NEON_API_KEY builds DockerDbTarget, and with the key builds NeonTarget",
+        "On a Postgres project with provider: auto and no NEON_API_KEY: ngramx postmaclone against a small dump and confirm it provisions a Docker clone instead of failing with NEON_API_KEY is required"
+      ]
+    },
+    {
+      "description": "Prebuilt max_age_hours surfaces real source errors instead of unknown-age",
+      "status": "stale",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/S3BackupSourceTest.php tests/Unit/Postmaclone/LocalBackupSourceTest.php tests/Unit/Postmaclone/PostmacloneServicePrebuiltFreshTest.php",
+        "Confirm missing dumps, HTTP 403/404 HEAD, network errors, and S3 resolve failures throw their real messages, not Could not determine Prebuilt artifact age",
+        "Confirm a 200 HEAD without Last-Modified still fails with Could not determine Prebuilt artifact age",
+        "In a project with prebuilt.max_age_hours: point at a missing object or bad credentials and confirm ngramx postmaclone reports the source error, not a factory-produce hint"
+      ]
+    },
+    {
+      "description": "Namespaced network match does not attach to another project's default",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/ComposeNetworkResolverTest.php tests/Unit/Postmaclone/DockerDbTargetDestroyTest.php",
+        "Confirm matchExistingNetwork returns null when {project}_default is missing even if other *_default networks exist",
+        "Confirm claimComposeDnsName does not stop db when resolve returns null",
+        "On a namespaced stack whose network is missing from docker network ls, confirm ngramx postmaclone does not stop that project's db or attach the clone to another stack's default network"
+      ]
+    }
+  ]
+}

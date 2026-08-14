@@ -73,13 +73,7 @@ class ContainerExecutor
         string $command,
         ?string $projectName = null,
     ): array {
-        $cmd = ['docker-compose', '-f', $composeFile];
-
-        $overrideFile = dirname($composeFile) . '/docker-compose.override.yml';
-        if (file_exists($overrideFile)) {
-            $cmd[] = '-f';
-            $cmd[] = $overrideFile;
-        }
+        $cmd = array_merge(['docker-compose'], ComposeFiles::fileArgs($composeFile));
 
         if ($projectName !== null) {
             $cmd[] = '-p';
@@ -103,13 +97,7 @@ class ContainerExecutor
      */
     public function execInteractive(string $composeFile, string $service, string $command, ?string $projectName = null): int
     {
-        $cmd = ['docker-compose', '-f', $composeFile];
-
-        $overrideFile = dirname($composeFile) . '/docker-compose.override.yml';
-        if (file_exists($overrideFile)) {
-            $cmd[] = '-f';
-            $cmd[] = $overrideFile;
-        }
+        $cmd = array_merge(['docker-compose'], ComposeFiles::fileArgs($composeFile));
 
         if ($projectName !== null) {
             $cmd[] = '-p';
@@ -134,13 +122,7 @@ class ContainerExecutor
         array $envVars = [],
         ?string $projectName = null
     ): int {
-        $cmd = ['docker-compose', '-f', $composeFile];
-
-        $overrideFile = dirname($composeFile) . '/docker-compose.override.yml';
-        if (file_exists($overrideFile)) {
-            $cmd[] = '-f';
-            $cmd[] = $overrideFile;
-        }
+        $cmd = array_merge(['docker-compose'], ComposeFiles::fileArgs($composeFile));
 
         if ($projectName !== null) {
             $cmd[] = '-p';

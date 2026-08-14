@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Ngramx\Worktree;
 
+use Ngramx\Filesystem\AbsolutePath;
+
 /**
  * Resolves the host path that must be bind-mounted into a worktree's containers
  * so that git works (and never crashes the entrypoint) inside them.
@@ -102,7 +104,6 @@ class WorktreeGitMount
 
     private function isAbsolute(string $path): bool
     {
-        return str_starts_with($path, '/')
-            || preg_match('#^[A-Za-z]:[\\\\/]#', $path) === 1;
+        return AbsolutePath::isAbsolute($path);
     }
 }

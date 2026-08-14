@@ -11,6 +11,12 @@ description: >-
 
 This skill applies whenever you push commits to a branch that already has an open PR. Before pushing, follow these steps.
 
+## Review comments that say "verify and fix"
+
+When a review comment (Bugbot, Devin, human, etc.) asks you to **verify an issue exists and fix it**, and you confirm it is real and ship a fix: **commit and push to the open PR branch by default** — do not wait for an explicit "commit/push" ask. Follow the rest of this skill (stale/active test blocks, ticket README changes log, then push).
+
+If you verify it is a **non-issue**, explain why in the reply and do not change code. Do not invent unrelated commits.
+
 ## 1. Verify the Linear ticket is still In Progress
 
 Use the Linear MCP to check the ticket status. It should be **"In Progress"**. If it has been moved (e.g. back to "Scheduled" or "Backlog"), flag this to the user — something may be wrong. Do **not** change the status yourself.

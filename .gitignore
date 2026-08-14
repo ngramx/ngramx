@@ -10,6 +10,9 @@
 
 # Ngramx CLI
 /.ngramx.lock
+/.ngramx/postmaclone.lock
+/.ngramx/postmaclone.env.bak
+/.ngramx/cache/
 
 # Node.js / Semantic Release
 /node_modules/
@@ -18,4 +21,5 @@ yarn-debug.log*
 yarn-error.log*
 
 .env
+.env.postmaclone
 .n8n/

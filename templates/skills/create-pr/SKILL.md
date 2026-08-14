@@ -19,6 +19,10 @@ Target the project's default integration branch (typically `main`).
 
 **Never open draft PRs.** CI and automated review should run against the PR from the moment it is created. Use `gh pr create` without `--draft`.
 
+## Code style
+
+Before opening a PR that touches formatted source files, either run the project's formatter and include the fixes (Laravel Pint inside the app container is typical for PHP; confirm `./vendor/bin/pint --test` is clean), or ask the user whether they want formatting run first. Do not open a PR with a dirty formatter check unless the user explicitly skips it.
+
 ## Risk and size labels
 
 Every PR gets two labels — one for risk, one for size. The merge automation reads them.

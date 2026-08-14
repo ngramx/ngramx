@@ -20,6 +20,9 @@ use Ngramx\Host\EtcHostsHint;
 use Ngramx\Http\UrlPortOffset;
 use Ngramx\Orchestrator\SetupOrchestrator;
 use Ngramx\Output\OutputFormatter;
+use Ngramx\Postmaclone\Exception\PostmacloneException;
+use Ngramx\Postmaclone\PostmacloneDoctor;
+use Ngramx\Postmaclone\PostmacloneService;
 use Ngramx\Tls\CertInspector;
 use Ngramx\Worktree\WorktreeGitMount;
 use Ngramx\Worktree\WorktreeOwnershipReconciler;
@@ -50,6 +53,7 @@ class UpCommand extends Command
         private readonly DockerLauncher $dockerLauncher,
         ?CertInspector $certInspector = null,
         ?WorktreeOwnershipReconciler $ownershipReconciler = null,
+        private readonly PostmacloneService $postmacloneService = new PostmacloneService(),
     ) {
         parent::__construct();
         $this->certInspector = $certInspector ?? new CertInspector();
@@ -71,7 +75,8 @@ class UpCommand extends Command
             ->addOption('rebuild', null, InputOption::VALUE_NONE, 'Force rebuild of Docker images before starting')
             ->addOption('timeout', null, InputOption::VALUE_REQUIRED, 'Timeout in seconds for Docker Compose operations')
             ->addOption('no-verify', null, InputOption::VALUE_NONE, 'Skip post-start verification (HTTP probe of docker.app_url and other sanity checks)')
-            ->addOption('no-prompt-secure', null, InputOption::VALUE_NONE, 'Do not offer to run `ngramx secure` when a self-signed dev cert is detected');
+            ->addOption('no-prompt-secure', null, InputOption::VALUE_NONE, 'Do not offer to run `ngramx secure` when a self-signed dev cert is detected')
+            ->addOption('postmaclone', null, InputOption::VALUE_NONE, 'After the stack is up, create a Postmaclone clone (stops compose db, aliases network name db; runs doctor first; skips on blocking failures without failing up)');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -99,6 +104,7 @@ class UpCommand extends Command
             // Load configuration
             $configPath = $this->configLoader->findConfigFile();
             $config = $this->configLoader->load($configPath);
+            $projectRoot = dirname($configPath);
 
             $formatter->info("Loaded configuration from: $configPath");
 
@@ -112,6 +118,13 @@ class UpCommand extends Command
                         $formatter->warning("⚠ $warning");
                     }
                 }
+            }
+
+            // Gate --postmaclone before starting Docker so a broken op/S3 setup
+            // skips the clone instead of failing the whole up (lock still written).
+            $runPostmaclone = false;
+            if ($input->getOption('postmaclone')) {
+                $runPostmaclone = $this->postmacloneDoctorAllowsClone($formatter, $config, $projectRoot);
             }
 
             // Determine namespace early (needed for stale container detection)
@@ -248,6 +261,10 @@ class UpCommand extends Command
             // `ngramx secure`. Non-interactive shells just get the warning.
             $this->reviewTlsCertificate($formatter, $input, $output, $configPath, $config);
 
+            if ($runPostmaclone) {
+                $this->runPostmacloneAfterUp($formatter, $config, $projectRoot);
+            }
+
             return Command::SUCCESS;
         } catch (ConfigException $e) {
             $formatter->error("Configuration error: {$e->getMessage()}");
@@ -259,6 +276,103 @@ class UpCommand extends Command
             $formatter->error("Error: {$e->getMessage()}");
             return Command::FAILURE;
         }
+    }
+
+    /**
+     * Run Postmaclone doctor before Docker starts. Returns whether clone creation
+     * should proceed. Blocking failures skip the clone; `up` still continues.
+     */
+    private function postmacloneDoctorAllowsClone(
+        OutputFormatter $formatter,
+        \Ngramx\Config\Schema\NgramxConfig $config,
+        string $projectRoot,
+    ): bool {
+        $formatter->getOutput()->writeln('');
+        $formatter->info('Postmaclone doctor (preflight for --postmaclone)…');
+
+        $diagnosis = (new PostmacloneDoctor())->diagnose($config, $projectRoot);
+        foreach ($diagnosis['checks'] as $check) {
+            if ($check['ok']) {
+                $formatter->success($check['message']);
+            } elseif ($check['blocking']) {
+                $formatter->warning($check['message']);
+            } else {
+                $formatter->info($check['message']);
+            }
+        }
+        foreach ($diagnosis['next_steps'] as $step) {
+            $formatter->info($step);
+        }
+
+        if (!$diagnosis['ok']) {
+            $formatter->warning(
+                'Postmaclone doctor reported blocking issues — skipping clone. '
+                . 'Environment will still come up. Fix and run: ngramx postmaclone doctor'
+            );
+
+            return false;
+        }
+
+        $formatter->success('Postmaclone doctor OK — clone will run after the stack is up');
+
+        return true;
+    }
+
+    /**
+     * Provision a Postmaclone clone once the compose network exists, merging
+     * DB_* into any existing docker-compose.override.yml (ports/namespace kept).
+     *
+     * Failures are warnings only — they must not fail `ngramx up` or undo the lock.
+     */
+    private function runPostmacloneAfterUp(
+        OutputFormatter $formatter,
+        \Ngramx\Config\Schema\NgramxConfig $config,
+        string $projectRoot,
+    ): void {
+        $formatter->getOutput()->writeln('');
+        $formatter->welcome('Post Maclone');
+        $formatter->warning('Anonymization rules are project-owned. Never point this at production for in-place writes.');
+
+        try {
+            $from = $this->postmacloneService->resolveFrom(null, $config, $projectRoot);
+            $mismatch = $this->postmacloneService->engineMismatchWarning($config);
+            if ($mismatch !== null) {
+                $formatter->warning($mismatch);
+            }
+
+            $result = $this->postmacloneService->create(
+                config: $config,
+                projectRoot: $projectRoot,
+                from: $from,
+                replace: true,
+                keepDownload: false,
+                strict: false,
+                label: null,
+                bindEnv: true,
+            );
+        } catch (PostmacloneException $e) {
+            $formatter->warning('Postmaclone failed (stack is still up): ' . $e->getMessage());
+            $formatter->info('Retry with: ngramx postmaclone --replace');
+
+            return;
+        } catch (\Throwable $e) {
+            $formatter->warning('Postmaclone failed (stack is still up): ' . $e->getMessage());
+            $formatter->info('Retry with: ngramx postmaclone --replace');
+
+            return;
+        }
+
+        foreach ($result['warnings'] as $warning) {
+            $formatter->warning($warning);
+        }
+
+        $lock = $result['lock'];
+        $formatter->success("Post Maclone ready (expires {$lock->expiresAt})");
+        $formatter->info('  DATABASE_URL=' . $lock->databaseUrl);
+        if ($lock->envBackupPath) {
+            $formatter->info('  .env DB_* updated (backup: ' . $lock->envBackupPath . ')');
+        }
+        $formatter->info('  Tear down when finished: ngramx postmaclone down');
     }
 
     /**

@@ -292,6 +292,38 @@ class DockerCompose
     }
 
     /**
+     * Stop a single compose service without removing it (keeps volumes).
+     *
+     * @throws \RuntimeException
+     */
+    public function stopService(string $composeFile, string $service, ?string $projectName = null): void
+    {
+        $this->runComposeCommand(
+            $composeFile,
+            $projectName,
+            ['stop', $service],
+            timeout: 60,
+            failureLabel: "stop `$service`",
+        );
+    }
+
+    /**
+     * Start a previously stopped compose service.
+     *
+     * @throws \RuntimeException
+     */
+    public function startService(string $composeFile, string $service, ?string $projectName = null): void
+    {
+        $this->runComposeCommand(
+            $composeFile,
+            $projectName,
+            ['up', '-d', '--no-deps', $service],
+            timeout: 120,
+            failureLabel: "start `$service`",
+        );
+    }
+
+    /**
      * Run an arbitrary docker-compose subcommand against the same compose
      * + override + project that the rest of this class uses, throwing on
      * non-zero exit.
@@ -377,6 +409,7 @@ class DockerCompose
         }
 
         $command[] = 'down';
+        $command[] = '--remove-orphans';
 
         if ($volumes) {
             $command[] = '-v';
