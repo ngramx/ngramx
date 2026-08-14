@@ -12,6 +12,8 @@ use Ngramx\Postmaclone\PostmacloneLockData;
 
 class NeonTarget implements EphemeralTargetInterface
 {
+    public const API_KEY_ENV = 'NEON_API_KEY';
+
     private const API = 'https://console.neon.tech/api/v2';
 
     public function __construct(
@@ -28,9 +30,9 @@ class NeonTarget implements EphemeralTargetInterface
             throw new PostmacloneException('Neon target only supports postgres engine');
         }
 
-        $apiKey = getenv('NEON_API_KEY') ?: '';
+        $apiKey = self::apiKey();
         if ($apiKey === '') {
-            throw new PostmacloneException('NEON_API_KEY is required for the Neon target');
+            throw new PostmacloneException(self::API_KEY_ENV . ' is required for the Neon target');
         }
 
         $client = $this->client ?? new Client([
@@ -138,9 +140,9 @@ class NeonTarget implements EphemeralTargetInterface
 
     public function destroy(PostmacloneLockData $lock): void
     {
-        $apiKey = getenv('NEON_API_KEY') ?: '';
+        $apiKey = self::apiKey();
         if ($apiKey === '') {
-            throw new PostmacloneException('NEON_API_KEY is required to destroy a Neon clone');
+            throw new PostmacloneException(self::API_KEY_ENV . ' is required to destroy a Neon clone');
         }
 
         $client = $this->client ?? new Client([
@@ -165,6 +167,16 @@ class NeonTarget implements EphemeralTargetInterface
         } catch (GuzzleException $e) {
             throw new PostmacloneException('Failed to destroy Neon resources: ' . $e->getMessage(), 0, $e);
         }
+    }
+
+    public static function hasApiKey(): bool
+    {
+        return self::apiKey() !== '';
+    }
+
+    private static function apiKey(): string
+    {
+        return getenv(self::API_KEY_ENV) ?: '';
     }
 
     private function createProject(Client $client): string

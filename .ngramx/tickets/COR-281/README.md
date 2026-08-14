@@ -32,3 +32,4 @@ Land Cam's Postmaclone work from `origin/postmaclone` as the COR-281 solution: `
 - `DockerDbTarget::destroy` now restarts the stopped compose DB even when `docker rm` fails (stale name, already gone, daemon error), so forced teardown cannot leave the stack with no database and no lock.
 - Prebuilt `max_age_hours` now ages S3/Spaces objects from `Last-Modified` (HEAD before download) instead of the local cache filemtime, so a pinned `prebuilt.file` can reject stale remote dumps.
 - Docker clone provisioning now passes the Compose project name from `.ngramx.lock` when stopping `db`, resolving the project network, and restarting on teardown, so namespaced stacks (`--namespace`, `--avoid-conflicts`, worktrees) no longer target the default project.
+- `target.provider: auto` on Postgres now uses Neon only when `NEON_API_KEY` is set; otherwise it falls back to Docker so default consumer configs work without Neon credentials.

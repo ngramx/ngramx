@@ -142,7 +142,7 @@ commands:
 #   #     secret: "op://Tech Team Vault/ngramx-anon-backup-read/credential"
 #
 #   target:
-#     provider: auto              # neon | docker | remote | auto
+#     provider: auto              # neon | docker | remote | auto (Postgres: Neon if NEON_API_KEY is set, else Docker)
 #     ttl_hours: 4                # safety-net expiry; tear down with `postmaclone down`
 #     # Large prebuilts: restore into a fresh in-region DO/Neon URL (not a shared staging DB)
 #     # remote:

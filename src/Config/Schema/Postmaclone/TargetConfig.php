@@ -20,6 +20,7 @@ readonly class TargetConfig
     public const DEFAULT_REMOTE_THRESHOLD_BYTES = 2147483648;
 
     public function __construct(
+        /** auto: remote when a large artifact + remote URL exist; Neon for Postgres if NEON_API_KEY is set; otherwise Docker. */
         public string $provider = self::PROVIDER_AUTO,
         public int $ttlHours = self::DEFAULT_TTL_HOURS,
         public ?string $neonProjectId = null,

@@ -83,11 +83,20 @@
     },
     {
       "description": "Namespaced compose stacks stop and attach using the lock project name",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run vendor/bin/phpunit tests/Unit/Postmaclone/ComposeNetworkResolverTest.php tests/Unit/Postmaclone/ComposeDbServiceSwitcherTest.php tests/Unit/Postmaclone/DockerDbTargetDestroyTest.php tests/Unit/Postmaclone/PostmacloneServiceComposeProjectTest.php",
         "Confirm ComposeNetworkResolverTest includes -p for a namespaced project and prefers {project}_default over another stack's default network",
         "On a namespaced stack (ngramx up --namespace or a worktree): run ngramx postmaclone, confirm compose db in that project stops and the clone claims db, then ngramx postmaclone down restores that same db"
+      ]
+    },
+    {
+      "description": "Auto Postgres target falls back to Docker without NEON_API_KEY",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/PostmacloneServiceBuildTargetTest.php",
+        "Confirm auto + postgres without NEON_API_KEY builds DockerDbTarget, and with the key builds NeonTarget",
+        "On a Postgres project with provider: auto and no NEON_API_KEY: ngramx postmaclone against a small dump and confirm it provisions a Docker clone instead of failing with NEON_API_KEY is required"
       ]
     }
   ]

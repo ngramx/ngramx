@@ -606,7 +606,7 @@ class PostmacloneService
                 || (is_string(getenv('POSTMACLONE_REMOTE_URL')) && getenv('POSTMACLONE_REMOTE_URL') !== '');
             if ($hasRemote && $artifactSizeBytes !== null && $artifactSizeBytes >= $threshold) {
                 $provider = TargetConfig::PROVIDER_REMOTE;
-            } elseif ($engine === PostmacloneConfig::ENGINE_POSTGRES) {
+            } elseif ($engine === PostmacloneConfig::ENGINE_POSTGRES && NeonTarget::hasApiKey()) {
                 $provider = TargetConfig::PROVIDER_NEON;
             } else {
                 $provider = TargetConfig::PROVIDER_DOCKER;

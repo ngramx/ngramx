@@ -401,7 +401,7 @@ ngramx postmaclone produce --dataset earl-kendrick
 
 **Agent contract:** `postmaclone` → investigate/fix → `postmaclone down` per bug. Do not share one long-lived clone across agents — mutations from one session poison the next. TTL (`target.ttl_hours`, default 4h) is only a safety net. The anonymized Spaces bucket is an **artifact store**: each session **copies** the object to `.ngramx/cache` and restores into a **fresh** ephemeral target — never attach multiple agents to one restored DB.
 
-**Targets:** Neon (Postgres, needs `NEON_API_KEY`), Docker (MySQL/MariaDB/Postgres), or `remote` (fresh in-region DO/Neon URL via `target.remote.url` / `POSTMACLONE_REMOTE_URL`). **Sources:** published **prebuilt** (preferred for large DBs), local dump, S3 prod backup, or a connection string (dumped/read only — never anonymized in place).
+**Targets:** Neon (Postgres, needs `NEON_API_KEY`), Docker (MySQL/MariaDB/Postgres), or `remote` (fresh in-region DO/Neon URL via `target.remote.url` / `POSTMACLONE_REMOTE_URL`). `provider: auto` (the default) picks `remote` for large artifacts when a remote URL is set, Neon for Postgres when `NEON_API_KEY` is present, otherwise Docker. **Sources:** published **prebuilt** (preferred for large DBs), local dump, S3 prod backup, or a connection string (dumped/read only — never anonymized in place).
 
 #### Large DBs: factory produce + consumer prebuilt
 
