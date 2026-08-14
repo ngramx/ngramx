@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ngramx\Tests\Unit\Postmaclone;
 
 use Ngramx\Postmaclone\Backup\LocalBackupSource;
+use Ngramx\Postmaclone\Exception\PostmacloneException;
 use PHPUnit\Framework\TestCase;
 
 final class LocalBackupSourceTest extends TestCase
@@ -38,10 +39,25 @@ final class LocalBackupSourceTest extends TestCase
         self::assertSame($mtime, $source->probe()['modified_at'] ?? null);
     }
 
-    public function test_last_modified_is_null_when_file_missing(): void
+    public function test_last_modified_throws_when_file_missing(): void
     {
-        $source = new LocalBackupSource($this->dir . '/missing.sql');
+        $path = $this->dir . '/missing.sql';
+        $source = new LocalBackupSource($path);
 
-        self::assertNull($source->lastModified());
+        $this->expectException(PostmacloneException::class);
+        $this->expectExceptionMessage("Dump file not found: {$path}");
+
+        $source->lastModified();
+    }
+
+    public function test_probe_reports_missing_file_without_throwing(): void
+    {
+        $path = $this->dir . '/missing.sql';
+        $source = new LocalBackupSource($path);
+
+        $probe = $source->probe();
+
+        self::assertFalse($probe['exists']);
+        self::assertSame("Missing file: {$path}", $probe['detail'] ?? null);
     }
 }

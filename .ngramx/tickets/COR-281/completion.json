@@ -92,11 +92,21 @@
     },
     {
       "description": "Auto Postgres target falls back to Docker without NEON_API_KEY",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run vendor/bin/phpunit tests/Unit/Postmaclone/PostmacloneServiceBuildTargetTest.php",
         "Confirm auto + postgres without NEON_API_KEY builds DockerDbTarget, and with the key builds NeonTarget",
         "On a Postgres project with provider: auto and no NEON_API_KEY: ngramx postmaclone against a small dump and confirm it provisions a Docker clone instead of failing with NEON_API_KEY is required"
+      ]
+    },
+    {
+      "description": "Prebuilt max_age_hours surfaces real source errors instead of unknown-age",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/S3BackupSourceTest.php tests/Unit/Postmaclone/LocalBackupSourceTest.php tests/Unit/Postmaclone/PostmacloneServicePrebuiltFreshTest.php",
+        "Confirm missing dumps, HTTP 403/404 HEAD, network errors, and S3 resolve failures throw their real messages, not Could not determine Prebuilt artifact age",
+        "Confirm a 200 HEAD without Last-Modified still fails with Could not determine Prebuilt artifact age",
+        "In a project with prebuilt.max_age_hours: point at a missing object or bad credentials and confirm ngramx postmaclone reports the source error, not a factory-produce hint"
       ]
     }
   ]

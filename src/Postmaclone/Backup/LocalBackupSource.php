@@ -41,7 +41,7 @@ class LocalBackupSource implements BackupSourceInterface
     public function lastModified(): ?int
     {
         if (!is_file($this->path)) {
-            return null;
+            throw new PostmacloneException("Dump file not found: {$this->path}");
         }
         $mtime = filemtime($this->path);
 

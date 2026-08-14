@@ -19,9 +19,14 @@ interface BackupSourceInterface
     public function probe(): array;
 
     /**
-     * Unix timestamp of the artifact's origin mtime, or null if unknown.
+     * Unix timestamp of the artifact's origin mtime, or null if the artifact
+     * exists but its age is unknown (for example no Last-Modified header).
      *
      * Remote sources must use the object Last-Modified (not the local cache file).
+     * Missing files, failed S3 resolve, non-200 HEAD, and network errors must
+     * throw rather than returning null.
+     *
+     * @throws \Ngramx\Postmaclone\Exception\PostmacloneException
      */
     public function lastModified(): ?int;
 

@@ -82,7 +82,7 @@ class S3BackupSource implements BackupSourceInterface
         try {
             $response = $client->request('HEAD', $url, ['headers' => $headers]);
         } catch (GuzzleException $e) {
-            return ['exists' => false, 'detail' => $e->getMessage()];
+            return ['exists' => false, 'detail' => 'S3 HEAD failed: ' . $e->getMessage()];
         }
 
         if ($response->getStatusCode() === 200) {
@@ -97,7 +97,7 @@ class S3BackupSource implements BackupSourceInterface
             ];
         }
 
-        return ['exists' => false, 'detail' => 'HTTP ' . $response->getStatusCode()];
+        return ['exists' => false, 'detail' => 'S3 HEAD failed with HTTP ' . $response->getStatusCode()];
     }
 
     public function lastModified(): ?int
@@ -106,7 +106,10 @@ class S3BackupSource implements BackupSourceInterface
             return $this->lastModified;
         }
 
-        $this->probe();
+        $probe = $this->probe();
+        if (!$probe['exists']) {
+            throw new PostmacloneException($probe['detail'] ?? 'S3 object is not available');
+        }
 
         return $this->lastModified;
     }
