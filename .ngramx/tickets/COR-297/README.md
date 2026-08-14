@@ -22,3 +22,4 @@ Run `ngramx postmaclone produce` on a schedule in lon1 so Hydra (59GB) and then 
 - ngramx docs PR: https://github.com/ngramx/ngramx/pull/4
 - Factory PR: https://github.com/ngramx/postmaclone-factory/pull/1
 - Confirmed raw dumps are lon1 (`weathered-brook-object-storage`), not ams3. EK object: `database-backups/all/20260808000002/earl_kendrick_prod.sql.gz` (~11MB). Live 1Password item uses field `password`, not `credential`.
+- Listed that folder: 16 dumps, no Hydra. Largest is `cortex.sql.gz` (135MB). Factory first dataset is now Earl Kendrick; Hydra blocked until a dump lands in Spaces.

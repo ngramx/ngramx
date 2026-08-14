@@ -1,6 +1,6 @@
 {
   "title": "COR-297: Schedule Nightly Postmaclone Factory Produce For Anonymized Artifacts",
-  "description": "Points ngramx factory docs at the dedicated postmaclone-factory repo that runs nightly produce in lon1 and publishes anonymized Hydra and Earl Kendrick artifacts.",
+  "description": "Points ngramx factory docs at the dedicated postmaclone-factory repo. First produce dataset is Earl Kendrick; Hydra is not in the shared Spaces all/ folder yet.",
   "pr_url": "https://github.com/ngramx/ngramx/pull/4",
   "linear_url": "https://linear.app/gigabyte/issue/COR-297/schedule-nightly-postmaclone-factory-produce-for-anonymized-artifacts",
   "test_urls": [
@@ -27,11 +27,19 @@
     },
     {
       "description": "Factory and docs use lon1 plus the live 1Password password field",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Confirm postmaclone.example.yml and factory postmaclone.yml use region lon1 and secret field password, not credential or ams3",
         "From earl-kendrick-core with op signed in: php ../ngramx/bin/ngramx postmaclone --dry-run",
         "Confirm Source resolves to weathered-brook-object-storage/database-backups/all/<date>/earl_kendrick_prod.sql.gz"
+      ]
+    },
+    {
+      "description": "Factory produce --all only includes Earl Kendrick until a Hydra dump exists in Spaces",
+      "status": "active",
+      "steps": [
+        "Confirm factory postmaclone.yml has earl-kendrick and no hydra dataset",
+        "Confirm the newest database-backups/all/<date>/ listing has earl_kendrick_prod.sql.gz and no hydra_* object"
       ]
     }
   ]
