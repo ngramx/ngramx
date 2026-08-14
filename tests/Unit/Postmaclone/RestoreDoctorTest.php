@@ -6,6 +6,8 @@ namespace Ngramx\Tests\Unit\Postmaclone;
 
 use Ngramx\Config\Schema\Postmaclone\BackupConfig;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
+use Ngramx\Config\Schema\Postmaclone\TargetConfig;
+use Ngramx\Filesystem\HostBinary;
 use Ngramx\Postmaclone\Restore\RestoreDoctor;
 use PHPUnit\Framework\TestCase;
 
@@ -36,6 +38,31 @@ final class RestoreDoctorTest extends TestCase
             self::assertStringContainsString('file:', implode("\n", $result['suggestions']));
         } finally {
             @rmdir($root);
+        }
+    }
+
+    public function test_missing_psql_is_ok_for_docker_target(): void
+    {
+        if (HostBinary::exists('psql')) {
+            $this->markTestSkipped('psql is on PATH; cannot assert missing-binary behaviour');
+        }
+
+        $pm = new PostmacloneConfig(
+            engine: 'postgres',
+            backup: new BackupConfig(source: BackupConfig::SOURCE_LOCAL, path: './dump.sql'),
+            target: new TargetConfig(provider: TargetConfig::PROVIDER_DOCKER),
+            tables: [],
+        );
+
+        $result = (new RestoreDoctor())->analyse($pm, sys_get_temp_dir());
+        $psqlChecks = array_filter(
+            $result['checks'],
+            static fn (array $c): bool => str_contains($c['message'], 'psql not found')
+        );
+
+        $this->assertNotSame([], $psqlChecks);
+        foreach ($psqlChecks as $check) {
+            $this->assertTrue($check['ok']);
         }
     }
 }

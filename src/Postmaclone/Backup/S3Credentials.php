@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ngramx\Postmaclone\Backup;
 
 use Ngramx\Config\Schema\Postmaclone\BackupCredentialsConfig;
+use Ngramx\Filesystem\HostBinary;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 
 /**
@@ -96,18 +97,7 @@ final class S3Credentials
 
     public static function isOpAvailable(): bool
     {
-        $path = getenv('PATH') ?: '';
-        foreach (explode(PATH_SEPARATOR, $path) as $dir) {
-            if ($dir === '') {
-                continue;
-            }
-            $candidate = rtrim($dir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'op';
-            if (is_file($candidate) && is_executable($candidate)) {
-                return true;
-            }
-        }
-
-        return false;
+        return HostBinary::exists('op');
     }
 
     public static function missingCredentialsMessage(bool $hadConfigRefs = false): string

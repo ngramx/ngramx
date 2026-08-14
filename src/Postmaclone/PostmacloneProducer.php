@@ -8,6 +8,7 @@ use Ngramx\Config\Schema\Postmaclone\BackupConfig;
 use Ngramx\Config\Schema\Postmaclone\FactoryDatasetConfig;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
 use Ngramx\Config\Schema\Postmaclone\TargetConfig;
+use Ngramx\Filesystem\AbsolutePath;
 use Ngramx\Postmaclone\Anonymizer\LiveAnonymizer;
 use Ngramx\Postmaclone\Anonymizer\SqlDialect;
 use Ngramx\Postmaclone\Backup\DatabaseDumper;
@@ -187,10 +188,8 @@ class PostmacloneProducer
             throw new PostmacloneException("Dataset {$dataset->name}: backup.path is required");
         }
 
-        $path = $backup->path;
-        if (!str_starts_with($path, '/')) {
-            $path = getcwd() . '/' . ltrim($path, './');
-        }
+        $cwd = getcwd();
+        $path = AbsolutePath::resolve(is_string($cwd) ? $cwd : '', $backup->path);
 
         return new LocalBackupSource($path);
     }

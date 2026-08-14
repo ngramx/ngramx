@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ngramx\Postmaclone\Backup;
 
+use Ngramx\Filesystem\HostBinary;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Symfony\Component\Process\Process;
 
@@ -111,9 +112,7 @@ class ConnectionStringSource implements BackupSourceInterface
 
     private function assertDumpClientOnPath(string $binary, string $installHint): void
     {
-        $which = new Process(['sh', '-c', 'command -v ' . escapeshellarg($binary)]);
-        $which->run();
-        if ($which->isSuccessful() && trim($which->getOutput()) !== '') {
+        if (HostBinary::exists($binary)) {
             return;
         }
 

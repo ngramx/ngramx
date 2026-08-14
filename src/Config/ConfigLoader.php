@@ -25,6 +25,7 @@ use Ngramx\Config\Schema\SecretsProviderConfig;
 use Ngramx\Config\Schema\ServiceWaitConfig;
 use Ngramx\Config\Schema\SetupConfig;
 use Ngramx\Config\Validator\ConfigValidator;
+use Ngramx\Filesystem\AbsolutePath;
 use Symfony\Component\Yaml\Yaml;
 
 class ConfigLoader
@@ -118,7 +119,7 @@ class ConfigLoader
 
     private function resolveConfigPath(string $path): string
     {
-        if (str_starts_with($path, '/')) {
+        if (AbsolutePath::isAbsolute($path)) {
             return $path;
         }
 
@@ -127,7 +128,7 @@ class ConfigLoader
             throw new ConfigException('Failed to get current working directory');
         }
 
-        return $cwd . '/' . $path;
+        return AbsolutePath::resolve($cwd, $path);
     }
 
     /**
@@ -534,10 +535,7 @@ class ConfigLoader
         }
 
         // Resolve compose file path relative to config directory
-        $composeFile = $dockerConfig['compose_file'];
-        if (!str_starts_with($composeFile, '/')) {
-            $composeFile = $configDir . '/' . $composeFile;
-        }
+        $composeFile = AbsolutePath::resolve($configDir, $dockerConfig['compose_file']);
 
         return new DockerConfig(
             composeFile: $composeFile,

@@ -10,6 +10,7 @@ use Ngramx\Config\Schema\Postmaclone\BackupConfig;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
 use Ngramx\Config\Schema\Postmaclone\PrebuiltConfig;
 use Ngramx\Config\Schema\Postmaclone\TargetConfig;
+use Ngramx\Filesystem\AbsolutePath;
 use Ngramx\Postmaclone\Anonymizer\DumpInsertParser;
 use Ngramx\Postmaclone\Anonymizer\LiveAnonymizer;
 use Ngramx\Postmaclone\Anonymizer\SqlDialect;
@@ -655,11 +656,7 @@ class PostmacloneService
 
     private function absolutePath(string $path, string $projectRoot): string
     {
-        if (str_starts_with($path, '/')) {
-            return $path;
-        }
-
-        return rtrim($projectRoot, '/') . '/' . ltrim($path, './');
+        return AbsolutePath::resolve($projectRoot, $path);
     }
 
 }

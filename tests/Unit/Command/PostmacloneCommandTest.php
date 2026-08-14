@@ -18,7 +18,7 @@ class PostmacloneCommandTest extends TestCase
     {
         $this->dir = sys_get_temp_dir() . '/pm-cmd-' . uniqid('', true);
         mkdir($this->dir, 0700, true);
-        $compose = dirname(__DIR__, 2) . '/fixtures/postmaclone/compose-postgres.yml';
+        $compose = str_replace('\\', '/', dirname(__DIR__, 2) . '/fixtures/postmaclone/compose-postgres.yml');
         $dump = dirname(__DIR__, 2) . '/fixtures/postmaclone/users.sql';
         file_put_contents($this->dir . '/ngramx.yml', <<<YAML
 version: "1.0"
@@ -98,7 +98,8 @@ YAML);
             $exit = $tester->execute(['action' => 'doctor']);
             $this->assertSame(0, $exit);
             $this->assertStringContainsString('Post Maclone doctor', $tester->getDisplay());
-            $this->assertStringContainsString('not using an S3', $tester->getDisplay());
+            $this->assertStringContainsString('backup.source: local', $tester->getDisplay());
+            $this->assertStringContainsString('Source looks ready', $tester->getDisplay());
         } finally {
             if (is_string($cwd)) {
                 chdir($cwd);

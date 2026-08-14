@@ -163,7 +163,7 @@ class PostmacloneConfigValidationTest extends TestCase
         $this->assertIsString($yml);
         $yml = str_replace(
             'compose_file: "docker-compose.yml"',
-            'compose_file: "' . dirname(__DIR__, 2) . '/fixtures/postmaclone/compose-postgres.yml"',
+            'compose_file: "' . str_replace('\\', '/', dirname(__DIR__, 2) . '/fixtures/postmaclone/compose-postgres.yml') . '"',
             $yml
         );
         $configPath = $tmp . '/ngramx.yml';

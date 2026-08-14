@@ -18,3 +18,9 @@ Land Cam's Postmaclone work from `origin/postmaclone` as the COR-281 solution: `
 
 - Ticket folder created.
 - Branch created from `origin/main` and Cam's `origin/postmaclone` merged in.
+- Merge conflicts in `UpCommand`, `EtcHostsHint`, and hosts-hint tests resolved in favour of main's lock-write-on-ready and `*.localhost` probe behaviour.
+- Regenerated `composer.lock` so it only adds `fakerphp/faker` instead of rewriting the whole lockfile.
+- Left the ngramx CLI's own `ngramx.yml` without a dogfood `postmaclone:` block (examples stay in `ngramx.example.yml`).
+- Fixed Windows absolute-path handling (`C:\...` was treated as relative) in config load, compose paths, dump resolve, and factory config.
+- Doctor no longer fails when host `psql` is missing and the target is Docker/auto; dump-client detection uses `ExecutableFinder` instead of `sh -c command -v`.
+- Adjusted Postmaclone tests so Windows paths can be embedded in YAML.

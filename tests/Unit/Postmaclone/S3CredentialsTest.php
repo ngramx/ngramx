@@ -100,7 +100,12 @@ final class S3CredentialsTest extends TestCase
         self::assertStringContainsString('backup:', $message);
         self::assertStringContainsString('credentials:', $message);
         self::assertStringContainsString('ngramx-db-backup-read-access', $message);
-        self::assertStringContainsString('ngramx postmaclone doctor', $message);
+        self::assertStringContainsString('OP_SERVICE_ACCOUNT_TOKEN', $message);
+        if (S3Credentials::isOpAvailable()) {
+            self::assertStringContainsString('ngramx postmaclone doctor', $message);
+        } else {
+            self::assertStringContainsString('Install 1Password CLI', $message);
+        }
     }
 
     public function testRequireThrowsWhenMissing(): void

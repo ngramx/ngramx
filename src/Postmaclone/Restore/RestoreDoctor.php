@@ -6,6 +6,9 @@ namespace Ngramx\Postmaclone\Restore;
 
 use Ngramx\Config\Schema\Postmaclone\BackupConfig;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
+use Ngramx\Config\Schema\Postmaclone\TargetConfig;
+use Ngramx\Filesystem\AbsolutePath;
+use Ngramx\Filesystem\HostBinary;
 use Ngramx\Postmaclone\Connection\PdoDriverGuard;
 use Symfony\Component\Process\Process;
 
@@ -41,9 +44,7 @@ final class RestoreDoctor
             $installHint = $dumpClient === 'mysqldump'
                 ? 'sudo apt install mysql-client-core-8.0  # or: sudo apt install mariadb-client'
                 : 'sudo apt install postgresql-client';
-            $which = new Process(['sh', '-c', 'command -v ' . escapeshellarg($dumpClient)]);
-            $which->run();
-            if ($which->isSuccessful() && trim($which->getOutput()) !== '') {
+            if (HostBinary::exists($dumpClient)) {
                 $checks[] = [
                     'ok' => true,
                     'message' => "Host {$dumpClient} available for connection-string source",
@@ -94,8 +95,12 @@ final class RestoreDoctor
                     $suggestions[] = 'Host psql is older than PG 17 — dumps with \\restrict are sanitized automatically on restore.';
                 }
             } else {
+                $hostPsqlRequired = in_array($pm->target->provider, [
+                    TargetConfig::PROVIDER_REMOTE,
+                    TargetConfig::PROVIDER_NEON,
+                ], true);
                 $checks[] = [
-                    'ok' => false,
+                    'ok' => !$hostPsqlRequired,
                     'message' => 'psql not found on PATH (used for host readiness probes; Docker restores use docker exec)',
                 ];
             }
@@ -147,10 +152,7 @@ final class RestoreDoctor
         }
 
         if ($backup->source === BackupConfig::SOURCE_LOCAL && is_string($backup->path)) {
-            $local = $backup->path;
-            if (!str_starts_with($local, '/')) {
-                $local = rtrim($projectRoot, '/') . '/' . ltrim($local, './');
-            }
+            $local = AbsolutePath::resolve($projectRoot, $backup->path);
             if (is_file($local)) {
                 return $local;
             }
