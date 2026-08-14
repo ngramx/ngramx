@@ -29,3 +29,4 @@ Land Cam's Postmaclone work from `origin/postmaclone` as the COR-281 solution: `
 - Restored main's default-mode `UpCommand` tests (`never()` write lock) after the postmaclone merge overwrote them; ComposeNetworkResolver test always asserts so CI is not risky.
 - MySQL/MariaDB Docker restore now uses `docker exec` (and host-bind as fallback) instead of the compose-network alias `db:3306`, which is not reachable from the host.
 - Shared EK agent conventions through ngramx templates: feature-branch `--no-track`, Bugbot verify-and-fix auto-push, formatter before PR, UUID PK hint.
+- `DockerDbTarget::destroy` now restarts the stopped compose DB even when `docker rm` fails (stale name, already gone, daemon error), so forced teardown cannot leave the stack with no database and no lock.

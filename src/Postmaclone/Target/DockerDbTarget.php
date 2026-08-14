@@ -164,26 +164,63 @@ class DockerDbTarget implements EphemeralTargetInterface
 
     public function destroy(PostmacloneLockData $lock): void
     {
+        $rmError = null;
         $name = (string) ($lock->providerMeta['container_name'] ?? '');
         $id = (string) ($lock->providerMeta['container_id'] ?? '');
         $target = $name !== '' ? $name : $id;
         if ($target !== '') {
-            $process = new Process(['docker', 'rm', '-f', $target]);
-            $process->setTimeout(60);
-            $process->run();
-            if (!$process->isSuccessful()) {
-                throw new PostmacloneException('Failed to remove Docker DB container: ' . $process->getErrorOutput());
+            try {
+                $this->removeEphemeralContainer($target);
+            } catch (\Throwable $e) {
+                $rmError = $e;
             }
         }
 
+        $this->restartStoppedComposeDb($lock);
+
+        if ($rmError !== null) {
+            throw $rmError instanceof PostmacloneException
+                ? $rmError
+                : new PostmacloneException($rmError->getMessage(), 0, $rmError);
+        }
+    }
+
+    /**
+     * Remove the clone container. Missing containers are treated as already gone
+     * so teardown can still restart the project's compose DB service.
+     */
+    protected function removeEphemeralContainer(string $target): void
+    {
+        $process = new Process(['docker', 'rm', '-f', $target]);
+        $process->setTimeout(60);
+        $process->run();
+        if ($process->isSuccessful() || $this->containerAlreadyGone($process)) {
+            return;
+        }
+
+        throw new PostmacloneException('Failed to remove Docker DB container: ' . $process->getErrorOutput());
+    }
+
+    private function containerAlreadyGone(Process $process): bool
+    {
+        $output = strtolower($process->getErrorOutput() . "\n" . $process->getOutput());
+
+        return str_contains($output, 'no such container')
+            || str_contains($output, 'no such object');
+    }
+
+    private function restartStoppedComposeDb(PostmacloneLockData $lock): void
+    {
         $stopped = $lock->providerMeta['stopped_db_service'] ?? null;
         $composeFile = $lock->providerMeta['compose_file'] ?? $this->composeFile;
-        if (is_string($stopped) && $stopped !== '' && is_string($composeFile) && $composeFile !== '' && is_file($composeFile)) {
-            try {
-                $this->dbSwitcher->start($composeFile, $stopped);
-            } catch (\Throwable $e) {
-                throw new PostmacloneException($e->getMessage(), 0, $e);
-            }
+        if (!is_string($stopped) || $stopped === '' || !is_string($composeFile) || $composeFile === '' || !is_file($composeFile)) {
+            return;
+        }
+
+        try {
+            $this->dbSwitcher->start($composeFile, $stopped);
+        } catch (\Throwable $e) {
+            throw $e instanceof PostmacloneException ? $e : new PostmacloneException($e->getMessage(), 0, $e);
         }
     }
 

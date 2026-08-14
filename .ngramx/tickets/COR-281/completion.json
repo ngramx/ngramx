@@ -56,11 +56,20 @@
     },
     {
       "description": "MySQL/MariaDB Docker restore uses docker exec, not the compose alias",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run vendor/bin/phpunit tests/Unit/Postmaclone/MysqlRunnerTest.php tests/Unit/Postmaclone/RestoreDoctorTest.php",
         "Confirm MysqlRunnerTest asserts docker exec for a Docker target whose host is db:3306",
         "On a MySQL project: ngramx postmaclone against a small dump and confirm restore succeeds instead of failing to reach db:3306"
+      ]
+    },
+    {
+      "description": "Forced teardown still restarts compose db if docker rm fails",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/DockerDbTargetDestroyTest.php",
+        "Confirm the test asserts compose startService runs even when container removal throws",
+        "On a Docker project with a Postmaclone lock: ngramx postmaclone down --force (or ngramx down) after the clone container is already gone, and confirm the compose db service comes back"
       ]
     }
   ]
