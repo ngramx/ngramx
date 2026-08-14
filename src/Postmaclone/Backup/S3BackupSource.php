@@ -7,11 +7,13 @@ namespace Ngramx\Postmaclone\Backup;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
+use Psr\Http\Message\ResponseInterface;
 
 class S3BackupSource implements BackupSourceInterface
 {
     private ?string $localPath = null;
     private ?S3ObjectLocator $resolvedLocator = null;
+    private ?int $lastModified = null;
 
     public function __construct(
         private readonly S3ObjectLocator $locator,
@@ -36,14 +38,15 @@ class S3BackupSource implements BackupSourceInterface
         }
 
         $hash = hash('sha256', $url);
-        $this->localPath = rtrim($this->cacheDir, '/') . '/postmaclone-' . substr($hash, 0, 16) . '.dump';
+        $path = rtrim($this->cacheDir, '/') . '/postmaclone-' . substr($hash, 0, 16) . '.dump';
+        $this->localPath = $path;
 
         $client = $this->client ?? new Client(['timeout' => 600, 'http_errors' => true]);
 
         try {
             $response = $client->request('GET', $url, [
                 'headers' => $headers,
-                'sink' => $this->localPath,
+                'sink' => $path,
             ]);
         } catch (GuzzleException $e) {
             throw new PostmacloneException('S3 download failed: ' . $e->getMessage(), 0, $e);
@@ -53,7 +56,8 @@ class S3BackupSource implements BackupSourceInterface
             throw new PostmacloneException('S3 download failed with HTTP ' . $response->getStatusCode());
         }
 
-        $path = $this->localPath;
+        $this->captureLastModified($response);
+
         if (str_ends_with(strtolower($locator->key), '.gz')) {
             $path = $this->gunzip($path);
         }
@@ -82,16 +86,29 @@ class S3BackupSource implements BackupSourceInterface
         }
 
         if ($response->getStatusCode() === 200) {
+            $this->captureLastModified($response);
             $length = $response->getHeaderLine('Content-Length');
 
             return [
                 'exists' => true,
                 'size' => $length !== '' ? (int) $length : null,
                 'detail' => "s3://{$locator->bucket}/{$locator->key}",
+                'modified_at' => $this->lastModified,
             ];
         }
 
         return ['exists' => false, 'detail' => 'HTTP ' . $response->getStatusCode()];
+    }
+
+    public function lastModified(): ?int
+    {
+        if ($this->lastModified !== null) {
+            return $this->lastModified;
+        }
+
+        $this->probe();
+
+        return $this->lastModified;
     }
 
     private function resolved(): S3ObjectLocator
@@ -129,9 +146,18 @@ class S3BackupSource implements BackupSourceInterface
         unset($gz);
     }
 
-    /**
-     * @return array{0: string, 1: string, 2: string|null}
-     */
+    private function captureLastModified(ResponseInterface $response): void
+    {
+        $header = $response->getHeaderLine('Last-Modified');
+        if ($header === '') {
+            return;
+        }
+        $timestamp = strtotime($header);
+        if ($timestamp !== false) {
+            $this->lastModified = $timestamp;
+        }
+    }
+
     /**
      * @return array{0: string, 1: string, 2: string|null}
      */

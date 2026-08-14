@@ -65,11 +65,20 @@
     },
     {
       "description": "Forced teardown still restarts compose db if docker rm fails",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run vendor/bin/phpunit tests/Unit/Postmaclone/DockerDbTargetDestroyTest.php",
         "Confirm the test asserts compose startService runs even when container removal throws",
         "On a Docker project with a Postmaclone lock: ngramx postmaclone down --force (or ngramx down) after the clone container is already gone, and confirm the compose db service comes back"
+      ]
+    },
+    {
+      "description": "Prebuilt max_age_hours rejects stale S3 objects even when prebuilt.file is set",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/S3BackupSourceTest.php tests/Unit/Postmaclone/LocalBackupSourceTest.php tests/Unit/Postmaclone/PostmacloneServicePrebuiltFreshTest.php",
+        "Confirm S3BackupSourceTest asserts Last-Modified is used even when the downloaded cache file mtime is now",
+        "In a project with prebuilt.file and max_age_hours: point at an object older than the limit and confirm ngramx postmaclone fails before restore, then pass --from-prod or refresh the factory artifact"
       ]
     }
   ]

@@ -315,11 +315,12 @@ class PostmacloneService
             $source = $this->buildBackupSource($config, $projectRoot, $engine, $from);
         }
 
+        if ($usePrebuilt && $pm->prebuilt?->maxAgeHours !== null) {
+            $this->assertPrebuiltFresh($source, $pm->prebuilt->maxAgeHours);
+        }
+
         $dumpPath = $source->materialize();
         $artifactSize = is_file($dumpPath) ? (int) filesize($dumpPath) : null;
-        if ($usePrebuilt && $pm->prebuilt?->maxAgeHours !== null) {
-            $this->assertPrebuiltFresh($dumpPath, $pm->prebuilt->maxAgeHours);
-        }
 
         $target = $this->buildTarget($config, $pm, $engine, $artifactSize)
             ->provision($engine, $pm->target->ttlHours);
@@ -503,19 +504,13 @@ class PostmacloneService
         }
     }
 
-    private function assertPrebuiltFresh(string $dumpPath, int $maxAgeHours): void
+    private function assertPrebuiltFresh(BackupSourceInterface $source, int $maxAgeHours): void
     {
-        $mtime = filemtime($dumpPath);
-        if ($mtime === false) {
-            return;
-        }
-        $ageHours = (time() - $mtime) / 3600;
-        if ($ageHours > $maxAgeHours) {
-            throw new PostmacloneException(
-                "Prebuilt artifact is older than max_age_hours ({$maxAgeHours}). "
-                . 'Re-run factory produce or pass --from-prod / --no-prebuilt.'
-            );
-        }
+        $this->assertNotOlderThan(
+            $source->lastModified(),
+            $maxAgeHours,
+            'Prebuilt artifact',
+        );
     }
 
     private function assertManifestAge(string $createdAt, int $maxAgeHours): void
@@ -525,10 +520,25 @@ class PostmacloneService
         } catch (\Exception) {
             return;
         }
-        $ageHours = (time() - $created->getTimestamp()) / 3600;
+        $this->assertNotOlderThan(
+            $created->getTimestamp(),
+            $maxAgeHours,
+            'Prebuilt manifest created_at',
+        );
+    }
+
+    private function assertNotOlderThan(?int $mtime, int $maxAgeHours, string $label): void
+    {
+        if ($mtime === null) {
+            throw new PostmacloneException(
+                "Could not determine {$label} age; cannot enforce max_age_hours ({$maxAgeHours}). "
+                . 'Re-run factory produce or pass --from-prod / --no-prebuilt.'
+            );
+        }
+        $ageHours = (time() - $mtime) / 3600;
         if ($ageHours > $maxAgeHours) {
             throw new PostmacloneException(
-                "Prebuilt manifest created_at is older than max_age_hours ({$maxAgeHours}). "
+                "{$label} is older than max_age_hours ({$maxAgeHours}). "
                 . 'Re-run factory produce or pass --from-prod / --no-prebuilt.'
             );
         }

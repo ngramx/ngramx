@@ -48,6 +48,11 @@ class ConnectionStringSource implements BackupSourceInterface
         ];
     }
 
+    public function lastModified(): ?int
+    {
+        return null;
+    }
+
     public function cleanup(bool $keep): void
     {
         if ($keep || $this->localPath === null || !is_file($this->localPath)) {

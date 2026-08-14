@@ -28,11 +28,24 @@ class LocalBackupSource implements BackupSourceInterface
             return ['exists' => false, 'detail' => "Missing file: {$this->path}"];
         }
 
+        $mtime = $this->lastModified();
+
         return [
             'exists' => true,
             'size' => filesize($this->path) ?: 0,
             'detail' => $this->path,
+            'modified_at' => $mtime,
         ];
+    }
+
+    public function lastModified(): ?int
+    {
+        if (!is_file($this->path)) {
+            return null;
+        }
+        $mtime = filemtime($this->path);
+
+        return $mtime === false ? null : $mtime;
     }
 
     public function cleanup(bool $keep): void
