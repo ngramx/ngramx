@@ -47,8 +47,8 @@ class ComposeNetworkResolver
 
     /**
      * Pick a docker network for a compose stack. Namespaced projects must match
-     * `{project}_{logical}` before a suffix search, or a default-mode stack on
-     * the same machine can steal the alias.
+     * `{project}_{logical}` exactly; a suffix search after a miss can attach the
+     * clone to another stack while `-p` still stops this project's `db`.
      *
      * @param list<string> $declared
      * @param list<string> $existing
@@ -64,6 +64,8 @@ class ComposeNetworkResolver
                     }
                 }
             }
+
+            return null;
         }
 
         foreach ($declared as $logical) {

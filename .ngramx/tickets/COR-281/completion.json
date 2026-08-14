@@ -101,12 +101,22 @@
     },
     {
       "description": "Prebuilt max_age_hours surfaces real source errors instead of unknown-age",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run vendor/bin/phpunit tests/Unit/Postmaclone/S3BackupSourceTest.php tests/Unit/Postmaclone/LocalBackupSourceTest.php tests/Unit/Postmaclone/PostmacloneServicePrebuiltFreshTest.php",
         "Confirm missing dumps, HTTP 403/404 HEAD, network errors, and S3 resolve failures throw their real messages, not Could not determine Prebuilt artifact age",
         "Confirm a 200 HEAD without Last-Modified still fails with Could not determine Prebuilt artifact age",
         "In a project with prebuilt.max_age_hours: point at a missing object or bad credentials and confirm ngramx postmaclone reports the source error, not a factory-produce hint"
+      ]
+    },
+    {
+      "description": "Namespaced network match does not attach to another project's default",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/ComposeNetworkResolverTest.php tests/Unit/Postmaclone/DockerDbTargetDestroyTest.php",
+        "Confirm matchExistingNetwork returns null when {project}_default is missing even if other *_default networks exist",
+        "Confirm claimComposeDnsName does not stop db when resolve returns null",
+        "On a namespaced stack whose network is missing from docker network ls, confirm ngramx postmaclone does not stop that project's db or attach the clone to another stack's default network"
       ]
     }
   ]

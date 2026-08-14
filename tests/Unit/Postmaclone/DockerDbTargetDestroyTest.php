@@ -123,6 +123,31 @@ final class DockerDbTargetDestroyTest extends TestCase
         $this->assertSame('db', $claimed['stoppedDbService']);
     }
 
+    public function test_claim_compose_dns_does_not_stop_when_network_unresolved(): void
+    {
+        $composeFile = $this->composeFile();
+        $networks = $this->createMock(ComposeNetworkResolver::class);
+        $networks->expects($this->once())
+            ->method('resolve')
+            ->with($composeFile, 'app', 'ngramx-worktree-cor-281')
+            ->willReturn(null);
+
+        $docker = $this->createMock(DockerCompose::class);
+        $docker->expects($this->never())->method('stopService');
+
+        $target = new DockerDbTargetClaimDouble(
+            composeFile: $composeFile,
+            primaryService: 'app',
+            projectName: 'ngramx-worktree-cor-281',
+            networks: $networks,
+            dbSwitcher: new ComposeDbServiceSwitcher($docker),
+        );
+
+        $claimed = $target->claim();
+        $this->assertNull($claimed['network']);
+        $this->assertNull($claimed['stoppedDbService']);
+    }
+
     private function composeFile(): string
     {
         $path = $this->dir . '/docker-compose.yml';

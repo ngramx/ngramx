@@ -76,4 +76,19 @@ YAML);
             $resolver->matchExistingNetwork($declared, $existing, null),
         );
     }
+
+    public function testMatchExistingNetworkDoesNotFallBackToAnotherProjectWhenNamespacedMisses(): void
+    {
+        $resolver = new ComposeNetworkResolver();
+        $declared = ['default'];
+        $existing = ['myapp_default', 'other-stack_default'];
+
+        self::assertNull(
+            $resolver->matchExistingNetwork($declared, $existing, 'ngramx-worktree-cor-281'),
+        );
+        self::assertSame(
+            'myapp_default',
+            $resolver->matchExistingNetwork($declared, $existing, null),
+        );
+    }
 }
