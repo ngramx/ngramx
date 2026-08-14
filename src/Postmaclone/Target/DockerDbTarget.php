@@ -17,6 +17,7 @@ class DockerDbTarget implements EphemeralTargetInterface
         private readonly int $hostPort = 0,
         private readonly ?string $composeFile = null,
         private readonly ?string $primaryService = null,
+        private readonly ?string $projectName = null,
         private readonly ConnectionFactory $connections = new ConnectionFactory(),
         private readonly ComposeNetworkResolver $networks = new ComposeNetworkResolver(),
         private readonly ComposeDbServiceSwitcher $dbSwitcher = new ComposeDbServiceSwitcher(),
@@ -30,16 +31,11 @@ class DockerDbTarget implements EphemeralTargetInterface
         $username = 'postmaclone';
         $image = $this->image ?? $this->defaultImage($engine);
         $name = 'ngramx-postmaclone-' . substr(bin2hex(random_bytes(6)), 0, 12);
-        $projectNetwork = $this->networks->resolve($this->composeFile, $this->primaryService);
-        $dbService = $this->dbSwitcher->detectServiceName($this->composeFile);
-        $networkAlias = $this->dbSwitcher->networkAlias($this->composeFile);
-        $stoppedDbService = null;
-
-        // Free the compose DNS name (usually `db`) before we claim the alias.
-        if ($this->composeFile !== null && $dbService !== null && $projectNetwork !== null) {
-            $this->dbSwitcher->stop($this->composeFile, $dbService);
-            $stoppedDbService = $dbService;
-        }
+        $claimed = $this->claimComposeDnsName();
+        $projectNetwork = $claimed['network'];
+        $dbService = $claimed['dbService'];
+        $networkAlias = $claimed['alias'];
+        $stoppedDbService = $claimed['stoppedDbService'];
 
         if ($engine === PostmacloneConfig::ENGINE_POSTGRES) {
             $containerPort = 5432;
@@ -91,10 +87,10 @@ class DockerDbTarget implements EphemeralTargetInterface
         $containerId = trim($process->getOutput());
 
         if ($projectNetwork === null) {
-            $projectNetwork = $this->networks->resolve($this->composeFile, $this->primaryService);
+            $projectNetwork = $this->networks->resolve($this->composeFile, $this->primaryService, $this->projectName);
             if ($projectNetwork !== null) {
                 if ($this->composeFile !== null && $dbService !== null && $stoppedDbService === null) {
-                    $this->dbSwitcher->stop($this->composeFile, $dbService);
+                    $this->dbSwitcher->stop($this->composeFile, $dbService, $this->projectName);
                     $stoppedDbService = $dbService;
                 }
                 $this->connectNetwork($name, $projectNetwork, $networkAlias);
@@ -155,6 +151,7 @@ class DockerDbTarget implements EphemeralTargetInterface
                 'network_alias' => $networkAlias,
                 'stopped_db_service' => $stoppedDbService,
                 'compose_file' => $this->composeFile,
+                'compose_project' => $this->projectName,
                 'host_bind_host' => '127.0.0.1',
                 'host_bind_port' => $hostPort,
                 'host_bind_url' => $hostUrl,
@@ -183,6 +180,33 @@ class DockerDbTarget implements EphemeralTargetInterface
                 ? $rmError
                 : new PostmacloneException($rmError->getMessage(), 0, $rmError);
         }
+    }
+
+    /**
+     * Resolve the compose network and stop the project's DB so the clone can
+     * take the `db` alias. Uses the Compose project name from `.ngramx.lock`
+     * so namespaced stacks are not confused with the default project.
+     *
+     * @return array{network: ?string, dbService: ?string, alias: string, stoppedDbService: ?string}
+     */
+    protected function claimComposeDnsName(): array
+    {
+        $projectNetwork = $this->networks->resolve($this->composeFile, $this->primaryService, $this->projectName);
+        $dbService = $this->dbSwitcher->detectServiceName($this->composeFile);
+        $networkAlias = $this->dbSwitcher->networkAlias($this->composeFile);
+        $stoppedDbService = null;
+
+        if ($this->composeFile !== null && $dbService !== null && $projectNetwork !== null) {
+            $this->dbSwitcher->stop($this->composeFile, $dbService, $this->projectName);
+            $stoppedDbService = $dbService;
+        }
+
+        return [
+            'network' => $projectNetwork,
+            'dbService' => $dbService,
+            'alias' => $networkAlias,
+            'stoppedDbService' => $stoppedDbService,
+        ];
     }
 
     /**
@@ -218,7 +242,7 @@ class DockerDbTarget implements EphemeralTargetInterface
         }
 
         try {
-            $this->dbSwitcher->start($composeFile, $stopped);
+            $this->dbSwitcher->start($composeFile, $stopped, $this->composeProjectName($lock));
         } catch (\Throwable $e) {
             throw $e instanceof PostmacloneException ? $e : new PostmacloneException($e->getMessage(), 0, $e);
         }
@@ -230,10 +254,20 @@ class DockerDbTarget implements EphemeralTargetInterface
             return;
         }
         try {
-            $this->dbSwitcher->start($this->composeFile, $stoppedDbService);
+            $this->dbSwitcher->start($this->composeFile, $stoppedDbService, $this->projectName);
         } catch (\Throwable) {
             // best-effort during failed provision
         }
+    }
+
+    private function composeProjectName(PostmacloneLockData $lock): ?string
+    {
+        $fromMeta = $lock->providerMeta['compose_project'] ?? null;
+        if (is_string($fromMeta) && $fromMeta !== '') {
+            return $fromMeta;
+        }
+
+        return $this->projectName !== null && $this->projectName !== '' ? $this->projectName : null;
     }
 
     private function connectNetwork(string $containerName, string $network, string $alias): void

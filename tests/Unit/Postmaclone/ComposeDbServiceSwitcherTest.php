@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ngramx\Tests\Unit\Postmaclone;
 
+use Ngramx\Docker\DockerCompose;
 use Ngramx\Postmaclone\Target\ComposeDbServiceSwitcher;
 use PHPUnit\Framework\TestCase;
 
@@ -63,5 +64,23 @@ YAML);
         $switcher = new ComposeDbServiceSwitcher();
         self::assertNull($switcher->detectServiceName('/no/such/compose.yml'));
         self::assertSame('db', $switcher->networkAlias('/no/such/compose.yml'));
+    }
+
+    public function testStopAndStartPassComposeProjectName(): void
+    {
+        $compose = $this->dir . '/docker-compose.yml';
+        file_put_contents($compose, "services:\n  db:\n    image: mysql:8\n");
+
+        $docker = $this->createMock(DockerCompose::class);
+        $docker->expects($this->once())
+            ->method('stopService')
+            ->with($compose, 'db', 'ngramx-agent-1');
+        $docker->expects($this->once())
+            ->method('startService')
+            ->with($compose, 'db', 'ngramx-agent-1');
+
+        $switcher = new ComposeDbServiceSwitcher($docker);
+        $switcher->stop($compose, 'db', 'ngramx-agent-1');
+        $switcher->start($compose, 'db', 'ngramx-agent-1');
     }
 }

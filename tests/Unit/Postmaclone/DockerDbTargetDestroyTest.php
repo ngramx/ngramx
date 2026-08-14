@@ -8,6 +8,7 @@ use Ngramx\Docker\DockerCompose;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\PostmacloneLockData;
 use Ngramx\Postmaclone\Target\ComposeDbServiceSwitcher;
+use Ngramx\Postmaclone\Target\ComposeNetworkResolver;
 use Ngramx\Postmaclone\Target\DockerDbTarget;
 use PHPUnit\Framework\TestCase;
 
@@ -76,6 +77,52 @@ final class DockerDbTargetDestroyTest extends TestCase
         $target->destroy($this->lock($composeFile, 'ngramx-postmaclone-abc'));
     }
 
+    public function test_restart_uses_compose_project_from_lock_meta(): void
+    {
+        $composeFile = $this->composeFile();
+        $docker = $this->createMock(DockerCompose::class);
+        $docker->expects($this->once())
+            ->method('startService')
+            ->with($composeFile, 'db', 'ngramx-worktree-cor-281');
+
+        $target = new DockerDbTargetDestroyDouble(
+            new ComposeDbServiceSwitcher($docker),
+            $composeFile,
+            function (string $name): void {
+                $this->assertSame('ngramx-postmaclone-abc', $name);
+            },
+        );
+
+        $target->destroy($this->lock($composeFile, 'ngramx-postmaclone-abc', 'ngramx-worktree-cor-281'));
+    }
+
+    public function test_claim_compose_dns_stops_namespaced_project(): void
+    {
+        $composeFile = $this->composeFile();
+        $networks = $this->createMock(ComposeNetworkResolver::class);
+        $networks->expects($this->once())
+            ->method('resolve')
+            ->with($composeFile, 'app', 'ngramx-worktree-cor-281')
+            ->willReturn('ngramx-worktree-cor-281_default');
+
+        $docker = $this->createMock(DockerCompose::class);
+        $docker->expects($this->once())
+            ->method('stopService')
+            ->with($composeFile, 'db', 'ngramx-worktree-cor-281');
+
+        $target = new DockerDbTargetClaimDouble(
+            composeFile: $composeFile,
+            primaryService: 'app',
+            projectName: 'ngramx-worktree-cor-281',
+            networks: $networks,
+            dbSwitcher: new ComposeDbServiceSwitcher($docker),
+        );
+
+        $claimed = $target->claim();
+        $this->assertSame('ngramx-worktree-cor-281_default', $claimed['network']);
+        $this->assertSame('db', $claimed['stoppedDbService']);
+    }
+
     private function composeFile(): string
     {
         $path = $this->dir . '/docker-compose.yml';
@@ -84,7 +131,7 @@ final class DockerDbTargetDestroyTest extends TestCase
         return $path;
     }
 
-    private function lock(string $composeFile, string $container): PostmacloneLockData
+    private function lock(string $composeFile, string $container, ?string $composeProject = null): PostmacloneLockData
     {
         return new PostmacloneLockData(
             provider: 'docker',
@@ -102,6 +149,7 @@ final class DockerDbTargetDestroyTest extends TestCase
                 'container_id' => 'abc123',
                 'stopped_db_service' => 'db',
                 'compose_file' => $composeFile,
+                'compose_project' => $composeProject,
             ],
         );
     }
@@ -123,5 +171,19 @@ final class DockerDbTargetDestroyDouble extends DockerDbTarget
     protected function removeEphemeralContainer(string $target): void
     {
         ($this->onRemove)($target);
+    }
+}
+
+/**
+ * @internal
+ */
+final class DockerDbTargetClaimDouble extends DockerDbTarget
+{
+    /**
+     * @return array{network: ?string, dbService: ?string, alias: string, stoppedDbService: ?string}
+     */
+    public function claim(): array
+    {
+        return $this->claimComposeDnsName();
     }
 }

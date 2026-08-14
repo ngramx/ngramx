@@ -41,4 +41,39 @@ YAML);
     {
         self::assertNull((new ComposeNetworkResolver())->resolve('/no/such/compose.yml', 'app'));
     }
+
+    public function testRunningServicePsCommandIncludesProjectName(): void
+    {
+        $compose = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'docker-compose.yml';
+        $resolver = new ComposeNetworkResolver();
+
+        self::assertSame(
+            ['docker', 'compose', '-f', $compose, 'ps', '-q', 'app'],
+            $resolver->runningServicePsCommand($compose, 'app', null),
+        );
+        self::assertSame(
+            ['docker', 'compose', '-f', $compose, 'ps', '-q', 'app'],
+            $resolver->runningServicePsCommand($compose, 'app', ''),
+        );
+        self::assertSame(
+            ['docker', 'compose', '-f', $compose, '-p', 'ngramx-worktree-cor-281', 'ps', '-q', 'app'],
+            $resolver->runningServicePsCommand($compose, 'app', 'ngramx-worktree-cor-281'),
+        );
+    }
+
+    public function testMatchExistingNetworkPrefersNamespacedProject(): void
+    {
+        $resolver = new ComposeNetworkResolver();
+        $declared = ['default'];
+        $existing = ['myapp_default', 'ngramx-worktree-cor-281_default'];
+
+        self::assertSame(
+            'ngramx-worktree-cor-281_default',
+            $resolver->matchExistingNetwork($declared, $existing, 'ngramx-worktree-cor-281'),
+        );
+        self::assertSame(
+            'myapp_default',
+            $resolver->matchExistingNetwork($declared, $existing, null),
+        );
+    }
 }

@@ -74,11 +74,20 @@
     },
     {
       "description": "Prebuilt max_age_hours rejects stale S3 objects even when prebuilt.file is set",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run vendor/bin/phpunit tests/Unit/Postmaclone/S3BackupSourceTest.php tests/Unit/Postmaclone/LocalBackupSourceTest.php tests/Unit/Postmaclone/PostmacloneServicePrebuiltFreshTest.php",
         "Confirm S3BackupSourceTest asserts Last-Modified is used even when the downloaded cache file mtime is now",
         "In a project with prebuilt.file and max_age_hours: point at an object older than the limit and confirm ngramx postmaclone fails before restore, then pass --from-prod or refresh the factory artifact"
+      ]
+    },
+    {
+      "description": "Namespaced compose stacks stop and attach using the lock project name",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/ComposeNetworkResolverTest.php tests/Unit/Postmaclone/ComposeDbServiceSwitcherTest.php tests/Unit/Postmaclone/DockerDbTargetDestroyTest.php tests/Unit/Postmaclone/PostmacloneServiceComposeProjectTest.php",
+        "Confirm ComposeNetworkResolverTest includes -p for a namespaced project and prefers {project}_default over another stack's default network",
+        "On a namespaced stack (ngramx up --namespace or a worktree): run ngramx postmaclone, confirm compose db in that project stops and the clone claims db, then ngramx postmaclone down restores that same db"
       ]
     }
   ]

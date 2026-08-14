@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ngramx\Postmaclone;
 
 use Ngramx\Config\DotEnvFileReader;
+use Ngramx\Config\LockFile;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Schema\Postmaclone\BackupConfig;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
@@ -322,7 +323,7 @@ class PostmacloneService
         $dumpPath = $source->materialize();
         $artifactSize = is_file($dumpPath) ? (int) filesize($dumpPath) : null;
 
-        $target = $this->buildTarget($config, $pm, $engine, $artifactSize)
+        $target = $this->buildTarget($config, $pm, $engine, $projectRoot, $artifactSize)
             ->provision($engine, $pm->target->ttlHours);
 
         try {
@@ -397,6 +398,7 @@ class PostmacloneService
                     $this->dbSwitcher->refreshAppConfig(
                         $config->docker->composeFile,
                         $config->docker->primaryService,
+                        $this->composeProjectName($projectRoot, $lock),
                     );
                 }
             }
@@ -407,7 +409,7 @@ class PostmacloneService
             return ['lock' => $lock, 'warnings' => $warnings];
         } catch (\Throwable $e) {
             try {
-                $this->buildTarget($config, $pm, $engine, $artifactSize)->destroy(new PostmacloneLockData(
+                $this->buildTarget($config, $pm, $engine, $projectRoot, $artifactSize)->destroy(new PostmacloneLockData(
                     provider: $target->provider,
                     engine: $engine,
                     createdAt: date('c'),
@@ -561,7 +563,7 @@ class PostmacloneService
 
         try {
             $pm = $config->postmaclone ?? new PostmacloneConfig();
-            $this->targetFromLock($lock, $config, $pm)->destroy($lock);
+            $this->targetFromLock($lock, $config, $pm, $projectRoot)->destroy($lock);
         } catch (\Throwable $e) {
             if (!$force) {
                 throw $e instanceof PostmacloneException ? $e : new PostmacloneException($e->getMessage(), 0, $e);
@@ -572,6 +574,7 @@ class PostmacloneService
             $this->dbSwitcher->refreshAppConfig(
                 $config->docker->composeFile,
                 $config->docker->primaryService,
+                $this->composeProjectName($projectRoot, $lock),
             );
         }
 
@@ -593,6 +596,7 @@ class PostmacloneService
         NgramxConfig $config,
         PostmacloneConfig $pm,
         string $engine,
+        string $projectRoot,
         ?int $artifactSizeBytes = null,
     ): EphemeralTargetInterface {
         $provider = $pm->target->provider;
@@ -622,10 +626,11 @@ class PostmacloneService
             hostPort: $pm->target->dockerPort,
             composeFile: $config->docker->composeFile,
             primaryService: $config->docker->primaryService,
+            projectName: $this->composeProjectName($projectRoot),
         );
     }
 
-    private function targetFromLock(PostmacloneLockData $lock, NgramxConfig $config, PostmacloneConfig $pm): EphemeralTargetInterface
+    private function targetFromLock(PostmacloneLockData $lock, NgramxConfig $config, PostmacloneConfig $pm, string $projectRoot): EphemeralTargetInterface
     {
         if ($lock->provider === 'remote') {
             return new RemoteDbTarget($pm->target->remoteUrl);
@@ -640,7 +645,27 @@ class PostmacloneService
             hostPort: $pm->target->dockerPort,
             composeFile: $config->docker->composeFile,
             primaryService: $config->docker->primaryService,
+            projectName: $this->composeProjectName($projectRoot, $lock),
         );
+    }
+
+    /**
+     * Compose `-p` project name for the running ngramx stack. Prefer the value
+     * stored on a Postmaclone lock, then `.ngramx.lock` namespace (worktrees,
+     * `--namespace`, `--avoid-conflicts`).
+     */
+    private function composeProjectName(string $projectRoot, ?PostmacloneLockData $lock = null): ?string
+    {
+        if ($lock !== null) {
+            $fromMeta = $lock->providerMeta['compose_project'] ?? null;
+            if (is_string($fromMeta) && $fromMeta !== '') {
+                return $fromMeta;
+            }
+        }
+
+        $namespace = (new LockFile($projectRoot))->read()?->namespace;
+
+        return is_string($namespace) && $namespace !== '' ? $namespace : null;
     }
 
 
