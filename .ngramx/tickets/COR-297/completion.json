@@ -1,12 +1,16 @@
 {
   "title": "COR-297: Schedule Nightly Postmaclone Factory Produce For Anonymized Artifacts",
   "description": "Points ngramx factory docs at the dedicated postmaclone-factory repo that runs nightly produce in lon1 and publishes anonymized Hydra and Earl Kendrick artifacts.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/4",
   "linear_url": "https://linear.app/gigabyte/issue/COR-297/schedule-nightly-postmaclone-factory-produce-for-anonymized-artifacts",
   "test_urls": [
     {
-      "label": "Factory repo",
-      "url": "https://github.com/ngramx/postmaclone-factory"
+      "label": "ngramx docs PR",
+      "url": "https://github.com/ngramx/ngramx/pull/4"
+    },
+    {
+      "label": "Factory PR",
+      "url": "https://github.com/ngramx/postmaclone-factory/pull/1"
     }
   ],
   "test_plan": [
