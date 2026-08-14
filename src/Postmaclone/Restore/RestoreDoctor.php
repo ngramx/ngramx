@@ -104,6 +104,19 @@ final class RestoreDoctor
                     'message' => 'psql not found on PATH (used for host readiness probes; Docker restores use docker exec)',
                 ];
             }
+        } else {
+            if (HostBinary::exists('mysql')) {
+                $checks[] = [
+                    'ok' => true,
+                    'message' => 'Host mysql client available',
+                ];
+            } else {
+                $hostMysqlRequired = $pm->target->provider === TargetConfig::PROVIDER_REMOTE;
+                $checks[] = [
+                    'ok' => !$hostMysqlRequired,
+                    'message' => 'mysql not found on PATH (used for remote restores; Docker restores use docker exec)',
+                ];
+            }
         }
 
         $dumpPath = $this->findDump($projectRoot, $backup, $fromPath);

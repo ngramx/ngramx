@@ -47,11 +47,20 @@
     },
     {
       "description": "Synced agent templates include git, Bugbot, and formatter conventions",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Confirm AGENTS.md and .cursor/rules/ngramx.mdc include Feature branch upstream, Bugbot verify-and-fix, and Code style before opening a PR",
         "Confirm start-ticket uses git checkout -b ... origin/main --no-track",
         "Run vendor/bin/phpunit tests/Unit/Agents"
+      ]
+    },
+    {
+      "description": "MySQL/MariaDB Docker restore uses docker exec, not the compose alias",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/MysqlRunnerTest.php tests/Unit/Postmaclone/RestoreDoctorTest.php",
+        "Confirm MysqlRunnerTest asserts docker exec for a Docker target whose host is db:3306",
+        "On a MySQL project: ngramx postmaclone against a small dump and confirm restore succeeds instead of failing to reach db:3306"
       ]
     }
   ]

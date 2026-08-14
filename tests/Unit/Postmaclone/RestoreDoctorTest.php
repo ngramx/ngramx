@@ -65,4 +65,29 @@ final class RestoreDoctorTest extends TestCase
             $this->assertTrue($check['ok']);
         }
     }
+
+    public function test_missing_mysql_is_ok_for_docker_target(): void
+    {
+        if (HostBinary::exists('mysql')) {
+            $this->markTestSkipped('mysql is on PATH; cannot assert missing-binary behaviour');
+        }
+
+        $pm = new PostmacloneConfig(
+            engine: 'mysql',
+            backup: new BackupConfig(source: BackupConfig::SOURCE_LOCAL, path: './dump.sql'),
+            target: new TargetConfig(provider: TargetConfig::PROVIDER_DOCKER),
+            tables: [],
+        );
+
+        $result = (new RestoreDoctor())->analyse($pm, sys_get_temp_dir());
+        $mysqlChecks = array_filter(
+            $result['checks'],
+            static fn (array $c): bool => str_contains($c['message'], 'mysql not found')
+        );
+
+        $this->assertNotSame([], $mysqlChecks);
+        foreach ($mysqlChecks as $check) {
+            $this->assertTrue($check['ok']);
+        }
+    }
 }
