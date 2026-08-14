@@ -16,13 +16,22 @@
   "test_plan": [
     {
       "description": "Factory config and image are reviewable and ngramx docs point at the dedicated repo",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Open https://github.com/ngramx/postmaclone-factory and confirm postmaclone.yml lists hydra then earl-kendrick",
         "Confirm publish paths use weathered-brook-anonymized-backups, not database-backups/all",
         "Confirm credentials are op:// refs (read vs write items are separate)",
         "Confirm ngramx README Large DBs section links the factory repo",
         "On a lon1 host with Docker, OP_SERVICE_ACCOUNT_TOKEN, and ~150GB free: docker compose run --rm factory and confirm hydra_anon.sql.gz plus latest.json land in the anonymized bucket"
+      ]
+    },
+    {
+      "description": "Factory and docs use lon1 plus the live 1Password password field",
+      "status": "active",
+      "steps": [
+        "Confirm postmaclone.example.yml and factory postmaclone.yml use region lon1 and secret field password, not credential or ams3",
+        "From earl-kendrick-core with op signed in: php ../ngramx/bin/ngramx postmaclone --dry-run",
+        "Confirm Source resolves to weathered-brook-object-storage/database-backups/all/<date>/earl_kendrick_prod.sql.gz"
       ]
     }
   ]

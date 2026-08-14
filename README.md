@@ -425,7 +425,7 @@ postmaclone:
     endpoint: "https://lon1.digitaloceanspaces.com"
     credentials:
       key: "op://Tech Team Vault/ngramx-anon-backup-read/username"
-      secret: "op://Tech Team Vault/ngramx-anon-backup-read/credential"
+      secret: "op://Tech Team Vault/ngramx-anon-backup-read/password"
   target:
     provider: auto
     ttl_hours: 4
@@ -450,7 +450,7 @@ postmaclone:
     # 1Password secret references (safe to commit — not the raw key)
     credentials:
       key: "op://Tech Team Vault/ngramx-db-backup-read-access/username"
-      secret: "op://Tech Team Vault/ngramx-db-backup-read-access/credential"
+      secret: "op://Tech Team Vault/ngramx-db-backup-read-access/password"
   target:
     provider: auto
     ttl_hours: 4

@@ -21,3 +21,4 @@ Run `ngramx postmaclone produce` on a schedule in lon1 so Hydra (59GB) and then 
 - Created https://github.com/ngramx/postmaclone-factory with `postmaclone.yml` (Hydra MySQL + Earl Kendrick Postgres), Dockerfile, compose, and lon1 schedule notes.
 - ngramx docs PR: https://github.com/ngramx/ngramx/pull/4
 - Factory PR: https://github.com/ngramx/postmaclone-factory/pull/1
+- Confirmed raw dumps are lon1 (`weathered-brook-object-storage`), not ams3. EK object: `database-backups/all/20260808000002/earl_kendrick_prod.sql.gz` (~11MB). Live 1Password item uses field `password`, not `credential`.

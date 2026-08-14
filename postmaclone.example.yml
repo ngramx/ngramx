@@ -25,7 +25,7 @@ datasets:
       endpoint: "https://lon1.digitaloceanspaces.com"
       credentials:
         key: "op://Tech Team Vault/ngramx-db-backup-read-access/username"
-        secret: "op://Tech Team Vault/ngramx-db-backup-read-access/credential"
+        secret: "op://Tech Team Vault/ngramx-db-backup-read-access/password"
     publish:
       path: "spaces://weathered-brook-anonymized-backups/earl-kendrick/"
       file: "earl_kendrick_anon.sql.gz"
@@ -33,7 +33,7 @@ datasets:
       endpoint: "https://lon1.digitaloceanspaces.com"
       credentials:
         key: "op://Tech Team Vault/ngramx-anon-backup-write/username"
-        secret: "op://Tech Team Vault/ngramx-anon-backup-write/credential"
+        secret: "op://Tech Team Vault/ngramx-anon-backup-write/password"
     # Keep artifacts smaller than prod for the 57GB class of dumps:
     # include_tables: [users, orders, order_items]
     # exclude_tables: [audit_log, sessions, job_batches]
