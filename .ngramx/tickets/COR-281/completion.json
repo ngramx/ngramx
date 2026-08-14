@@ -39,10 +39,19 @@
     },
     {
       "description": "Full PHPUnit suite passes after lock-write and risky-test fixes",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Confirm Tests / PHP 8.2 and Tests / PHP 8.3 pass on the PR",
         "Or locally: vendor/bin/phpunit --coverage-clover coverage.xml"
+      ]
+    },
+    {
+      "description": "Synced agent templates include git, Bugbot, and formatter conventions",
+      "status": "active",
+      "steps": [
+        "Confirm AGENTS.md and .cursor/rules/ngramx.mdc include Feature branch upstream, Bugbot verify-and-fix, and Code style before opening a PR",
+        "Confirm start-ticket uses git checkout -b ... origin/main --no-track",
+        "Run vendor/bin/phpunit tests/Unit/Agents"
       ]
     }
   ]

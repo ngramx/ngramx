@@ -37,6 +37,11 @@ class AgentsManagedBodyProviderTest extends TestCase
         $this->assertStringContainsString('Never open a PR without `completion.json` already committed and pushed', $markdown);
         $this->assertStringContainsString('completion.json', $markdown);
         $this->assertStringContainsString('test_urls', $markdown);
+        $this->assertStringContainsString('Feature branch upstream', $markdown);
+        $this->assertStringContainsString('--no-track', $markdown);
+        $this->assertStringContainsString('verify an issue exists and fix it', $markdown);
+        $this->assertStringContainsString('Code style before opening a PR', $markdown);
+        $this->assertStringContainsString('HasUuids', $markdown);
     }
 
     public function test_get_markdown_does_not_include_skill_content(): void

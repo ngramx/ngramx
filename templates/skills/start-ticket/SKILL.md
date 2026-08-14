@@ -18,6 +18,21 @@ Create a branch named `[ticket-id]-[short-title-in-kebab-case]`, e.g. `gig-1599-
 
 Branch from the project's default integration branch (typically `origin/main`).
 
+## Feature branch upstream
+
+**Never** create the branch with `git checkout -b <branch> origin/main` or `git switch -c <branch> origin/main`. Git then sets upstream to `origin/main`, and a bare `git push` updates `main`.
+
+Use one of:
+
+```bash
+git fetch origin
+git checkout -b [ticket-id]-[short-title] origin/main --no-track
+```
+
+or update local `main` and run `git checkout -b [ticket-id]-[short-title]` with no start-point.
+
+First publish with `git push -u origin HEAD` only.
+
 ## Set up the ticket folder
 
 Create `.ngramx/tickets/[ticket-id]/` at the repo root with:
@@ -54,7 +69,7 @@ Do **not** change the status again when you later create or update the PR — CI
 
 1. Fetch the ticket from Linear (if applicable) to understand requirements.
 2. Move the Linear ticket to **"In Progress"** (skip for non-Linear work).
-3. Create and checkout the branch from `origin/main`.
+3. Create and checkout the branch from `origin/main` **with `--no-track`** (see Feature branch upstream above).
 4. Create the `.ngramx/tickets/[ticket-id]/` folder with `README.md` and `ticket.json`.
 5. Commit the ticket folder as the first commit on the branch.
 6. Summarise the ticket requirements back to the user and confirm the approach before starting implementation.

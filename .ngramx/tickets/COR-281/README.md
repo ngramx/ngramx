@@ -27,3 +27,5 @@ Land Cam's Postmaclone work from `origin/postmaclone` as the COR-281 solution: `
 - Opened PR: https://github.com/ngramx/ngramx/pull/3
 - Fixed eight PHPStan level-8 errors that failed CI (duplicate `ProbeResult::withUrl`, tautologies, unnecessary nullsafe).
 - Restored main's default-mode `UpCommand` tests (`never()` write lock) after the postmaclone merge overwrote them; ComposeNetworkResolver test always asserts so CI is not risky.
+- MySQL/MariaDB Docker restore now uses `docker exec` (and host-bind as fallback) instead of the compose-network alias `db:3306`, which is not reachable from the host.
+- Shared EK agent conventions through ngramx templates: feature-branch `--no-track`, Bugbot verify-and-fix auto-push, formatter before PR, UUID PK hint.

@@ -10,4 +10,6 @@ Common patterns (adapt names and types to match the codebase):
 
 Do not assume every Ngramx project uses the same audit column names; copy the conventions from nearby migrations in the same repository.
 
+When nearby models use UUID primary keys (often UUID v7 via Laravel's `HasUuids` trait), match that: `$table->uuid('id')->primary()`, `$incrementing = false`, `$keyType = 'string'`, and `foreignUuid()->constrained('explicit_table')` for prefixed tables.
+
 NEVER edit migrations. Always create new ones.
