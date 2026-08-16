@@ -235,6 +235,65 @@ class GitRepositoryServiceTest extends TestCase
         );
     }
 
+    public function test_selectBranchForWorktree_reuses_a_branch_checked_out_in_its_own_worktree(): void
+    {
+        // Reproduces the retry-after-failure case: a previous run left the branch
+        // checked out in the very worktree this ticket maps to. That is the worktree
+        // we are about to reuse, so it must not count as a conflict.
+        $branch = 'gig-2497-own-worktree';
+        $this->createBranchWithCommit($branch, '2024-01-06 10:00:00', 'Own worktree branch');
+
+        $ownWorktreePath = $this->tempDir . '/wt-own';
+        $this->service->addWorktree($this->gitRepoPath, $ownWorktreePath, $branch);
+
+        $infoMessages = [];
+        $input = $this->createStreamableInput('');
+        $output = new BufferedOutput();
+
+        $selected = $this->service->selectBranchForWorktree(
+            $this->gitRepoPath,
+            [$branch],
+            $input,
+            $output,
+            function (string $message) use (&$infoMessages): void {
+                $infoMessages[] = $message;
+            },
+            fn (string $message) => null,
+            null,
+            $ownWorktreePath,
+        );
+
+        $this->assertSame($branch, $selected);
+        $this->assertStringContainsString("already checked out in this ticket's worktree", implode("\n", $infoMessages));
+    }
+
+    public function test_selectBranchForWorktree_still_rejects_a_branch_in_someone_elses_worktree(): void
+    {
+        $branch = 'gig-2497-other-worktree';
+        $this->createBranchWithCommit($branch, '2024-01-06 10:00:00', 'Other worktree branch');
+
+        $otherWorktreePath = $this->tempDir . '/wt-other';
+        $this->service->addWorktree($this->gitRepoPath, $otherWorktreePath, $branch);
+
+        $input = $this->createStreamableInput('');
+        $output = new BufferedOutput();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('All matching branches are already checked out in other worktrees');
+
+        $this->service->selectBranchForWorktree(
+            $this->gitRepoPath,
+            [$branch],
+            $input,
+            $output,
+            fn (string $message) => null,
+            fn (string $message) => null,
+            null,
+            // A *different* worktree than the one holding the branch.
+            $this->tempDir . '/wt-mine',
+        );
+    }
+
     public function test_findMostRecentBranch_returns_most_recent_branch(): void
     {
         $branches = ['feature/TICKET-123', 'feature/TICKET-456', 'bugfix/TICKET-123-fix'];

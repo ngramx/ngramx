@@ -75,6 +75,9 @@ class WorktreeCommandTest extends TestCase
         $this->assertSame('l', $definition->getOption('list')->getShortcut());
         $this->assertTrue($definition->hasOption('no-host-mapping'));
         $this->assertFalse($definition->getOption('no-host-mapping')->acceptValue());
+        $this->assertTrue($definition->hasOption('branch'));
+        $this->assertTrue($definition->getOption('branch')->isValueRequired());
+        $this->assertSame('b', $definition->getOption('branch')->getShortcut());
     }
 
     public function test_it_warns_when_no_ticket_on_integration_branch(): void

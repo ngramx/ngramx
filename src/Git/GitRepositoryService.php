@@ -287,6 +287,20 @@ class GitRepositoryService
     }
 
     /**
+     * Normalise a path for comparison.
+     *
+     * `git worktree list` reports resolved absolute paths, while a path we have
+     * assembled ourselves may contain symlinks or trailing separators. realpath()
+     * returns false for a path that does not exist yet, so fall back to trimming.
+     */
+    private function canonicalPath(string $path): string
+    {
+        $real = realpath($path);
+
+        return rtrim($real !== false ? $real : $path, '/');
+    }
+
+    /**
      * Map each checked-out branch to the worktree path that has it open.
      *
      * @return array<string, string> Branch name => absolute worktree path
@@ -342,14 +356,28 @@ class GitRepositoryService
         OutputInterface $output,
         callable $infoCallback,
         callable $warningCallback,
-        ?callable $preferenceCallback = null
+        ?callable $preferenceCallback = null,
+        ?string $ownWorktreePath = null
     ): string {
         $checkedOut = $this->mapCheckedOutBranches($repositoryPath);
+
+        // A branch checked out in *this ticket's own* worktree is not a conflict —
+        // it is the worktree we are about to reuse. Without this, a run that failed
+        // part-way through can never be retried: the first attempt leaves the branch
+        // checked out in the target worktree, and every later attempt rejects it as
+        // "already checked out elsewhere" before reaching the reuse path.
+        $ownWorktreeReal = $ownWorktreePath !== null ? $this->canonicalPath($ownWorktreePath) : null;
 
         /** @var list<string> $available */
         $available = [];
         foreach ($branches as $branch) {
             if (!array_key_exists($branch, $checkedOut)) {
+                $available[] = $branch;
+                continue;
+            }
+
+            if ($ownWorktreeReal !== null && $this->canonicalPath($checkedOut[$branch]) === $ownWorktreeReal) {
+                $infoCallback("Branch '{$branch}' is already checked out in this ticket's worktree — reusing it.");
                 $available[] = $branch;
             }
         }
@@ -365,7 +393,8 @@ class GitRepositoryService
         if ($available === []) {
             throw new RuntimeException(
                 'All matching branches are already checked out in other worktrees. '
-                . 'Switch those worktrees off the branch or remove them before retrying.'
+                . 'Switch those worktrees off the branch, or remove them with '
+                . '`ngramx worktree <ticket> --cleanup`, then retry.'
             );
         }
 

@@ -40,7 +40,8 @@ class WorktreeCommand extends ReviewCommand
             ->addOption('cursor', 'c', InputOption::VALUE_NONE, 'Open the worktree in a new Cursor window once it is ready')
             ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. Targets one worktree when a ticket or list index is given, or every worktree when no argument is provided.')
             ->addOption('list', 'l', InputOption::VALUE_NONE, 'List every worktree under .ngramx/worktrees/ with its branch, running state and URL.')
-            ->addOption('no-host-mapping', null, InputOption::VALUE_NONE, 'Do not expose container ports to the host. Use on shared or headless machines where host ports may already be taken; reach the app over the Docker network instead.');
+            ->addOption('no-host-mapping', null, InputOption::VALUE_NONE, 'Do not expose container ports to the host. Use on shared or headless machines where host ports may already be taken; reach the app over the Docker network instead.')
+            ->addOption('branch', 'b', InputOption::VALUE_REQUIRED, 'Use this exact branch instead of searching for one matching the ticket. Created from the current HEAD if it does not exist yet.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -105,6 +106,32 @@ class WorktreeCommand extends ReviewCommand
                 return Command::FAILURE;
             }
 
+            // An explicit --branch wins outright: no search, no "most recent"
+            // heuristic. Automation that already knows which branch it wants
+            // otherwise has no way to say so.
+            $pinnedBranch = $input->getOption('branch');
+            if (is_string($pinnedBranch) && trim($pinnedBranch) !== '') {
+                $pinnedBranch = trim($pinnedBranch);
+
+                $branchIsKnown = $this->gitRepositoryService->localBranchExists($repositoryPath, $pinnedBranch)
+                    || $this->gitRepositoryService->findBranchesContaining($repositoryPath, $pinnedBranch) !== [];
+
+                $formatter->info($branchIsKnown
+                    ? "Using the requested branch '$pinnedBranch'."
+                    : "Requested branch '$pinnedBranch' does not exist yet — it will be created.");
+
+                return $this->runWorktreeReview(
+                    $input,
+                    $output,
+                    $formatter,
+                    $config,
+                    $repositoryPath,
+                    $pinnedBranch,
+                    $ticketSlug,
+                    createNewBranch: !$branchIsKnown
+                );
+            }
+
             $formatter->info('Searching branches for the ticket...');
             $branchNames = $this->findTicketBranches($repositoryPath, $rawTicket, $ticketSlug);
 
@@ -141,7 +168,10 @@ class WorktreeCommand extends ReviewCommand
                     $output,
                     fn (string $message) => $formatter->info($message),
                     fn (string $message) => $formatter->warning($message),
-                    fn (string $branch) => str_starts_with($branch, $ticketSlug)
+                    fn (string $branch) => str_starts_with($branch, $ticketSlug),
+                    // A branch sitting in this ticket's own worktree is reusable,
+                    // not a conflict — otherwise a half-finished run is unrepeatable.
+                    $this->worktreePathFor($repositoryPath, $ticketSlug)
                 );
             } catch (RuntimeException $e) {
                 $formatter->error($e->getMessage());

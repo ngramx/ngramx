@@ -288,7 +288,7 @@ class ReviewCommand extends Command
         $repoName = WorktreeIdentity::sanitizeSegment(basename($repositoryPath));
         $folderName = WorktreeIdentity::folderName($ticketSlug, $repoName);
         $namespace = WorktreeIdentity::namespaceFor($folderName);
-        $worktreePath = $repositoryPath . '/' . self::WORKTREE_DIR . '/' . $folderName;
+        $worktreePath = $this->worktreePathFor($repositoryPath, $ticketSlug);
 
         $noHostMapping = (bool) $input->getOption('no-host-mapping');
 
@@ -837,6 +837,19 @@ class ReviewCommand extends Command
      * skipped to keep it non-interactive and avoid false failures against the
      * swapped host URL.
      */
+    /**
+     * Where the worktree for a ticket lives. Shared so callers that need to know
+     * the path *before* the worktree exists derive it the same way as the code
+     * that creates it.
+     */
+    protected function worktreePathFor(string $repositoryPath, string $ticketSlug): string
+    {
+        $repoName = WorktreeIdentity::sanitizeSegment(basename($repositoryPath));
+        $folderName = WorktreeIdentity::folderName($ticketSlug, $repoName);
+
+        return $repositoryPath . '/' . self::WORKTREE_DIR . '/' . $folderName;
+    }
+
     private function runUpCommand(
         OutputInterface $output,
         ?string $namespace,
