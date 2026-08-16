@@ -89,7 +89,8 @@ class ReviewCommand extends Command
             ->addOption('quick', null, InputOption::VALUE_NONE, 'Use the "clear" command instead of "fresh" — skips the database reset. Only safe on branches with no schema or seed changes.')
             ->addOption('worktree', 'w', InputOption::VALUE_NONE, 'Review in an isolated git worktree + parallel dev environment under .ngramx/worktrees/ instead of checking the branch out in place')
             ->addOption('cursor', 'c', InputOption::VALUE_NONE, 'Open the worktree in a new Cursor window once it is ready (implies --worktree)')
-            ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. Targets one ticket when given, or every worktree when no ticket is provided.');
+            ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. Targets one ticket when given, or every worktree when no ticket is provided.')
+            ->addOption('no-host-mapping', null, InputOption::VALUE_NONE, 'Do not expose container ports to the host. Use on shared or headless machines where host ports may already be taken; reach the app over the Docker network instead.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -158,7 +159,12 @@ class ReviewCommand extends Command
                         $this->lockFile->delete();
                     }
 
-                    $upExit = $this->runUpCommand($output, $namespace, $portOffset);
+                    $upExit = $this->runUpCommand(
+                        $output,
+                        $namespace,
+                        $portOffset,
+                        (bool) $input->getOption('no-host-mapping')
+                    );
                     if ($upExit !== Command::SUCCESS) {
                         $formatter->error('Failed to start the environment. Run `ngramx up` manually to see the full output.');
                         return $upExit;
@@ -284,12 +290,21 @@ class ReviewCommand extends Command
         $namespace = WorktreeIdentity::namespaceFor($folderName);
         $worktreePath = $repositoryPath . '/' . self::WORKTREE_DIR . '/' . $folderName;
 
+        $noHostMapping = (bool) $input->getOption('no-host-mapping');
+
         // Resolve the port offset up-front so we can bake the final URL into the
         // worktree .env before the env is brought up. A worktree that is already
         // running reuses the offset its lock file recorded, so the URL never drifts
         // from the live stack; a fresh one allocates a free offset from the shared
         // compose file.
-        $portOffset = $this->resolveWorktreePortOffset($worktreePath, $config);
+        //
+        // With --no-host-mapping there are no published ports to offset, and `up`
+        // forces the offset to 0 itself. Skipping the scan here keeps the URL we
+        // seed into .env consistent with the stack that actually comes up, and
+        // avoids probing for free host ports we are never going to bind.
+        $portOffset = $noHostMapping
+            ? 0
+            : $this->resolveWorktreePortOffset($worktreePath, $config);
 
         // Seed .env with the app's own host + offset port before startup — always a
         // valid origin. Once the stack is up we may upgrade this to the prettier
@@ -431,7 +446,7 @@ class ReviewCommand extends Command
                     }
                 }
 
-                $upExit = $this->runUpCommand($output, $namespace, $portOffset);
+                $upExit = $this->runUpCommand($output, $namespace, $portOffset, $noHostMapping);
                 if ($upExit !== Command::SUCCESS) {
                     $formatter->error('Failed to start the worktree environment.');
                     return $upExit;
@@ -822,8 +837,12 @@ class ReviewCommand extends Command
      * skipped to keep it non-interactive and avoid false failures against the
      * swapped host URL.
      */
-    private function runUpCommand(OutputInterface $output, ?string $namespace, int $portOffset): int
-    {
+    private function runUpCommand(
+        OutputInterface $output,
+        ?string $namespace,
+        int $portOffset,
+        bool $noHostMapping = false
+    ): int {
         $application = $this->getApplication();
         if ($application === null) {
             return Command::FAILURE;
@@ -842,6 +861,12 @@ class ReviewCommand extends Command
         ];
         if ($namespace !== null) {
             $arguments['--namespace'] = $namespace;
+        }
+
+        // Publishing no host ports at all sidesteps host port conflicts entirely.
+        // `up` ignores --port-offset in this mode and empties every published port.
+        if ($noHostMapping) {
+            $arguments['--no-host-mapping'] = true;
         }
 
         $upInput = new ArrayInput($arguments);

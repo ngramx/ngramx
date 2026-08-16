@@ -39,7 +39,8 @@ class WorktreeCommand extends ReviewCommand
             ->addOption('quick', null, InputOption::VALUE_NONE, 'Use the "clear" command instead of "fresh" — skips the database reset. Only safe on branches with no schema or seed changes.')
             ->addOption('cursor', 'c', InputOption::VALUE_NONE, 'Open the worktree in a new Cursor window once it is ready')
             ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. Targets one worktree when a ticket or list index is given, or every worktree when no argument is provided.')
-            ->addOption('list', 'l', InputOption::VALUE_NONE, 'List every worktree under .ngramx/worktrees/ with its branch, running state and URL.');
+            ->addOption('list', 'l', InputOption::VALUE_NONE, 'List every worktree under .ngramx/worktrees/ with its branch, running state and URL.')
+            ->addOption('no-host-mapping', null, InputOption::VALUE_NONE, 'Do not expose container ports to the host. Use on shared or headless machines where host ports may already be taken; reach the app over the Docker network instead.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
