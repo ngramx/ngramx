@@ -28,6 +28,7 @@ use Ngramx\Worktree\WorktreeDependencyPrimer;
 use Ngramx\Worktree\WorktreeIdentity;
 use Ngramx\Worktree\WorktreeOwnershipReconciler;
 use Ngramx\Worktree\WorktreeUrlResolver;
+use Ngramx\Worktree\WorktreeVhostAliaser;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputArgument;
@@ -49,6 +50,7 @@ class ReviewCommand extends Command
     private readonly WorktreeUrlResolver $worktreeUrlResolver;
     private readonly WorktreeDependencyPrimer $dependencyPrimer;
     private readonly WorktreeCertSeeder $certSeeder;
+    private readonly WorktreeVhostAliaser $vhostAliaser;
     private readonly SecretsValidator $secretsValidator;
 
     public function __construct(
@@ -66,6 +68,7 @@ class ReviewCommand extends Command
         ?WorktreeUrlResolver $worktreeUrlResolver = null,
         ?WorktreeDependencyPrimer $dependencyPrimer = null,
         ?WorktreeCertSeeder $certSeeder = null,
+        ?WorktreeVhostAliaser $vhostAliaser = null,
         ?SecretsValidator $secretsValidator = null,
     ) {
         parent::__construct();
@@ -77,6 +80,7 @@ class ReviewCommand extends Command
         $this->worktreeUrlResolver = $worktreeUrlResolver ?? new WorktreeUrlResolver();
         $this->dependencyPrimer = $dependencyPrimer ?? new WorktreeDependencyPrimer();
         $this->certSeeder = $certSeeder ?? new WorktreeCertSeeder();
+        $this->vhostAliaser = $vhostAliaser ?? new WorktreeVhostAliaser();
         $this->secretsValidator = $secretsValidator ?? new SecretsValidator();
     }
 
@@ -464,6 +468,21 @@ class ReviewCommand extends Command
             // lock carries a port map — the advertised URL (and the completion
             // deep-links rewritten onto it) must follow the web port's remap.
             $portMap = $liveLock->portMap ?? [];
+
+            // Before deciding the URL, offer the app its worktree hostname. A
+            // host-routed app (apache/nginx vhosts) would otherwise 404 on
+            // anything but its canonical host, forcing every ticket for that
+            // project to share one origin — and leaving it unreachable by name
+            // from a sibling container, which has no host ports to aim at.
+            // Doing this first means the probe below sees an app that answers
+            // to the subdomain and awards it the isolated origin.
+            $this->vhostAliaser->alias(
+                $config->docker->composeFile,
+                $config->docker->primaryService,
+                [$folderName . '.localhost'],
+                $namespace,
+                $formatter,
+            );
 
             // Now the app is up, decide the final URL: the pretty
             // "<folder>.localhost" subdomain for host-agnostic apps (typical
