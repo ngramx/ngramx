@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.35.0](https://github.com/ngramx/ngramx/compare/v2.34.2...v2.35.0) (2026-08-17)
+
+
+### Bug Fixes
+
+* satisfy phpstan level 8 ([c3ed85a](https://github.com/ngramx/ngramx/commit/c3ed85a86a23718c2c10082d10d15a606d14efb9))
+
+
+### Features
+
+* **worktree:** serve host-routed apps on their worktree hostname ([e01a1f1](https://github.com/ngramx/ngramx/commit/e01a1f115cef17678c8cf57c884cfd86bd6883c0))
+
 ## [2.34.2](https://github.com/ngramx/ngramx/compare/v2.34.1...v2.34.2) (2026-08-16)
 
 
