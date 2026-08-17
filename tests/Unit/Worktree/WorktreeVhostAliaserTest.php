@@ -37,7 +37,7 @@ class WorktreeVhostAliaserTest extends TestCase
         $aliased = $this->aliaser()->alias('compose.yml', 'app', ['gig-2857-hydra-main.localhost']);
 
         $this->assertTrue($aliased);
-        $this->assertStringContainsString('ServerAlias gig-2857-hydra-main.localhost', file_get_contents($conf));
+        $this->assertStringContainsString('ServerAlias gig-2857-hydra-main.localhost', $this->read($conf));
     }
 
     public function test_the_alias_sits_inside_the_vhost_next_to_its_server_name(): void
@@ -48,12 +48,15 @@ class WorktreeVhostAliaserTest extends TestCase
 
         $this->aliaser()->alias('compose.yml', 'app', ['gig-2857-hydra-main.localhost']);
 
-        $lines = array_map('trim', file($conf, FILE_IGNORE_NEW_LINES));
+        $lines = array_map('trim', explode("\n", $this->read($conf)));
         $nameAt = array_search('ServerName dev.hydra', $lines, true);
         $aliasAt = array_search('ServerAlias gig-2857-hydra-main.localhost', $lines, true);
         $closeAt = array_search('</VirtualHost>', $lines, true);
 
-        $this->assertIsInt($aliasAt);
+        // array_search widens to int|string|false; pin all three before comparing.
+        $this->assertIsInt($nameAt);
+        $this->assertIsInt($aliasAt, 'the alias line should exist');
+        $this->assertIsInt($closeAt);
         $this->assertSame($nameAt + 1, $aliasAt, 'the alias should follow ServerName');
         $this->assertLessThan($closeAt, $aliasAt, 'the alias must be inside the vhost');
     }
@@ -66,8 +69,8 @@ class WorktreeVhostAliaserTest extends TestCase
 
         $this->aliaser()->alias('compose.yml', 'app', ['gig-2857-hydra-main.localhost']);
 
-        $this->assertStringContainsString('ServerAlias gig-2857', file_get_contents($main));
-        $this->assertStringContainsString('ServerAlias gig-2857', file_get_contents($api));
+        $this->assertStringContainsString('ServerAlias gig-2857', $this->read($main));
+        $this->assertStringContainsString('ServerAlias gig-2857', $this->read($api));
     }
 
     public function test_running_it_twice_does_not_duplicate_the_alias(): void
@@ -79,7 +82,7 @@ class WorktreeVhostAliaserTest extends TestCase
         $second = $this->aliaser()->alias('compose.yml', 'app', ['gig-2857-hydra-main.localhost']);
 
         $this->assertFalse($second, 'nothing changed, so it should report no reload');
-        $this->assertSame(1, substr_count(file_get_contents($conf), 'ServerAlias gig-2857-hydra-main.localhost'));
+        $this->assertSame(1, substr_count($this->read($conf), 'ServerAlias gig-2857-hydra-main.localhost'));
     }
 
     public function test_it_extends_an_nginx_server_name(): void
@@ -92,7 +95,7 @@ class WorktreeVhostAliaserTest extends TestCase
         $this->assertTrue($aliased);
         $this->assertStringContainsString(
             'server_name dev.hydra gig-2857-hydra-main.localhost;',
-            file_get_contents($conf)
+            $this->read($conf)
         );
     }
 
@@ -138,6 +141,15 @@ class WorktreeVhostAliaserTest extends TestCase
         CONF);
 
         return $path;
+    }
+
+    /** file_get_contents() widens to string|false; assert it away once here. */
+    private function read(string $path): string
+    {
+        $contents = file_get_contents($path);
+        $this->assertIsString($contents, "could not read {$path}");
+
+        return $contents;
     }
 
     private function write(string $path, string $contents): void

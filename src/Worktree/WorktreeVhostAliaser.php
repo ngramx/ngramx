@@ -101,6 +101,8 @@ class WorktreeVhostAliaser
      * Idempotent by construction: each vhost is skipped when it already names
      * the alias, so re-running `worktree` on an existing environment does not
      * accumulate duplicates.
+     *
+     * @param list<string> $aliases Already validated as DNS names by alias().
      */
     private function script(array $aliases): string
     {
