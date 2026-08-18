@@ -197,12 +197,12 @@ class WorktreeCommandTest extends TestCase
         $this->setupConfigLoader($this->createMockConfig());
 
         $tester = new CommandTester($this->createCommand());
-        $exitCode = $tester->execute(['--cleanup' => true]);
+        $exitCode = $tester->execute(['--cleanup' => true], ['interactive' => false]);
 
         $display = $tester->getDisplay();
-        $this->assertSame(0, $exitCode);
-        $this->assertStringContainsString('Cleaning up all worktrees (2)', $display);
-        $this->assertStringContainsString('Removed all worktrees', $display);
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('Cleaning up 2 worktrees', $display);
+        $this->assertStringContainsString('Removed 2 worktrees', $display);
         $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-foo');
         $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-2-bar');
     }
@@ -231,7 +231,7 @@ class WorktreeCommandTest extends TestCase
 
         $display = $tester->getDisplay();
         $this->assertSame(0, $exitCode);
-        $this->assertStringContainsString('Removed worktree for ticket gig-1', $display);
+        $this->assertStringContainsString('Removed worktree gig-1-foo', $display);
         $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-foo');
         $this->assertDirectoryExists($worktreesDir . '/gig-2-bar');
     }
@@ -249,7 +249,7 @@ class WorktreeCommandTest extends TestCase
 
         $display = $tester->getDisplay();
         $this->assertSame(0, $exitCode, $display);
-        $this->assertStringContainsString('Removed worktree for ticket cor-55', $display);
+        $this->assertStringContainsString('Removed worktree cor-55-foo', $display);
         $this->assertDirectoryDoesNotExist($worktreesDir . '/cor-55-foo');
         $this->assertDirectoryExists($worktreesDir . '/gig-2-bar');
     }
@@ -506,21 +506,24 @@ class WorktreeCommandTest extends TestCase
                 $worktreesDir . '/gig-2-bar' => 'gig-2-another-thing',
             ]);
 
-        // Both worktrees lack a lock file, so both should show "stopped".
-        $this->dockerCompose->expects($this->never())->method('isServiceRunning');
+        // Neither worktree has a lock file, so neither is probed and both show
+        // "stopped"; only the main checkout's state is asked of Docker.
+        $this->dockerCompose->expects($this->any())
+            ->method('isServiceRunning')
+            ->willReturn(false);
 
         $tester = new CommandTester($this->createCommand());
         $exitCode = $tester->execute(['--list' => true]);
 
         $display = $tester->getDisplay();
         $this->assertSame(0, $exitCode, $display);
-        $this->assertStringContainsString('Active worktrees (2)', $display);
+        $this->assertStringContainsString('Worktrees (2)', $display);
         $this->assertStringContainsString('gig-1-foo', $display);
         $this->assertStringContainsString('gig-2-bar', $display);
         $this->assertStringContainsString('gig-1-fix-thing', $display);
         $this->assertStringContainsString('gig-2-another-thing', $display);
         $this->assertStringContainsString('stopped', $display);
-        $this->assertStringContainsString('--cleanup <#>', $display);
+        $this->assertStringContainsString('--cleanup', $display);
     }
 
     public function test_list_shows_running_status_when_lock_and_service_are_up(): void
@@ -559,15 +562,130 @@ class WorktreeCommandTest extends TestCase
         $this->assertStringContainsString(':1080', $display);
     }
 
-    public function test_list_shows_nothing_to_clean_up_message_when_empty(): void
+    public function test_list_says_when_there_are_no_worktrees(): void
     {
         $this->setupConfigLoader($this->createMockConfig());
+        $this->dockerCompose->expects($this->any())->method('isServiceRunning')->willReturn(false);
 
         $tester = new CommandTester($this->createCommand());
         $exitCode = $tester->execute(['--list' => true]);
 
-        $this->assertSame(0, $exitCode);
-        $this->assertStringContainsString('No worktrees found', $tester->getDisplay());
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('None yet', $display);
+        $this->assertStringContainsString('ngramx worktree <ticket>', $display);
+    }
+
+    public function test_cleanup_without_an_argument_offers_a_choice(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-foo', 0755, true);
+        mkdir($worktreesDir . '/gig-2-bar', 0755, true);
+
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $tester = new CommandTester($this->createCommand());
+        // Pick the second worktree from the list.
+        $tester->setInputs(['1']);
+        $exitCode = $tester->execute(['--cleanup' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('Which worktree do you want to remove?', $display);
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-2-bar');
+        $this->assertDirectoryExists($worktreesDir . '/gig-1-foo');
+    }
+
+    public function test_cleanup_without_an_argument_can_still_remove_them_all(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-foo', 0755, true);
+        mkdir($worktreesDir . '/gig-2-bar', 0755, true);
+
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $tester = new CommandTester($this->createCommand());
+        // "All worktrees" is the entry after the two worktrees.
+        $tester->setInputs(['2']);
+        $exitCode = $tester->execute(['--cleanup' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('All worktrees (2)', $display);
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-foo');
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-2-bar');
+    }
+
+    public function test_cleanup_all_removes_every_worktree_without_asking(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-foo', 0755, true);
+        mkdir($worktreesDir . '/gig-2-bar', 0755, true);
+
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['--cleanup' => true, '--all' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringNotContainsString('Which worktree', $display);
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-foo');
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-2-bar');
+    }
+
+    public function test_cleanup_can_be_cancelled_from_the_prompt(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-foo', 0755, true);
+
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $tester = new CommandTester($this->createCommand());
+        // "Cancel" is the last entry: one worktree, then "all", then "cancel".
+        $tester->setInputs(['2']);
+        $exitCode = $tester->execute(['--cleanup' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(1, $exitCode, $display);
+        $this->assertStringContainsString('Cancelled', $display);
+        $this->assertDirectoryExists($worktreesDir . '/gig-1-foo');
+    }
+
+    public function test_cleanup_asks_which_one_when_the_argument_is_ambiguous(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-terrablock', 0755, true);
+        mkdir($worktreesDir . '/gig-2-terrablock', 0755, true);
+
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $tester = new CommandTester($this->createCommand());
+        $tester->setInputs(['0']);
+        $exitCode = $tester->execute(['ticket' => 'terrablock', '--cleanup' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('matches 2 worktrees', $display);
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-terrablock');
+        $this->assertDirectoryExists($worktreesDir . '/gig-2-terrablock');
+    }
+
+    public function test_cleanup_matches_a_fragment_of_the_worktree_name(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-invoice-pdf', 0755, true);
+        mkdir($worktreesDir . '/gig-2-bar', 0755, true);
+
+        $this->setupConfigLoader($this->createMockConfig());
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'invoice', '--cleanup' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-invoice-pdf');
+        $this->assertDirectoryExists($worktreesDir . '/gig-2-bar');
     }
 
     public function test_cleanup_by_index_removes_the_indexed_worktree(): void
@@ -583,7 +701,7 @@ class WorktreeCommandTest extends TestCase
 
         $display = $tester->getDisplay();
         $this->assertSame(0, $exitCode, $display);
-        $this->assertStringContainsString('Removed worktree #2', $display);
+        $this->assertStringContainsString('Removed worktree gig-2-bar', $display);
         $this->assertStringContainsString('gig-2-bar', $display);
         // Worktree #1 (gig-1-foo) should still exist.
         $this->assertDirectoryExists($worktreesDir . '/gig-1-foo');
@@ -605,7 +723,7 @@ class WorktreeCommandTest extends TestCase
 
         $display = $tester->getDisplay();
         $this->assertSame(0, $exitCode, $display);
-        $this->assertStringContainsString('Removed worktree for ticket cor-55', $display);
+        $this->assertStringContainsString('Removed worktree cor-55-foo', $display);
         $this->assertDirectoryDoesNotExist($worktreesDir . '/cor-55-foo');
         $this->assertDirectoryExists($worktreesDir . '/gig-2-bar');
     }
@@ -623,7 +741,7 @@ class WorktreeCommandTest extends TestCase
         $exitCode = $tester->execute(['ticket' => '99', '--cleanup' => true]);
 
         $this->assertSame(1, $exitCode);
-        $this->assertStringContainsString('No worktree found', $tester->getDisplay());
+        $this->assertStringContainsString('No worktree matches', $tester->getDisplay());
     }
 
     private function stubNoTicketPrefixMatches(): void

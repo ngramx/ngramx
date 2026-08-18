@@ -9,34 +9,97 @@ use Ngramx\Config\Exception\ConfigException;
 use Ngramx\Config\LockFile;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Docker\HealthChecker;
+use Ngramx\Output\EnvironmentOverviewRenderer;
 use Ngramx\Output\OutputFormatter;
+use Ngramx\Worktree\WorktreeInventory;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
+/**
+ * `ngramx status` — the repository's picture of itself: where the project
+ * lives, whether the main checkout's environment is up, and every worktree
+ * with its branch, running state and URL.
+ *
+ * Runnable from anywhere inside the project — the repo root, a subfolder, or
+ * inside one of the worktrees — and always reports on the whole repository, so
+ * "what have I got running?" has one answer wherever it is asked. The
+ * per-service health table this command used to print lives behind
+ * `--services`.
+ */
 class StatusCommand extends Command
 {
+    private readonly WorktreeInventory $inventory;
+
     public function __construct(
         private readonly ConfigLoader $configLoader,
         private readonly DockerCompose $dockerCompose,
         private readonly HealthChecker $healthChecker,
         private readonly LockFile $lockFile,
+        ?WorktreeInventory $inventory = null,
     ) {
         parent::__construct();
+        $this->inventory = $inventory ?? new WorktreeInventory($dockerCompose);
     }
 
     protected function configure(): void
     {
         $this
             ->setName('status')
-            ->setDescription('Check the health status of services');
+            ->setDescription('Show the project overview: the main checkout and every worktree, with branch, running state and URL')
+            ->addOption('services', null, InputOption::VALUE_NONE, 'Show the per-service health table for the current environment instead of the project overview');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $formatter = new OutputFormatter($output);
 
+        if (!(bool) $input->getOption('services')) {
+            return $this->showOverview($output, $formatter);
+        }
+
+        return $this->showServiceHealth($output, $formatter);
+    }
+
+    /**
+     * Render the repository-wide overview.
+     */
+    private function showOverview(OutputInterface $output, OutputFormatter $formatter): int
+    {
+        try {
+            $configPath = $this->configLoader->findConfigFile();
+            $projectPath = dirname($configPath);
+
+            // Run from inside a worktree, report on the repository that owns it
+            // rather than on that single environment.
+            $repositoryPath = WorktreeInventory::repositoryRootFor($projectPath);
+            $config = $this->configLoader->load(
+                $repositoryPath === $projectPath ? $configPath : $repositoryPath . '/ngramx.yml'
+            );
+
+            $snapshot = $this->inventory->collect($repositoryPath, $config, $projectPath);
+
+            (new EnvironmentOverviewRenderer($output, $formatter))
+                ->render($snapshot['root'], $snapshot['worktrees']);
+
+            return Command::SUCCESS;
+        } catch (ConfigException $e) {
+            $formatter->error("Configuration error: {$e->getMessage()}");
+            return Command::FAILURE;
+        } catch (\Exception $e) {
+            $formatter->error("Error: {$e->getMessage()}");
+            return Command::FAILURE;
+        }
+    }
+
+    /**
+     * Render the per-service health table for the environment in the current
+     * directory (`--services`).
+     */
+    private function showServiceHealth(OutputInterface $output, OutputFormatter $formatter): int
+    {
         try {
             // Load configuration
             $configPath = $this->configLoader->findConfigFile();

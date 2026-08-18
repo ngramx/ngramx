@@ -231,7 +231,8 @@ ngramx review GIG-1234 --worktree # Reviews in an isolated worktree + parallel e
 ngramx review GIG-1234 --cursor   # Same as --worktree, then opens a new Cursor window
 ngramx review GIG-1234 -c         # Shorthand for --cursor
 ngramx review GIG-1234 --cleanup  # Tears down + removes that ticket's worktree env
-ngramx review --cleanup           # Tears down + removes every worktree env
+ngramx review --cleanup           # Pick from a list (including "all")
+ngramx review --cleanup --all     # Tears down + removes every worktree env
 ```
 
 This command:
@@ -246,7 +247,7 @@ This command:
 - `--quick` — Run the `clear` command instead of `fresh`. This skips the database reset and only installs deps and clears caches, so it's much faster. **Only use `--quick` on branches that don't change your database schema or seed data** — otherwise you'll be reviewing against stale data. When in doubt, use the default (`fresh`).
 - `--worktree` / `-w` — Review in an **isolated git worktree with its own parallel dev environment** instead of checking the branch out in your main working directory. This lets you review (or fix) several tickets at once without your editor and Docker stack fighting over a single branch.
 - `--cursor` / `-c` — Everything `--worktree` does, then opens the worktree in a **new Cursor window**. Implies `--worktree`.
-- `--cleanup` — Stop the worktree's Docker stack (including its volumes) and remove the git worktree for this ticket. Use this when you're done reviewing. **Omit the ticket argument** (`ngramx review --cleanup`) to tear down and remove *every* worktree under `.ngramx/worktrees/` in one pass. (If a container left root-owned files behind, cleanup removes them via a short-lived helper container.)
+- `--cleanup` — Stop the worktree's Docker stack (including its volumes) and remove the git worktree. Use this when you're done reviewing. The argument is matched the same way as `ngramx worktree --cleanup` (folder, namespace, ticket, list index, or any fragment of a worktree or branch name), and an ambiguous match asks which one you meant. **Omit the argument** (`ngramx review --cleanup`) to pick from a list, with "All worktrees" as an option, or pass `--all` to remove every worktree without being asked. (If a container left root-owned files behind, cleanup removes them via a short-lived helper container.)
 
 **How worktree mode works:**
 
@@ -283,7 +284,9 @@ ngramx worktree gig-1234 --quick  # Skips database reset (same semantics as revi
 ngramx worktree gig-1234 --cursor # Opens the worktree in a new Cursor window once ready
 ngramx worktree gig-1234 -c       # Shorthand for --cursor
 ngramx worktree gig-1234 --cleanup  # Tears down + removes that ticket's worktree env
-ngramx worktree --cleanup           # Tears down + removes every worktree env
+ngramx worktree invoice --cleanup   # Matches on folder / namespace / branch text
+ngramx worktree 2 --cleanup         # Index from `ngramx status`
+ngramx worktree --cleanup           # Pick from a list (including "all")
 ```
 
 This command:
@@ -298,22 +301,52 @@ This command:
 
 - `--quick` — Run the `clear` command instead of `fresh`. Same caveats as `review --quick`.
 - `--cursor` / `-c` — Open the worktree in a **new Cursor window** once the environment is ready. Requires the `cursor` CLI on your PATH; degrades gracefully with a manual command hint if not found.
-- `--cleanup` — Stop the worktree's Docker stack (including its volumes) and remove the git worktree for this ticket. **Omit the ticket argument** (`ngramx worktree --cleanup`) to tear down and remove *every* worktree under `.ngramx/worktrees/` in one pass.
+- `--cleanup` — Stop the worktree's Docker stack (including its volumes) and remove its git worktree. The argument is matched against, in order of specificity: the exact worktree folder or Docker namespace, a ticket reference (`2345`, `gig-2345`, `gig2345`, or a pasted branch name), the index shown by `ngramx status`, then any fragment of a worktree or branch name. When the argument matches more than one worktree you are asked which one, instead of being told to be more specific.
+
+  **Omit the argument** (`ngramx worktree --cleanup`) and you pick from a list of the repository's worktrees, with "All worktrees" and "Cancel" as the last two entries — removing everything is a choice you make rather than the default. With no answer available (output piped, no TTY) the prompt takes its default, which is Cancel, so nothing is removed by accident.
+
+- `--all` — With `--cleanup`, target every worktree without asking. This is how a script says "remove them all" out loud; `ngramx worktree --cleanup -n` (`--no-interaction`) does the same for existing automation.
 
 When you're done, run `ngramx worktree <ticket> --cleanup` (or `ngramx review <ticket> --cleanup`) to tear down the worktree environment.
 
 ### `ngramx status`
 
-Check the health status of services:
+The project overview — what this repository has running, everywhere:
 
 ```bash
 ngramx status
+ngramx status --services   # per-service health for the environment you are in
 ```
 
-Shows a table with:
-- Service names
-- Running status (running/exited)
-- Health status (healthy/unhealthy/starting)
+Prints:
+
+- **Project** — where the main checkout lives, its branch, whether its
+  environment is up, and the URL when it is.
+- **Worktrees** — every worktree under `.ngramx/worktrees/` with a stable
+  index, its branch, whether its environment is up, and the URL to view that
+  app (its own `<ticket>.localhost` origin and port where it has one).
+
+```
+▸ Project
+
+  path         /home/rob/projects/terrablock
+  branch       main
+  environment  stopped
+
+▸ Worktrees (3)
+
+    #   worktree              branch                status   url
+    1   gig-2478-terrablock   gig-2478-invoice      stopped  —
+    2   gig-2895-terrablock   gig-2895-audit        running  https://gig-2895-terrablock.localhost:8643
+  ❯ 3   gig-2896-terrablock   gig-2896-show-url     running  https://gig-2896-terrablock.localhost:8743
+```
+
+Run it from anywhere in the project — the repo root, a subfolder, or inside one
+of the worktrees. It always reports on the whole repository, and marks (`❯`) the
+environment you are standing in. `ngramx worktree --list` prints the same view.
+
+The per-service health table (service, running state, health) is still there
+behind `--services`, and reports on the environment in the current directory.
 
 ### `ngramx show-url` (alias: `ngramx url`)
 

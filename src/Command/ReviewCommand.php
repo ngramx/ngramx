@@ -27,15 +27,20 @@ use Ngramx\Worktree\CursorIpcHookResolver;
 use Ngramx\Worktree\WorktreeCertSeeder;
 use Ngramx\Worktree\WorktreeDependencyPrimer;
 use Ngramx\Worktree\WorktreeIdentity;
+use Ngramx\Worktree\WorktreeInventory;
+use Ngramx\Worktree\WorktreeMatcher;
 use Ngramx\Worktree\WorktreeOwnershipReconciler;
 use Ngramx\Worktree\WorktreeUrlResolver;
 use Ngramx\Worktree\WorktreeVhostAliaser;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Exception\MissingInputException;
+use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Question\ChoiceQuestion;
 use Symfony\Component\Process\Process;
 
 class ReviewCommand extends Command
@@ -53,6 +58,7 @@ class ReviewCommand extends Command
     private readonly WorktreeCertSeeder $certSeeder;
     private readonly WorktreeVhostAliaser $vhostAliaser;
     private readonly SecretsValidator $secretsValidator;
+    protected readonly WorktreeInventory $inventory;
 
     public function __construct(
         protected readonly ConfigLoader $configLoader,
@@ -71,6 +77,7 @@ class ReviewCommand extends Command
         ?WorktreeCertSeeder $certSeeder = null,
         ?WorktreeVhostAliaser $vhostAliaser = null,
         ?SecretsValidator $secretsValidator = null,
+        ?WorktreeInventory $inventory = null,
     ) {
         parent::__construct();
         $this->portOffsetManager = $portOffsetManager ?? new PortOffsetManager();
@@ -83,6 +90,7 @@ class ReviewCommand extends Command
         $this->certSeeder = $certSeeder ?? new WorktreeCertSeeder();
         $this->vhostAliaser = $vhostAliaser ?? new WorktreeVhostAliaser();
         $this->secretsValidator = $secretsValidator ?? new SecretsValidator();
+        $this->inventory = $inventory ?? new WorktreeInventory($dockerCompose, $gitRepositoryService);
     }
 
     protected function configure(): void
@@ -94,7 +102,8 @@ class ReviewCommand extends Command
             ->addOption('quick', null, InputOption::VALUE_NONE, 'Use the "clear" command instead of "fresh" — skips the database reset. Only safe on branches with no schema or seed changes.')
             ->addOption('worktree', 'w', InputOption::VALUE_NONE, 'Review in an isolated git worktree + parallel dev environment under .ngramx/worktrees/ instead of checking the branch out in place')
             ->addOption('cursor', 'c', InputOption::VALUE_NONE, 'Open the worktree in a new Cursor window once it is ready (implies --worktree)')
-            ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. Targets one ticket when given, or every worktree when no ticket is provided.')
+            ->addOption('all', null, InputOption::VALUE_NONE, 'With --cleanup: target every worktree, without asking.')
+            ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. The argument can be a ticket, a list index, a namespace, or any fragment of a worktree or branch name; ambiguous matches ask which one. With no argument you pick from a list (including "all").')
             ->addOption('no-host-mapping', null, InputOption::VALUE_NONE, 'Do not expose container ports to the host. Use on shared or headless machines where host ports may already be taken; reach the app over the Docker network instead.');
     }
 
@@ -118,17 +127,24 @@ class ReviewCommand extends Command
             $repositoryPath = dirname($configPath);
 
             if ((bool) $input->getOption('cleanup')) {
-                // Normalise the argument to the same "<team>-<number>" slug the
-                // creation path derives for the folder name, so a pasted branch
-                // name ("gig-2478-form-ideas") still finds "gig-2478-<repo>".
-                return $hasTicket
-                    ? $this->runWorktreeCleanup(
-                        $output,
-                        $formatter,
-                        $repositoryPath,
-                        WorktreeIdentity::normalizeTicket($ticketNumber, $config->defaultTeam)
-                    )
-                    : $this->runWorktreeCleanupAll($output, $formatter, $repositoryPath);
+                // The argument is matched against folder names, namespaces,
+                // ticket references and branches, so a pasted branch name
+                // ("gig-2478-form-ideas") still finds "gig-2478-<repo>"; an
+                // ambiguous or missing argument asks rather than guessing.
+                $targets = $this->resolveCleanupTargets(
+                    $input,
+                    $output,
+                    $formatter,
+                    $repositoryPath,
+                    $config,
+                    $ticketNumber,
+                );
+
+                if ($targets === null) {
+                    return Command::FAILURE;
+                }
+
+                return $this->runCleanupFor($output, $formatter, $repositoryPath, $targets);
             }
 
             if (!$hasTicket) {
@@ -618,6 +634,219 @@ class ReviewCommand extends Command
         }
 
         $formatter->success("✓ Removed worktree for ticket $ticketNumber");
+        $output->writeln('');
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Work out which worktrees a `--cleanup` invocation is aiming at.
+     *
+     *   - No argument: offer a list to pick from (including "all"), because
+     *     wiping every environment is rarely what someone means when they type
+     *     a bare `--cleanup`. Non-interactive shells keep the old behaviour of
+     *     targeting them all, so scripts do not change meaning.
+     *   - A number: the 1-based index shown by `ngramx status`.
+     *   - Anything else: matched against folder names, namespaces, ticket
+     *     references and branch names — with a prompt when it is ambiguous.
+     *
+     * @return list<string>|null Absolute worktree paths, or null when the
+     *         caller should stop (nothing matched, or the developer cancelled).
+     */
+    protected function resolveCleanupTargets(
+        InputInterface $input,
+        OutputInterface $output,
+        OutputFormatter $formatter,
+        string $repositoryPath,
+        NgramxConfig $config,
+        string $rawArgument
+    ): ?array {
+        $worktrees = $this->listWorktreeDirectories($repositoryPath);
+        sort($worktrees);
+
+        if ($worktrees === []) {
+            $formatter->info('No worktrees found under .ngramx/worktrees/ — nothing to clean up.');
+            return [];
+        }
+
+        $branchMap = $this->gitRepositoryService->listWorktreeBranches($repositoryPath);
+
+        // --all is how a script says "every worktree" out loud. `-n` keeps the
+        // old no-argument behaviour so existing automation is unchanged.
+        if ((bool) $input->getOption('all') || ($rawArgument === '' && !$input->isInteractive())) {
+            return $worktrees;
+        }
+
+        if ($rawArgument === '') {
+            return $this->chooseWorktrees(
+                $input,
+                $output,
+                $formatter,
+                $worktrees,
+                $branchMap,
+                'Which worktree do you want to remove?',
+                offerAll: true,
+            );
+        }
+
+        $index = $this->parseCleanupIndex($rawArgument, count($worktrees));
+        if ($index !== null) {
+            return [$worktrees[$index - 1]];
+        }
+
+        $matches = WorktreeMatcher::match($worktrees, $branchMap, $rawArgument, $config->defaultTeam);
+
+        if ($matches === []) {
+            $formatter->error("No worktree matches \"$rawArgument\".");
+            $formatter->info('Run `ngramx status` to see the worktrees this repository has.');
+            return null;
+        }
+
+        if (count($matches) === 1) {
+            return $matches;
+        }
+
+        if (!$input->isInteractive()) {
+            $formatter->error("\"$rawArgument\" matches " . count($matches) . ' worktrees — be more specific:');
+            foreach ($matches as $match) {
+                $formatter->info('  - ' . basename($match));
+            }
+            return null;
+        }
+
+        return $this->chooseWorktrees(
+            $input,
+            $output,
+            $formatter,
+            $matches,
+            $branchMap,
+            "\"$rawArgument\" matches " . count($matches) . ' worktrees — which one?',
+            offerAll: false,
+        );
+    }
+
+    /**
+     * Prompt for one of $worktrees (or, when $offerAll, all of them).
+     *
+     * @param list<string> $worktrees
+     * @param array<string, string> $branchMap
+     * @return list<string>|null null when the developer cancelled
+     */
+    private function chooseWorktrees(
+        InputInterface $input,
+        OutputInterface $output,
+        OutputFormatter $formatter,
+        array $worktrees,
+        array $branchMap,
+        string $question,
+        bool $offerAll
+    ): ?array {
+        $choices = [];
+        foreach ($worktrees as $worktreePath) {
+            $branch = $branchMap[$worktreePath] ?? null;
+            $choices[] = basename($worktreePath) . ($branch === null ? '' : "  ($branch)");
+        }
+
+        $allLabel = 'All worktrees (' . count($worktrees) . ')';
+        $cancelLabel = 'Cancel';
+
+        if ($offerAll) {
+            $choices[] = $allLabel;
+        }
+        $choices[] = $cancelLabel;
+
+        // Instantiated directly rather than pulled from the helper set, so the
+        // prompt works whether or not the command is running under a full
+        // Application (matching how branch selection already asks).
+        $helper = new QuestionHelper();
+
+        $choiceQuestion = new ChoiceQuestion($question, $choices, count($choices) - 1);
+        $choiceQuestion->setErrorMessage('Pick one of the listed options (%s is not one).');
+
+        try {
+            $answer = $helper->ask($input, $output, $choiceQuestion);
+        } catch (MissingInputException) {
+            // Nothing on stdin to answer with (a script, a cron job). Removing
+            // every environment on the strength of an unanswerable question is
+            // exactly the wrong guess, so stop and name the explicit flag.
+            $formatter->error('Cannot ask which worktree to remove — no input available.');
+            $formatter->info('Name one (`--cleanup <ticket|text|#>`) or pass --all to remove every worktree.');
+
+            return null;
+        }
+
+        if ($answer === $cancelLabel || $answer === null) {
+            $formatter->info('Cancelled — nothing was removed.');
+            return null;
+        }
+
+        if ($answer === $allLabel) {
+            return $worktrees;
+        }
+
+        $selected = array_search($answer, $choices, true);
+        if ($selected === false || !isset($worktrees[$selected])) {
+            $formatter->info('Cancelled — nothing was removed.');
+            return null;
+        }
+
+        return [$worktrees[$selected]];
+    }
+
+    /**
+     * Parse a bare positive integer as a 1-based index into the worktree list,
+     * returning null when the argument is not a number or is out of range (so
+     * a ticket that happens to be all digits still falls through to matching).
+     */
+    protected function parseCleanupIndex(string $rawArgument, int $worktreeCount): ?int
+    {
+        if ($worktreeCount === 0 || preg_match('/^[1-9]\d*$/', $rawArgument) !== 1) {
+            return null;
+        }
+
+        $index = (int) $rawArgument;
+
+        return $index <= $worktreeCount ? $index : null;
+    }
+
+    /**
+     * Tear down each of $worktreePaths, reporting what went.
+     *
+     * @param list<string> $worktreePaths
+     */
+    protected function runCleanupFor(
+        OutputInterface $output,
+        OutputFormatter $formatter,
+        string $repositoryPath,
+        array $worktreePaths
+    ): int {
+        if ($worktreePaths === []) {
+            return Command::SUCCESS;
+        }
+
+        $formatter->section(count($worktreePaths) === 1
+            ? 'Cleaning up worktree: ' . basename($worktreePaths[0])
+            : 'Cleaning up ' . count($worktreePaths) . ' worktrees');
+
+        $failed = [];
+        foreach ($worktreePaths as $worktreePath) {
+            if (count($worktreePaths) > 1) {
+                $formatter->info('Removing worktree: ' . basename($worktreePath));
+            }
+
+            if (!$this->teardownWorktree($output, $formatter, $repositoryPath, $worktreePath)) {
+                $failed[] = basename($worktreePath);
+            }
+        }
+
+        if ($failed !== []) {
+            $formatter->error('Failed to remove ' . count($failed) . ' worktree(s): ' . implode(', ', $failed));
+            return Command::FAILURE;
+        }
+
+        $formatter->success(count($worktreePaths) === 1
+            ? '✓ Removed worktree ' . basename($worktreePaths[0])
+            : '✓ Removed ' . count($worktreePaths) . ' worktrees');
         $output->writeln('');
 
         return Command::SUCCESS;

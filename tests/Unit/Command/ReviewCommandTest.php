@@ -912,12 +912,12 @@ class ReviewCommandTest extends TestCase
         $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
 
         $tester = new CommandTester($this->createCommand());
-        $exitCode = $tester->execute(['--cleanup' => true]);
+        $exitCode = $tester->execute(['--cleanup' => true], ['interactive' => false]);
 
         $display = $tester->getDisplay();
-        $this->assertSame(0, $exitCode);
-        $this->assertStringContainsString('Cleaning up all worktrees (2)', $display);
-        $this->assertStringContainsString('Removed all worktrees', $display);
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('Cleaning up 2 worktrees', $display);
+        $this->assertStringContainsString('Removed 2 worktrees', $display);
         $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-foo');
         $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-2-bar');
     }
@@ -948,7 +948,7 @@ class ReviewCommandTest extends TestCase
 
         $display = $tester->getDisplay();
         $this->assertSame(0, $exitCode);
-        $this->assertStringContainsString('Removed worktree for ticket gig-1', $display);
+        $this->assertStringContainsString('Removed worktree gig-1-foo', $display);
         $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-foo');
         $this->assertDirectoryExists($worktreesDir . '/gig-2-bar');
     }
@@ -992,7 +992,7 @@ class ReviewCommandTest extends TestCase
 
         $display = $tester->getDisplay();
         $this->assertSame(0, $exitCode, $display);
-        $this->assertStringContainsString('Removed worktree for ticket gig-2478', $display);
+        $this->assertStringContainsString('Removed worktree 2478-terrablock', $display);
         $this->assertDirectoryDoesNotExist($worktreesDir . '/2478-terrablock');
     }
 
