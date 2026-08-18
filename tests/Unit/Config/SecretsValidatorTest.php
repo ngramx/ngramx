@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Ngramx\Tests\Unit\Config;
 
-use Ngramx\Config\DotEnvFileReader;
 use Ngramx\Config\Schema\SecretsConfig;
 use Ngramx\Config\Schema\SecretsProviderConfig;
 use Ngramx\Config\Validator\SecretsValidator;
@@ -60,6 +59,57 @@ class SecretsValidatorTest extends TestCase
         $missing = $validator->validate($secrets, $this->tmpDir);
 
         $this->assertSame(['shell' => ['SECRET_TWO', 'SECRET_THREE']], $missing);
+    }
+
+    public function test_it_accepts_shell_secrets_supplied_by_the_project_env_file(): void
+    {
+        file_put_contents($this->tmpDir . '/.env', "FLUX_USERNAME=rob@example.com\nFLUX_LICENSE_KEY=abc-123\n");
+
+        $validator = $this->createValidatorWithEnv([]);
+        $secrets = new SecretsConfig(providers: [
+            new SecretsProviderConfig(required: ['FLUX_USERNAME', 'FLUX_LICENSE_KEY']),
+        ]);
+
+        $this->assertSame([], $validator->validate($secrets, $this->tmpDir));
+    }
+
+    public function test_it_reports_shell_secrets_absent_from_both_shell_and_env_file(): void
+    {
+        file_put_contents($this->tmpDir . '/.env', "FLUX_USERNAME=rob@example.com\n");
+
+        $validator = $this->createValidatorWithEnv([]);
+        $secrets = new SecretsConfig(providers: [
+            new SecretsProviderConfig(required: ['FLUX_USERNAME', 'FLUX_LICENSE_KEY']),
+        ]);
+
+        $this->assertSame(['shell' => ['FLUX_LICENSE_KEY']], $validator->validate($secrets, $this->tmpDir));
+    }
+
+    public function test_it_treats_empty_env_file_value_as_missing_for_shell_provider(): void
+    {
+        file_put_contents($this->tmpDir . '/.env', "FLUX_LICENSE_KEY=\n");
+
+        $validator = $this->createValidatorWithEnv([]);
+        $secrets = new SecretsConfig(providers: [
+            new SecretsProviderConfig(required: ['FLUX_LICENSE_KEY']),
+        ]);
+
+        $this->assertSame(['shell' => ['FLUX_LICENSE_KEY']], $validator->validate($secrets, $this->tmpDir));
+    }
+
+    public function test_it_accepts_obsolete_env_provider_secrets_from_the_env_file(): void
+    {
+        file_put_contents($this->tmpDir . '/.env', "LEGACY_SECRET=present\n");
+
+        $validator = $this->createValidatorWithEnv([]);
+        $secrets = new SecretsConfig(providers: [
+            new SecretsProviderConfig(
+                provider: SecretsProviderConfig::PROVIDER_ENV,
+                required: ['LEGACY_SECRET'],
+            ),
+        ]);
+
+        $this->assertSame([], $validator->validate($secrets, $this->tmpDir));
     }
 
     public function test_it_validates_dotenv_provider_against_env_file(): void

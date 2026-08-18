@@ -35,7 +35,8 @@ class SecretsValidator
 
             $missing = match (true) {
                 SecretsProviderConfig::isShellProvider($providerConfig->provider) => $this->validateShellProvider(
-                    $providerConfig->required
+                    $providerConfig->required,
+                    rtrim($configDirectory, '/') . '/.env'
                 ),
                 $providerConfig->provider === SecretsProviderConfig::PROVIDER_DOTENV => $this->validateDotEnvProvider(
                     $providerConfig->required,
@@ -54,20 +55,39 @@ class SecretsValidator
     }
 
     /**
+     * The shell provider is satisfied by an exported variable *or* by the
+     * project's own .env file. Docker Compose loads that file for interpolation
+     * and build args, so a value living only there is genuinely available to the
+     * stack — and it is what our own failure hint tells people to edit. Checking
+     * `getenv()` alone made `up`/`worktree` fail on projects whose credentials
+     * were correctly recorded in .env.
+     *
      * @param string[] $required
      * @return string[]
      */
-    private function validateShellProvider(array $required): array
+    private function validateShellProvider(array $required, string $envFilePath): array
     {
+        $dotEnvValues = $this->dotEnvFileReader->read($envFilePath) ?? [];
+
         $missing = [];
         foreach ($required as $name) {
-            $value = $this->getEnvVar($name);
-            if ($value === false || trim((string) $value) === '') {
-                $missing[] = $name;
+            if ($this->hasNonEmptyValue($this->getEnvVar($name))) {
+                continue;
             }
+
+            if ($this->hasNonEmptyValue($dotEnvValues[$name] ?? false)) {
+                continue;
+            }
+
+            $missing[] = $name;
         }
 
         return $missing;
+    }
+
+    private function hasNonEmptyValue(string|false $value): bool
+    {
+        return $value !== false && trim($value) !== '';
     }
 
     /**
@@ -108,7 +128,7 @@ class SecretsValidator
     {
         return match ($provider) {
             SecretsProviderConfig::PROVIDER_DOTENV => '.env file',
-            SecretsProviderConfig::PROVIDER_SHELL => 'shell environment',
+            SecretsProviderConfig::PROVIDER_SHELL => 'the shell environment or .env file',
             default => "{$provider} provider",
         };
     }
@@ -117,7 +137,7 @@ class SecretsValidator
     {
         return match ($provider) {
             SecretsProviderConfig::PROVIDER_DOTENV => 'the .env file',
-            SecretsProviderConfig::PROVIDER_SHELL => 'shell environment variables',
+            SecretsProviderConfig::PROVIDER_SHELL => 'the shell environment or .env file',
             default => $provider,
         };
     }
