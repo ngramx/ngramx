@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Ngramx\Docker;
 
 use Ngramx\Output\OutputFormatter;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
+use Symfony\Component\Process\Exception\RuntimeException;
 use Symfony\Component\Process\Process;
 
 /**
@@ -55,6 +57,16 @@ class DockerLauncher
         'C:\Program Files\Docker\Docker\Docker Desktop.exe',
         'C:\Program Files (x86)\Docker\Docker\Docker Desktop.exe',
     ];
+
+    /**
+     * Where Windows' System32 lives under the default WSL drive mount.
+     */
+    private const WSL_DEFAULT_SYSTEM32 = '/mnt/c/Windows/System32';
+
+    /**
+     * PowerShell's location relative to System32.
+     */
+    private const WINDOWS_POWERSHELL_RELATIVE_PATH = 'WindowsPowerShell/v1.0/powershell.exe';
 
     public function __construct(
         private readonly DockerCompose $dockerCompose,
@@ -117,11 +129,7 @@ class DockerLauncher
 
     protected function launchMacos(): bool
     {
-        $process = new Process(['open', '-a', 'Docker']);
-        $process->setTimeout(15);
-        $process->run();
-
-        return $process->isSuccessful();
+        return $this->runLaunchCommand(['open', '-a', 'Docker'], 15);
     }
 
     protected function launchWindows(): bool
@@ -132,60 +140,155 @@ class DockerLauncher
         }
 
         // `start` returns immediately; the GUI app boots in the background.
-        $process = new Process(['cmd.exe', '/c', 'start', '""', $exe]);
-        $process->setTimeout(15);
-        $process->run();
-
-        return $process->isSuccessful();
+        return $this->runLaunchCommand(['cmd.exe', '/c', 'start', '""', $exe], 15);
     }
 
     protected function launchWsl(): bool
     {
         // Docker Desktop runs on Windows; start it from the Windows side.
-        // Prefer cmd.exe interop against a known install path (fast, no
-        // PowerShell startup cost) and fall back to PowerShell's
-        // Start-Process, which can resolve the binary via the Windows PATH.
-        foreach (self::WINDOWS_DOCKER_PATHS as $exe) {
-            if ($this->wslWindowsPathExists($exe)) {
-                $process = new Process(['cmd.exe', '/c', 'start', '""', $exe]);
-                $process->setTimeout(15);
-                $process->run();
+        //
+        // We must address the interop binaries by their absolute /mnt path
+        // rather than by name. WSL only appends the Windows PATH when
+        // `interop.appendWindowsPath` is left on, and plenty of setups turn it
+        // off (or run ngramx from a context with a trimmed PATH). In that case
+        // a bare `cmd.exe` is unresolvable, Process fails before it ever starts
+        // Docker, and the user just sees "Could not start Docker automatically"
+        // even though Docker Desktop is installed and perfectly launchable.
+        $exes = $this->wslVisibleDockerExes();
 
-                if ($process->isSuccessful()) {
+        foreach ($this->interopBinaries('cmd.exe') as $cmd) {
+            foreach ($exes as $exe) {
+                // `start` returns immediately; the GUI app boots in the background.
+                if ($this->runLaunchCommand([$cmd, '/c', 'start', '""', $exe], 15)) {
                     return true;
                 }
             }
         }
 
-        $ps = new Process([
-            'powershell.exe',
-            '-NoProfile',
-            '-Command',
-            "Start-Process -FilePath 'C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe'",
-        ]);
-        $ps->setTimeout(20);
-        $ps->run();
+        // PowerShell fallback: Start-Process resolves the app through the
+        // Windows side, which covers installs outside our known paths.
+        $powershell = self::WINDOWS_POWERSHELL_RELATIVE_PATH;
+        foreach ($this->interopBinaries($powershell) as $ps) {
+            $launched = $this->runLaunchCommand([
+                $ps,
+                '-NoProfile',
+                '-Command',
+                "Start-Process -FilePath 'C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe'",
+            ], 20);
 
-        return $ps->isSuccessful();
+            if ($launched) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Docker Desktop install paths that are actually visible from this WSL
+     * distro, in the order we should try them.
+     *
+     * @return list<string> Windows-style paths
+     */
+    private function wslVisibleDockerExes(): array
+    {
+        $exes = [];
+        foreach (self::WINDOWS_DOCKER_PATHS as $exe) {
+            if ($this->wslWindowsPathExists($exe)) {
+                $exes[] = $exe;
+            }
+        }
+
+        return $exes;
+    }
+
+    /**
+     * Candidate ways to invoke a Windows interop binary from WSL: every
+     * mounted drive's System32 copy first (absolute, always resolvable), then
+     * the bare name as a last resort for setups where the Windows PATH *is*
+     * inherited but the drive is mounted somewhere we do not scan.
+     *
+     * @param string $relativePath Path under System32, e.g. `cmd.exe`
+     * @return list<string>
+     */
+    protected function interopBinaries(string $relativePath): array
+    {
+        $candidates = [];
+
+        foreach ($this->system32Directories() as $dir) {
+            $path = $dir . '/' . $relativePath;
+            if (is_file($path)) {
+                $candidates[] = $path;
+            }
+        }
+
+        $candidates[] = basename($relativePath);
+
+        return $candidates;
+    }
+
+    /**
+     * Mounted Windows System32 directories, C: first.
+     *
+     * @return list<string>
+     */
+    private function system32Directories(): array
+    {
+        $dirs = [];
+
+        if (is_dir(self::WSL_DEFAULT_SYSTEM32)) {
+            $dirs[] = self::WSL_DEFAULT_SYSTEM32;
+        }
+
+        foreach (glob('/mnt/*/Windows/System32') ?: [] as $dir) {
+            if ($dir !== self::WSL_DEFAULT_SYSTEM32 && is_dir($dir)) {
+                $dirs[] = $dir;
+            }
+        }
+
+        return $dirs;
+    }
+
+    /**
+     * Run one launch attempt. Overridable so tests can assert on the command
+     * we build without spawning Windows processes.
+     *
+     * Launching a desktop app is fire-and-forget, and some launchers never
+     * hand the terminal back: under WSL, `cmd.exe /c start` keeps running for
+     * as long as it feels like it. Symfony turns that into a
+     * ProcessTimedOutException, which used to escape and abort the whole
+     * command — with Docker Desktop already booting happily in the background.
+     * A timeout therefore counts as "we asked"; whether it worked is settled
+     * by polling the daemon, not by an exit code.
+     *
+     * @param list<string> $command
+     */
+    protected function runLaunchCommand(array $command, int $timeout): bool
+    {
+        $process = new Process($command);
+        $process->setTimeout($timeout);
+
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException) {
+            return true;
+        } catch (RuntimeException) {
+            // The binary could not be spawned at all — try the next candidate.
+            return false;
+        }
+
+        return $process->isSuccessful();
     }
 
     protected function launchLinux(): bool
     {
         // Docker Desktop for Linux ships a user-level systemd unit.
-        $process = new Process(['systemctl', '--user', 'start', 'docker-desktop']);
-        $process->setTimeout(15);
-        $process->run();
-
-        if ($process->isSuccessful()) {
+        if ($this->runLaunchCommand(['systemctl', '--user', 'start', 'docker-desktop'], 15)) {
             return true;
         }
 
         // Native docker daemon (requires root / passwordless sudo). Best effort.
-        $process = new Process(['systemctl', 'start', 'docker']);
-        $process->setTimeout(15);
-        $process->run();
-
-        return $process->isSuccessful();
+        return $this->runLaunchCommand(['systemctl', 'start', 'docker'], 15);
     }
 
     private function findWindowsDockerExe(): ?string
@@ -240,7 +343,15 @@ class DockerLauncher
     {
         $process = new Process(['docker', 'info']);
         $process->setTimeout(self::PROBE_TIMEOUT);
-        $process->run();
+
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException | RuntimeException) {
+            // A daemon that is still booting can hang the probe, and on WSL the
+            // `docker` shim itself disappears until Docker Desktop remounts it.
+            // Either way this attempt simply failed; keep polling.
+            return false;
+        }
 
         return $process->isSuccessful();
     }

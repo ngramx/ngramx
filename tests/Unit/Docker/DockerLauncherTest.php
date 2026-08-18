@@ -55,6 +55,50 @@ class StubDockerLauncher extends DockerLauncher
     }
 }
 
+/**
+ * A launcher that runs the *real* WSL launch logic but records the commands
+ * it would spawn instead of executing them, so we can assert that interop
+ * binaries are addressed by absolute path.
+ */
+class RecordingWslLauncher extends DockerLauncher
+{
+    /** @var list<list<string>> */
+    public array $commands = [];
+
+    /** @var list<string> */
+    public array $succeedingBinaries = [];
+
+    /** @param list<string> $interop */
+    public function __construct(DockerCompose $dockerCompose, private readonly array $interop)
+    {
+        parent::__construct($dockerCompose);
+    }
+
+    public function launchWslForTest(): bool
+    {
+        return $this->launch(Platform::Wsl);
+    }
+
+    protected function interopBinaries(string $relativePath): array
+    {
+        $name = basename($relativePath);
+        $found = array_values(array_filter(
+            $this->interop,
+            static fn (string $path): bool => str_ends_with($path, $name),
+        ));
+        $found[] = $name;
+
+        return $found;
+    }
+
+    protected function runLaunchCommand(array $command, int $timeout): bool
+    {
+        $this->commands[] = $command;
+
+        return in_array($command[0], $this->succeedingBinaries, true);
+    }
+}
+
 class DockerLauncherTest extends TestCase
 {
     public function test_returns_true_immediately_when_daemon_already_running(): void
@@ -166,5 +210,81 @@ class DockerLauncherTest extends TestCase
     private function formatter(): OutputFormatter
     {
         return new OutputFormatter(new BufferedOutput());
+    }
+
+    public function test_wsl_launch_addresses_cmd_exe_by_absolute_interop_path(): void
+    {
+        $launcher = new RecordingWslLauncher(
+            $this->createMock(DockerCompose::class),
+            ['/mnt/c/Windows/System32/cmd.exe'],
+        );
+        $launcher->succeedingBinaries = ['/mnt/c/Windows/System32/cmd.exe'];
+
+        $this->assertTrue($launcher->launchWslForTest());
+        $this->assertNotSame([], $launcher->commands);
+        $this->assertSame('/mnt/c/Windows/System32/cmd.exe', $launcher->commands[0][0]);
+    }
+
+    public function test_wsl_launch_falls_back_to_powershell_when_cmd_exe_fails(): void
+    {
+        $powershell = '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe';
+
+        $launcher = new RecordingWslLauncher(
+            $this->createMock(DockerCompose::class),
+            ['/mnt/c/Windows/System32/cmd.exe', $powershell],
+        );
+        $launcher->succeedingBinaries = [$powershell];
+
+        $this->assertTrue($launcher->launchWslForTest());
+
+        $used = array_map(static fn (array $command): string => $command[0], $launcher->commands);
+        $this->assertContains($powershell, $used);
+    }
+
+    public function test_wsl_launch_reports_failure_when_no_interop_binary_works(): void
+    {
+        $launcher = new RecordingWslLauncher(
+            $this->createMock(DockerCompose::class),
+            ['/mnt/c/Windows/System32/cmd.exe'],
+        );
+        $launcher->succeedingBinaries = [];
+
+        $this->assertFalse($launcher->launchWslForTest());
+    }
+
+    public function test_wsl_launch_still_tries_bare_names_for_inherited_windows_path(): void
+    {
+        $launcher = new RecordingWslLauncher($this->createMock(DockerCompose::class), []);
+        $launcher->succeedingBinaries = ['cmd.exe'];
+
+        $launcher->launchWslForTest();
+
+        $used = array_map(static fn (array $command): string => $command[0], $launcher->commands);
+        $this->assertContains('cmd.exe', $used);
+    }
+
+    public function test_launch_attempt_treats_a_hanging_gui_launcher_as_launched(): void
+    {
+        $launcher = new class ($this->createMock(DockerCompose::class)) extends DockerLauncher {
+            public function attempt(): bool
+            {
+                // `true` never exits on its own within the budget below.
+                return $this->runLaunchCommand(['sleep', '30'], 1);
+            }
+        };
+
+        $this->assertTrue($launcher->attempt());
+    }
+
+    public function test_launch_attempt_returns_false_when_the_binary_cannot_be_spawned(): void
+    {
+        $launcher = new class ($this->createMock(DockerCompose::class)) extends DockerLauncher {
+            public function attempt(): bool
+            {
+                return $this->runLaunchCommand(['/nonexistent/ngramx-not-a-binary'], 5);
+            }
+        };
+
+        $this->assertFalse($launcher->attempt());
     }
 }
