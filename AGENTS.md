@@ -2,7 +2,7 @@
 
 Add project-specific notes for AI assistants above the Ngramx-managed section.
 
-Committing and pushing to `main` with a `feat:` prefix in the commit message triggers a release.
+Always commit and push straight to `main` with a `fix:` or `feat:` prefix in the commit message — that is what triggers a release.
 
 <!-- NGRAMX_AGENTS_MANAGED_BEGIN -->
 ---
