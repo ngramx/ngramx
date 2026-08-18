@@ -68,6 +68,15 @@ class RecordingWslLauncher extends DockerLauncher
     /** @var list<string> */
     public array $succeedingBinaries = [];
 
+    /**
+     * Stubbed so the test does not depend on Docker Desktop being installed
+     * on a mounted Windows drive — CI runs on plain Linux, where no /mnt/c
+     * exists and the real scan would legitimately come back empty.
+     *
+     * @var list<string>
+     */
+    public array $dockerExes = ['C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe'];
+
     /** @param list<string> $interop */
     public function __construct(DockerCompose $dockerCompose, private readonly array $interop)
     {
@@ -89,6 +98,11 @@ class RecordingWslLauncher extends DockerLauncher
         $found[] = $name;
 
         return $found;
+    }
+
+    protected function wslVisibleDockerExes(): array
+    {
+        return $this->dockerExes;
     }
 
     protected function runLaunchCommand(array $command, int $timeout): bool

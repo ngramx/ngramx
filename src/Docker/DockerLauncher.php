@@ -188,9 +188,12 @@ class DockerLauncher
      * Docker Desktop install paths that are actually visible from this WSL
      * distro, in the order we should try them.
      *
+     * Overridable so tests need not depend on the host having Docker Desktop
+     * installed on a mounted Windows drive.
+     *
      * @return list<string> Windows-style paths
      */
-    private function wslVisibleDockerExes(): array
+    protected function wslVisibleDockerExes(): array
     {
         $exes = [];
         foreach (self::WINDOWS_DOCKER_PATHS as $exe) {
