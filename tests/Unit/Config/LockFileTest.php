@@ -226,4 +226,34 @@ class LockFileTest extends TestCase
         $this->assertNotNull($readData);
         $this->assertFalse($readData->caddyStopped);
     }
+    public function test_it_round_trips_the_advertised_url(): void
+    {
+        $data = new LockFileData(
+            namespace: 'ngramx-gig-2896-terrablock',
+            portOffset: 8300,
+            startedAt: '2025-11-08T10:30:00+00:00',
+            url: 'https://gig-2896-terrablock.localhost:8743',
+        );
+
+        $this->lockFile->write($data);
+        $readData = $this->lockFile->read();
+
+        $this->assertNotNull($readData);
+        $this->assertSame('https://gig-2896-terrablock.localhost:8743', $readData->url);
+    }
+
+    public function test_it_defaults_url_to_null_for_legacy_lock_files(): void
+    {
+        $legacyContent = json_encode([
+            'namespace' => null,
+            'port_offset' => 8300,
+            'started_at' => '2025-11-08T10:30:00+00:00',
+        ], JSON_PRETTY_PRINT);
+        file_put_contents($this->tempDir . '/.ngramx.lock', $legacyContent);
+
+        $readData = $this->lockFile->read();
+
+        $this->assertNotNull($readData);
+        $this->assertNull($readData->url);
+    }
 }

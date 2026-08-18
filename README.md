@@ -315,6 +315,27 @@ Shows a table with:
 - Running status (running/exited)
 - Health status (healthy/unhealthy/starting)
 
+### `ngramx show-url` (alias: `ngramx url`)
+
+Print the URL the current environment is reachable on — one plain line, ready to pipe:
+
+```bash
+ngramx show-url
+ngramx url            # same thing
+open "$(ngramx url)"
+```
+
+The URL follows the environment that is actually running:
+
+- The web port is found wherever it is published — including on a proxy service
+  (`nginx`, `caddy`) rather than the configured `primary_service` — and the port
+  offset or per-port remap recorded in `.ngramx.lock` is applied to it.
+- The port is omitted when it is the scheme's own default (`:80` for http,
+  `:443` for https), and printed otherwise.
+- Run from inside a worktree under `.ngramx/worktrees/`, it prints **that
+  worktree's** URL (its own `<ticket>.localhost` hostname where the app answers
+  to one, plus its offset port) rather than the shared canonical host.
+
 ### `ngramx shell`
 
 Open an interactive bash shell inside the primary service container:

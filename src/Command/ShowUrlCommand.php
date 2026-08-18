@@ -7,7 +7,9 @@ namespace Ngramx\Command;
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\Exception\ConfigException;
 use Ngramx\Config\LockFile;
+use Ngramx\Config\LockFileData;
 use Ngramx\Docker\PortOffsetManager;
+use Ngramx\Worktree\WorktreeUrlResolver;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -15,18 +17,26 @@ use Symfony\Component\Yaml\Yaml;
 
 class ShowUrlCommand extends Command
 {
+    private readonly WorktreeUrlResolver $worktreeUrlResolver;
+
     public function __construct(
         private readonly ConfigLoader $configLoader,
         private readonly LockFile $lockFile,
         private readonly PortOffsetManager $portOffsetManager,
+        ?WorktreeUrlResolver $worktreeUrlResolver = null,
     ) {
         parent::__construct();
+        // One quick baseline attempt: by the time anyone runs `show-url` the
+        // stack is up, so retrying a slow host only adds latency to what should
+        // be a one-line, pipeable answer.
+        $this->worktreeUrlResolver = $worktreeUrlResolver ?? new WorktreeUrlResolver(baselineAttempts: 1);
     }
 
     protected function configure(): void
     {
         $this
             ->setName('show-url')
+            ->setAliases(['url'])
             ->setDescription('Display the URL for the development environment');
     }
 
@@ -48,6 +58,15 @@ class ShowUrlCommand extends Command
                 $portOffset = $lockData->portOffset ?? 0;
             }
 
+            // A running environment records the URL it was advertised on. That
+            // is the authoritative answer — notably for worktrees, where the
+            // hostname was decided by probing the live app — so prefer it over
+            // anything we can re-derive from config.
+            if ($lockData !== null && $lockData->url !== null && $lockData->url !== '') {
+                $output->writeln($lockData->url);
+                return Command::SUCCESS;
+            }
+
             // When noHostMapping is enabled with a namespace, build internal Docker network URL
             if ($lockData !== null && $lockData->noHostMapping && $lockData->namespace !== null) {
                 $httpServiceInfo = $this->findHttpServiceInfo($config->docker->composeFile);
@@ -59,23 +78,17 @@ class ShowUrlCommand extends Command
                 }
             }
 
-            // Get the primary service's base port
-            $basePort = $this->portOffsetManager->getPrimaryServicePort(
-                $config->docker->composeFile,
-                $config->docker->primaryService
-            );
+            $url = $this->buildUrl($appUrl, $config, $lockData, $portOffset);
 
-            // Build the URL
-            if ($basePort !== null) {
-                // A targeted conflict remap recorded at `up` time takes
-                // precedence for its ports; the global offset covers the rest.
-                $portMap = $lockData->portMap ?? [];
-                $finalPort = $portMap[$basePort] ?? ($basePort + $portOffset);
-                // Parse URL and replace/add port
-                $url = $this->buildUrlWithPort($appUrl, $finalPort);
-            } else {
-                // No port exposed, use app_url as-is
-                $url = $appUrl;
+            // A worktree environment usually lives on its own
+            // "<folder>.localhost" origin, decided at `ngramx review` time by
+            // asking the running app whether it answers to that hostname. Older
+            // environments predate the URL being recorded in the lock file, so
+            // re-run the same decision here rather than printing the shared
+            // canonical host, which would point at the main checkout's stack.
+            $worktreeFolder = $this->worktreeFolderName(dirname($configPath));
+            if ($worktreeFolder !== null && $lockData !== null) {
+                $url = $this->worktreeUrlResolver->resolve($url, $worktreeFolder, 0);
             }
 
             // Output plain URL for easy piping
@@ -92,6 +105,107 @@ class ShowUrlCommand extends Command
     }
 
     /**
+     * Build the host-facing URL: the configured app URL with the host port the
+     * environment is actually listening on.
+     */
+    private function buildUrl(
+        string $appUrl,
+        \Ngramx\Config\Schema\NgramxConfig $config,
+        ?LockFileData $lockData,
+        int $portOffset
+    ): string {
+        $scheme = strtolower((string) (parse_url($appUrl, PHP_URL_SCHEME) ?: 'http'));
+        $defaultPort = $this->defaultPortForScheme($scheme);
+
+        $basePort = $this->resolveBasePort($appUrl, $config, $defaultPort);
+        if ($basePort === null) {
+            return $appUrl;
+        }
+
+        // A targeted conflict remap recorded at `up` time takes
+        // precedence for its ports; the global offset covers the rest.
+        $portMap = $lockData->portMap ?? [];
+        $finalPort = $portMap[$basePort] ?? ($basePort + $portOffset);
+
+        // https://host:443 is just https://host — printing the scheme's own
+        // default port back at the user is noise.
+        if ($finalPort === $defaultPort) {
+            return $this->buildUrlWithoutPort($appUrl);
+        }
+
+        return $this->buildUrlWithPort($appUrl, $finalPort);
+    }
+
+    /**
+     * Work out which host port the offset/remap should be applied to.
+     *
+     * Order of preference:
+     *   1. An explicit port in `docker.app_url` — the project said so.
+     *   2. The host port publishing the scheme's default container port
+     *      (443 for https, 80 for http), preferring the primary service but
+     *      accepting any service: the web port is often published by a proxy
+     *      container rather than by the app itself.
+     *   3. The primary service's first published port.
+     *   4. The scheme default, so an app behind a host-port-less proxy still
+     *      gets the offset applied.
+     */
+    private function resolveBasePort(
+        string $appUrl,
+        \Ngramx\Config\Schema\NgramxConfig $config,
+        ?int $defaultPort
+    ): ?int {
+        $explicitPort = parse_url($appUrl, PHP_URL_PORT);
+        if (is_int($explicitPort)) {
+            return $explicitPort;
+        }
+
+        if ($defaultPort !== null) {
+            $published = $this->portOffsetManager->findHostPortForInternalPort(
+                $config->docker->composeFile,
+                $defaultPort,
+                $config->docker->primaryService,
+            );
+
+            if ($published !== null) {
+                return $published;
+            }
+        }
+
+        $primaryPort = $this->portOffsetManager->getPrimaryServicePort(
+            $config->docker->composeFile,
+            $config->docker->primaryService
+        );
+
+        return $primaryPort ?? $defaultPort;
+    }
+
+    private function defaultPortForScheme(string $scheme): ?int
+    {
+        return match ($scheme) {
+            'http' => 80,
+            'https' => 443,
+            default => null,
+        };
+    }
+
+    /**
+     * Return the worktree folder name when $projectDir is a Ngramx worktree
+     * (`<repo>/.ngramx/worktrees/<folder>`), or null for a normal checkout.
+     */
+    private function worktreeFolderName(string $projectDir): ?string
+    {
+        $normalized = str_replace('\\', '/', rtrim($projectDir, '/\\'));
+
+        if (!str_contains($normalized, '/.ngramx/worktrees/')) {
+            return null;
+        }
+
+        $folder = basename($normalized);
+
+        return $folder !== '' ? $folder : null;
+    }
+
+    /**
      * Build URL with the specified port
      */
     private function buildUrlWithPort(string $baseUrl, int $port): string
@@ -103,6 +217,20 @@ class ShowUrlCommand extends Command
         $path = $parsed['path'] ?? '';
 
         return "{$scheme}://{$host}:{$port}{$path}";
+    }
+
+    /**
+     * Build URL without any port component
+     */
+    private function buildUrlWithoutPort(string $baseUrl): string
+    {
+        $parsed = parse_url($baseUrl);
+
+        $scheme = $parsed['scheme'] ?? 'http';
+        $host = $parsed['host'] ?? 'localhost';
+        $path = $parsed['path'] ?? '';
+
+        return "{$scheme}://{$host}{$path}";
     }
 
     /**

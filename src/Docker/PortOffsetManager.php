@@ -241,6 +241,107 @@ class PortOffsetManager
     }
 
     /**
+     * Find the host port that publishes a given container port, looking at
+     * $preferredService first and then at every other service.
+     *
+     * The web port is frequently published by a service other than the
+     * configured primary one (a Laravel stack routinely runs `app` for PHP-FPM
+     * and `nginx` for HTTP), so "the primary service's first port" is not a
+     * reliable way to find the port the app is reachable on.
+     *
+     * @return int|null The host port, or null when no service publishes
+     *         $internalPort
+     */
+    public function findHostPortForInternalPort(
+        string $composeFile,
+        int $internalPort,
+        ?string $preferredService = null
+    ): ?int {
+        $services = $this->readServices($composeFile);
+        if ($services === []) {
+            return null;
+        }
+
+        if ($preferredService !== null && isset($services[$preferredService])) {
+            $services = [$preferredService => $services[$preferredService]] + $services;
+        }
+
+        foreach ($services as $service) {
+            if (!is_array($service) || !isset($service['ports']) || !is_array($service['ports'])) {
+                continue;
+            }
+
+            foreach ($service['ports'] as $portMapping) {
+                if ($this->parseInternalPortMapping($portMapping) !== $internalPort) {
+                    continue;
+                }
+
+                $hostPort = $this->parsePortMapping($portMapping);
+                if ($hostPort !== null) {
+                    return $hostPort;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Parse the container-side port from a port mapping.
+     */
+    private function parseInternalPortMapping(mixed $portMapping): ?int
+    {
+        if (is_string($portMapping)) {
+            $parts = PortMapping::split($portMapping);
+
+            // "80" (same port both sides), "8080:80", "127.0.0.1:8080:80"
+            $container = $parts[count($parts) - 1] ?? null;
+            if ($container === null) {
+                return null;
+            }
+
+            // Drop any protocol suffix ("80/tcp").
+            $container = explode('/', $container)[0];
+
+            return PortMapping::hostPortNumber($container);
+        }
+
+        if (is_array($portMapping)) {
+            return isset($portMapping['target']) ? (int) $portMapping['target'] : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Read the `services` block of a compose file, or [] when unreadable.
+     *
+     * @return array<string, mixed>
+     */
+    private function readServices(string $composeFile): array
+    {
+        if (!file_exists($composeFile)) {
+            return [];
+        }
+
+        $content = file_get_contents($composeFile);
+        if ($content === false) {
+            return [];
+        }
+
+        $config = Yaml::parse($content);
+
+        if (!is_array($config) || !isset($config['services']) || !is_array($config['services'])) {
+            return [];
+        }
+
+        /** @var array<string, mixed> $services */
+        $services = $config['services'];
+
+        return $services;
+    }
+
+    /**
      * Get the host port for a specific service
      *
      * @return int|null The host port or null if no port exposed

@@ -61,6 +61,7 @@ class LockFile
             herdStopped: $data['herd_stopped'] ?? false,
             caddyStopped: $data['caddy_stopped'] ?? false,
             portMap: $portMap,
+            url: $data['url'] ?? null,
         );
     }
 
@@ -77,6 +78,7 @@ class LockFile
             'herd_stopped' => $data->herdStopped,
             'caddy_stopped' => $data->caddyStopped,
             'port_map' => $data->portMap === [] ? null : $data->portMap,
+            'url' => $data->url,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         file_put_contents($this->getLockFilePath(), $content);

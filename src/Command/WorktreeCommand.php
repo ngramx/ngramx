@@ -458,6 +458,12 @@ class WorktreeCommand extends ReviewCommand
             return null;
         }
 
+        // `review` records the URL it advertised (including the probed
+        // "<folder>.localhost" hostname); prefer it over re-deriving.
+        if ($data->url !== null && $data->url !== '') {
+            return $data->url;
+        }
+
         $url = UrlPortOffset::apply($appUrl, $data->portOffset ?? 0);
 
         return UrlPortOffset::applyMap($url, $data->portMap);

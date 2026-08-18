@@ -13,6 +13,7 @@ use Ngramx\Config\Schema\N8nConfig;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Schema\SetupConfig;
 use Ngramx\Docker\PortOffsetManager;
+use Ngramx\Worktree\WorktreeUrlResolver;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
@@ -21,12 +22,14 @@ class ShowUrlCommandTest extends TestCase
     private ConfigLoader $configLoader;
     private LockFile $lockFile;
     private PortOffsetManager $portOffsetManager;
+    private WorktreeUrlResolver $worktreeUrlResolver;
 
     protected function setUp(): void
     {
         $this->configLoader = $this->createMock(ConfigLoader::class);
         $this->lockFile = $this->createMock(LockFile::class);
         $this->portOffsetManager = $this->createMock(PortOffsetManager::class);
+        $this->worktreeUrlResolver = $this->createMock(WorktreeUrlResolver::class);
     }
 
     public function test_command_is_configured_correctly(): void
@@ -34,6 +37,7 @@ class ShowUrlCommandTest extends TestCase
         $command = $this->createCommand();
 
         $this->assertSame('show-url', $command->getName());
+        $this->assertSame(['url'], $command->getAliases());
         $this->assertSame('Display the URL for the development environment', $command->getDescription());
     }
 
@@ -63,7 +67,8 @@ class ShowUrlCommandTest extends TestCase
         $exitCode = $tester->execute([]);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame("http://localhost:80\n", $tester->getDisplay());
+        // Port 80 is http's own default — printing it back is noise.
+        $this->assertSame("http://localhost\n", $tester->getDisplay());
     }
 
     public function test_it_applies_port_offset_from_lock_file(): void
@@ -157,7 +162,7 @@ class ShowUrlCommandTest extends TestCase
         $exitCode = $tester->execute([]);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame("http://localhost:80\n", $tester->getDisplay());
+        $this->assertSame("http://localhost\n", $tester->getDisplay());
     }
 
     public function test_it_outputs_app_url_when_no_port_exposed(): void
@@ -293,12 +298,145 @@ YAML
         $this->assertSame("http://localhost\n", $tester->getDisplay());
     }
 
+    public function test_it_uses_the_web_port_published_by_a_non_primary_service(): void
+    {
+        // A Laravel-style stack: `app` runs PHP-FPM and publishes nothing,
+        // while `nginx` publishes the web ports. Asking the primary service for
+        // "its" port finds nothing, so the offset used to be dropped entirely
+        // and the raw app_url was printed.
+        $config = $this->createMockConfig('https://terrablock.localhost');
+
+        $lockData = new LockFileData(
+            namespace: 'ngramx-gig-2896-terrablock',
+            portOffset: 8300,
+            startedAt: '2025-01-07T10:00:00+00:00',
+        );
+
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn('/path/to/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+        $this->lockFile->expects($this->any())->method('exists')->willReturn(true);
+        $this->lockFile->expects($this->any())->method('read')->willReturn($lockData);
+
+        $this->portOffsetManager->expects($this->once())
+            ->method('findHostPortForInternalPort')
+            ->with('docker-compose.yml', 443, 'app')
+            ->willReturn(443);
+
+        $this->portOffsetManager->expects($this->never())
+            ->method('getPrimaryServicePort');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame("https://terrablock.localhost:8743\n", $tester->getDisplay());
+    }
+
+    public function test_it_applies_the_offset_to_an_explicit_port_in_the_app_url(): void
+    {
+        $config = $this->createMockConfig('http://dev.hydra:8080');
+
+        $lockData = new LockFileData(
+            namespace: null,
+            portOffset: 1000,
+            startedAt: '2025-01-07T10:00:00+00:00',
+        );
+
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn('/path/to/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+        $this->lockFile->expects($this->any())->method('exists')->willReturn(true);
+        $this->lockFile->expects($this->any())->method('read')->willReturn($lockData);
+
+        $this->portOffsetManager->expects($this->never())->method('findHostPortForInternalPort');
+        $this->portOffsetManager->expects($this->never())->method('getPrimaryServicePort');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame("http://dev.hydra:9080\n", $tester->getDisplay());
+    }
+
+    public function test_it_prefers_the_url_recorded_in_the_lock_file(): void
+    {
+        $config = $this->createMockConfig('https://terrablock.localhost');
+
+        $lockData = new LockFileData(
+            namespace: 'ngramx-gig-2896-terrablock',
+            portOffset: 8300,
+            startedAt: '2025-01-07T10:00:00+00:00',
+            url: 'https://gig-2896-terrablock.localhost:8743',
+        );
+
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn('/path/to/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+        $this->lockFile->expects($this->any())->method('exists')->willReturn(true);
+        $this->lockFile->expects($this->any())->method('read')->willReturn($lockData);
+
+        $this->portOffsetManager->expects($this->never())->method('findHostPortForInternalPort');
+        $this->worktreeUrlResolver->expects($this->never())->method('resolve');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame("https://gig-2896-terrablock.localhost:8743\n", $tester->getDisplay());
+    }
+
+    public function test_it_resolves_the_worktree_hostname_when_run_inside_a_worktree(): void
+    {
+        $config = $this->createMockConfig('https://terrablock.localhost');
+
+        $lockData = new LockFileData(
+            namespace: 'ngramx-gig-2896-terrablock',
+            portOffset: 8300,
+            startedAt: '2025-01-07T10:00:00+00:00',
+        );
+
+        $this->configLoader->expects($this->any())->method('findConfigFile')
+            ->willReturn('/repo/.ngramx/worktrees/gig-2896-terrablock/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+        $this->lockFile->expects($this->any())->method('exists')->willReturn(true);
+        $this->lockFile->expects($this->any())->method('read')->willReturn($lockData);
+        $this->portOffsetManager->expects($this->any())->method('findHostPortForInternalPort')->willReturn(443);
+
+        $this->worktreeUrlResolver->expects($this->once())
+            ->method('resolve')
+            ->with('https://terrablock.localhost:8743', 'gig-2896-terrablock', 0)
+            ->willReturn('https://gig-2896-terrablock.localhost:8743');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame("https://gig-2896-terrablock.localhost:8743\n", $tester->getDisplay());
+    }
+
+    public function test_it_does_not_resolve_a_worktree_hostname_in_a_normal_checkout(): void
+    {
+        $config = $this->createMockConfig('https://terrablock.localhost');
+
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn('/repo/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+        $this->lockFile->expects($this->any())->method('exists')->willReturn(false);
+        $this->portOffsetManager->expects($this->any())->method('findHostPortForInternalPort')->willReturn(443);
+
+        $this->worktreeUrlResolver->expects($this->never())->method('resolve');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame("https://terrablock.localhost\n", $tester->getDisplay());
+    }
+
     private function createCommand(): ShowUrlCommand
     {
         return new ShowUrlCommand(
             $this->configLoader,
             $this->lockFile,
-            $this->portOffsetManager
+            $this->portOffsetManager,
+            $this->worktreeUrlResolver
         );
     }
 

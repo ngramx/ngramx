@@ -8,6 +8,7 @@ use Exception;
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\Exception\ConfigException;
 use Ngramx\Config\LockFile;
+use Ngramx\Config\LockFileData;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Validator\SecretsValidator;
 use Ngramx\Docker\DockerCompose;
@@ -502,6 +503,12 @@ class ReviewCommand extends Command
                 $this->seedWorktreeEnv($repositoryPath, $worktreePath, $worktreeUrl, $formatter);
             }
 
+            // Record the decision in the lock file. The hostname half of it was
+            // decided by probing the live app, so nothing downstream (notably
+            // `ngramx show-url`, run from inside the worktree) can re-derive it
+            // from config alone.
+            $this->recordWorktreeUrl($worktreeLock, $worktreeUrl);
+
             // The reset/install step is the first thing that reads vendor and
             // node_modules, so the priming copies must have landed by now.
             $this->dependencyPrimer->await($formatter);
@@ -552,6 +559,30 @@ class ReviewCommand extends Command
         $output->writeln('');
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Persist the URL a worktree environment is advertised on into its lock
+     * file, leaving every other field untouched. Best effort: an unreadable
+     * lock just means `show-url` falls back to deriving the URL itself.
+     */
+    private function recordWorktreeUrl(LockFile $lock, string $url): void
+    {
+        $data = $lock->read();
+        if ($data === null || $data->url === $url) {
+            return;
+        }
+
+        $lock->write(new LockFileData(
+            namespace: $data->namespace,
+            portOffset: $data->portOffset,
+            startedAt: $data->startedAt,
+            noHostMapping: $data->noHostMapping,
+            herdStopped: $data->herdStopped,
+            caddyStopped: $data->caddyStopped,
+            portMap: $data->portMap,
+            url: $url,
+        ));
     }
 
     /**

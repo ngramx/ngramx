@@ -244,4 +244,46 @@ class PortOffsetManagerTest extends TestCase
         file_put_contents($filename, $yaml);
         return $filename;
     }
+    public function test_it_finds_the_host_port_publishing_a_container_port_on_any_service(): void
+    {
+        $composeFile = $this->tempDir . '/docker-compose.yml';
+        file_put_contents($composeFile, <<<YAML
+        services:
+          app:
+            image: php:8.3
+          nginx:
+            ports:
+              - "\${TB_WEB_PORT:-80}:80"
+              - "\${TB_SSL_PORT:-443}:443"
+          db:
+            ports:
+              - "15432:5432"
+        YAML);
+
+        $manager = new PortOffsetManager();
+
+        $this->assertSame(443, $manager->findHostPortForInternalPort($composeFile, 443, 'app'));
+        $this->assertSame(80, $manager->findHostPortForInternalPort($composeFile, 80, 'app'));
+        $this->assertSame(15432, $manager->findHostPortForInternalPort($composeFile, 5432));
+        $this->assertNull($manager->findHostPortForInternalPort($composeFile, 9999));
+    }
+
+    public function test_it_prefers_the_preferred_service_when_several_publish_the_same_port(): void
+    {
+        $composeFile = $this->tempDir . '/docker-compose.yml';
+        file_put_contents($composeFile, <<<YAML
+        services:
+          nginx:
+            ports:
+              - "8080:80"
+          app:
+            ports:
+              - "9090:80"
+        YAML);
+
+        $manager = new PortOffsetManager();
+
+        $this->assertSame(9090, $manager->findHostPortForInternalPort($composeFile, 80, 'app'));
+        $this->assertSame(8080, $manager->findHostPortForInternalPort($composeFile, 80));
+    }
 }
