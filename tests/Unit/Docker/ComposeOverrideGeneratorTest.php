@@ -777,6 +777,76 @@ class ComposeOverrideGeneratorTest extends TestCase
         return $parsed;
     }
 
+    public function test_it_bakes_a_build_fingerprint_into_services_built_from_source(): void
+    {
+        file_put_contents($this->tempDir . '/Dockerfile', "FROM php:8.4-fpm\n");
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'app' => ['build' => ['context' => '.']],
+            ],
+        ]);
+
+        $this->generator->generate($composeFile, 0, null);
+
+        $override = $this->parseOverride();
+        $labels = $override['services']['app']['build']['labels'];
+
+        $this->assertSame(
+            hash('sha256', "FROM php:8.4-fpm\n"),
+            $labels[\Ngramx\Docker\BuildFingerprint::LABEL_DOCKERFILE_SHA]
+        );
+        $this->assertSame('php:8.4-fpm', $labels[\Ngramx\Docker\BuildFingerprint::LABEL_FROM]);
+    }
+
+    public function test_it_preserves_the_context_for_the_short_form_build(): void
+    {
+        file_put_contents($this->tempDir . '/Dockerfile', "FROM php:8.4-fpm\n");
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'app' => ['build' => '.'],
+            ],
+        ]);
+
+        $this->generator->generate($composeFile, 0, null);
+
+        $override = $this->parseOverride();
+
+        // Compose cannot merge a scalar `build:` with a mapping, so the context
+        // has to be restated or it would be lost.
+        $this->assertSame('.', $override['services']['app']['build']['context']);
+    }
+
+    public function test_it_does_not_generate_an_override_when_no_dockerfile_exists(): void
+    {
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'app' => ['build' => ['context' => '.']],
+            ],
+        ]);
+
+        $this->generator->generate($composeFile, 0, null);
+
+        $this->assertFileDoesNotExist($this->tempDir . '/docker-compose.override.yml');
+    }
+
+    public function test_it_does_not_fingerprint_image_only_services(): void
+    {
+        file_put_contents($this->tempDir . '/Dockerfile', "FROM php:8.4-fpm\n");
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'app' => ['build' => ['context' => '.']],
+                'redis' => ['image' => 'redis:alpine'],
+            ],
+        ]);
+
+        $this->generator->generate($composeFile, 0, null);
+
+        $override = $this->parseOverride();
+
+        $this->assertArrayHasKey('app', $override['services']);
+        $this->assertArrayNotHasKey('redis', $override['services']);
+    }
+
     /**
      * @param array<string, mixed> $content
      */

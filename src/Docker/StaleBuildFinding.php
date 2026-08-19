@@ -12,6 +12,8 @@ readonly class StaleBuildFinding
     public const REASON_ENTRYPOINT_CHANGED = 'entrypoint-changed';
     public const REASON_STARTUP_SCRIPT_CHANGED = 'startup-script-changed';
     public const REASON_COMPOSE_NEWER_THAN_IMAGE = 'compose-newer-than-image';
+    public const REASON_DOCKERFILE_CHANGED = 'dockerfile-changed';
+    public const REASON_BASE_IMAGE_CHANGED = 'base-image-changed';
 
     public function __construct(
         public string $service,
@@ -21,6 +23,10 @@ readonly class StaleBuildFinding
         public ?string $imagePath = null,
         /** @var list<string> */
         public array $composeInputPaths = [],
+        /** The `FROM` reference baked into the existing image, when known. */
+        public ?string $previousFrom = null,
+        /** The `FROM` reference the Dockerfile names now, when known. */
+        public ?string $currentFrom = null,
     ) {
     }
 
@@ -43,6 +49,18 @@ readonly class StaleBuildFinding
                 'The `%s` image was built before the compose stack was last changed (%s).',
                 $this->service,
                 $this->describeComposeInputs()
+            ),
+            self::REASON_BASE_IMAGE_CHANGED => sprintf(
+                'The `%s` image was built from `%s`, but `%s` now specifies `%s`.',
+                $this->service,
+                $this->previousFrom ?? 'a different base image',
+                $this->relativeHostPath(),
+                $this->currentFrom ?? 'another base image'
+            ),
+            self::REASON_DOCKERFILE_CHANGED => sprintf(
+                'The `%s` image was built from an older `%s`.',
+                $this->service,
+                $this->relativeHostPath()
             ),
             default => sprintf(
                 'The `%s` image may be stale relative to `%s`.',

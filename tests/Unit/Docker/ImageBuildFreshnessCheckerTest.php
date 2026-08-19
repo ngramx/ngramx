@@ -62,6 +62,56 @@ class ImageBuildFreshnessCheckerTest extends TestCase
         $this->assertStringContainsString('ngramx rebuild', $message);
     }
 
+    public function test_it_names_the_old_and_new_base_image_in_the_advisory(): void
+    {
+        $checker = new ImageBuildFreshnessChecker();
+        $message = $checker->formatAdvisory([
+            new StaleBuildFinding(
+                service: 'app',
+                image: 'terrablock-app',
+                reason: StaleBuildFinding::REASON_BASE_IMAGE_CHANGED,
+                hostPath: '/repo/Dockerfile',
+                previousFrom: 'php:8.3-fpm',
+                currentFrom: 'php:8.4-fpm',
+            ),
+        ]);
+
+        $this->assertStringContainsString('php:8.3-fpm', $message);
+        $this->assertStringContainsString('php:8.4-fpm', $message);
+        $this->assertStringContainsString('ngramx rebuild', $message);
+    }
+
+    public function test_it_reports_a_changed_dockerfile(): void
+    {
+        $checker = new ImageBuildFreshnessChecker();
+        $message = $checker->formatAdvisory([
+            new StaleBuildFinding(
+                service: 'app',
+                image: 'terrablock-app',
+                reason: StaleBuildFinding::REASON_DOCKERFILE_CHANGED,
+                hostPath: '/repo/Dockerfile',
+            ),
+        ]);
+
+        $this->assertStringContainsString('older `Dockerfile`', $message);
+        $this->assertStringContainsString('ngramx rebuild', $message);
+    }
+
+    public function test_it_reports_no_findings_for_an_image_without_a_fingerprint(): void
+    {
+        // Images built before this check existed carry no fingerprint label.
+        // They must stay silent rather than flagging every existing install.
+        file_put_contents($this->tmpDir . '/Dockerfile', "FROM php:8.4-fpm\n");
+        $composeFile = $this->tmpDir . '/docker-compose.yml';
+        file_put_contents($composeFile, "services:\n  app:\n    build:\n      context: .\n");
+
+        $checker = new ImageBuildFreshnessChecker();
+
+        // No such image exists locally, so there is nothing to compare against
+        // and nothing should be reported.
+        $this->assertSame([], $checker->findStaleBuildInputs($composeFile, 'ngramx-nonexistent-project'));
+    }
+
     private function removeDirectory(string $dir): void
     {
         if (!is_dir($dir)) {

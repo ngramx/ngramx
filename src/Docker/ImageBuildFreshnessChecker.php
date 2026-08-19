@@ -19,6 +19,7 @@ class ImageBuildFreshnessChecker
 {
     public function __construct(
         private readonly DockerfileBuildContextParser $dockerfileParser = new DockerfileBuildContextParser(),
+        private readonly BuildFingerprint $fingerprint = new BuildFingerprint(),
     ) {
     }
 
@@ -37,6 +38,11 @@ class ImageBuildFreshnessChecker
             $image = $projectName . '-' . $service;
             if (!$this->imageExists($image)) {
                 continue;
+            }
+
+            $fingerprintFinding = $this->fingerprintFinding($composeFile, $service, $image);
+            if ($fingerprintFinding !== null) {
+                $findings[] = $fingerprintFinding;
             }
 
             foreach ($this->scriptsToCompare($composeFile, $service) as $script) {
@@ -117,6 +123,92 @@ class ImageBuildFreshnessChecker
     }
 
     /**
+     * Compare the Dockerfile fingerprint baked into the image against the
+     * Dockerfile on disk.
+     *
+     * Returns null — deliberately, not a finding — when the image carries no
+     * fingerprint label. Images built before this check existed, or built
+     * outside Ngramx, simply have nothing to compare; reporting them as stale
+     * would flag every pre-existing installation on first upgrade. They pick up
+     * a fingerprint on their next rebuild.
+     */
+    private function fingerprintFinding(string $composeFile, string $serviceName, string $image): ?StaleBuildFinding
+    {
+        $service = $this->serviceConfig($composeFile, $serviceName);
+        if ($service === null) {
+            return null;
+        }
+
+        $dockerfilePath = $this->fingerprint->dockerfilePathFor($composeFile, $service);
+        if ($dockerfilePath === null) {
+            return null;
+        }
+
+        $labels = $this->readLabelsFromImage($image);
+        $bakedSha = $labels[BuildFingerprint::LABEL_DOCKERFILE_SHA] ?? null;
+        if (!is_string($bakedSha) || $bakedSha === '') {
+            return null;
+        }
+
+        $currentSha = $this->fingerprint->dockerfileSha($dockerfilePath);
+        if ($currentSha === null || hash_equals($bakedSha, $currentSha)) {
+            return null;
+        }
+
+        // The Dockerfile changed. Prefer the sharper "base image changed"
+        // message when the `FROM` line is what moved, since that is the case
+        // whose downstream symptoms are least recognisable.
+        $bakedFrom = $labels[BuildFingerprint::LABEL_FROM] ?? null;
+        $currentFrom = implode(',', $this->fingerprint->fromReferences($dockerfilePath));
+
+        if (is_string($bakedFrom) && $bakedFrom !== '' && $currentFrom !== '' && $bakedFrom !== $currentFrom) {
+            return new StaleBuildFinding(
+                service: $serviceName,
+                image: $image,
+                reason: StaleBuildFinding::REASON_BASE_IMAGE_CHANGED,
+                hostPath: $dockerfilePath,
+                previousFrom: $bakedFrom,
+                currentFrom: $currentFrom,
+            );
+        }
+
+        return new StaleBuildFinding(
+            service: $serviceName,
+            image: $image,
+            reason: StaleBuildFinding::REASON_DOCKERFILE_CHANGED,
+            hostPath: $dockerfilePath,
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function readLabelsFromImage(string $image): array
+    {
+        $process = new Process(['docker', 'image', 'inspect', $image, '--format', '{{json .Config.Labels}}']);
+        $process->setTimeout(30);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            return [];
+        }
+
+        $decoded = json_decode(trim($process->getOutput()), true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $labels = [];
+        foreach ($decoded as $key => $value) {
+            if (is_string($key) && is_string($value)) {
+                $labels[$key] = $value;
+            }
+        }
+
+        return $labels;
+    }
+
+    /**
      * @return list<array{host: string, image: string}>
      */
     private function scriptsToCompare(string $composeFile, string $serviceName): array
@@ -179,29 +271,7 @@ class ImageBuildFreshnessChecker
      */
     private function resolveDockerfilePath(string $composeFile, array $service): ?string
     {
-        if (!isset($service['build'])) {
-            return null;
-        }
-
-        $projectDir = dirname($composeFile);
-        $build = $service['build'];
-        $context = is_array($build) ? ($build['context'] ?? '.') : '.';
-        if (!is_string($context)) {
-            $context = '.';
-        }
-
-        if (!str_starts_with($context, '/')) {
-            $context = rtrim($projectDir, '/') . '/' . ltrim($context, './');
-        }
-
-        $dockerfile = 'Dockerfile';
-        if (is_array($build) && isset($build['dockerfile']) && is_string($build['dockerfile'])) {
-            $dockerfile = $build['dockerfile'];
-        }
-
-        $path = rtrim($context, '/') . '/' . ltrim($dockerfile, '/');
-
-        return is_file($path) ? $path : null;
+        return $this->fingerprint->dockerfilePathFor($composeFile, $service);
     }
 
     /**

@@ -10,13 +10,21 @@ use Symfony\Component\Yaml\Yaml;
 /**
  * Generates the Ngramx-managed docker-compose override file.
  *
- * The override carries three kinds of machine-generated changes, all of which
+ * The override carries four kinds of machine-generated changes, all of which
  * are re-derived from scratch on every run (so the file is safe to overwrite):
  *
  *   - port offsets, to avoid host port collisions between parallel stacks;
  *   - container-name prefixes, for namespace isolation;
  *   - a worktree git bind mount, so git resolves inside containers when the
- *     stack runs from a linked git worktree (see {@see WorktreeGitMount}).
+ *     stack runs from a linked git worktree (see {@see WorktreeGitMount});
+ *   - build fingerprint labels on services built from source, so a later run
+ *     can tell a cached image predates a Dockerfile change (see
+ *     {@see BuildFingerprint}).
+ *
+ * The fingerprint applies to any project with a buildable service, so the
+ * override is now written for most stacks rather than only those needing a
+ * port offset or namespace. It stays gitignored, regenerated on every run and
+ * removed by `ngramx down`.
  *
  * User customisations must NOT go in this file — they belong in
  * `docker-compose.user.yml`, which Ngramx layers last and never regenerates
@@ -36,9 +44,12 @@ YAML;
 
     private readonly WorktreeGitMount $gitMount;
 
-    public function __construct(?WorktreeGitMount $gitMount = null)
+    private readonly BuildFingerprint $fingerprint;
+
+    public function __construct(?WorktreeGitMount $gitMount = null, ?BuildFingerprint $fingerprint = null)
     {
         $this->gitMount = $gitMount ?? new WorktreeGitMount();
+        $this->fingerprint = $fingerprint ?? new BuildFingerprint();
     }
 
     /**
@@ -58,7 +69,13 @@ YAML;
         // metadata next to the compose file.
         $gitCommonDir = $this->gitMount->resolve($this->projectDir($composeFile));
 
-        if ($portOffset === 0 && $namespacePrefix === null && !$noHostMapping && $gitCommonDir === null && $portMap === []) {
+        // Services built from source always get a build fingerprint, so the
+        // override is worth writing even when nothing else applies. The helper
+        // reports false for a missing or unparseable compose file, preserving
+        // the historic "return quietly" behaviour for those.
+        $needsFingerprint = $this->hasFingerprintableServices($composeFile);
+
+        if ($portOffset === 0 && $namespacePrefix === null && !$noHostMapping && $gitCommonDir === null && $portMap === [] && !$needsFingerprint) {
             // No override needed
             return;
         }
@@ -128,6 +145,14 @@ YAML;
                 $serviceOverride['environment'] = $this->gitSafeDirectoryEnv();
             }
 
+            // Bake the Dockerfile fingerprint into images we build, so a later
+            // run can detect that a cached image predates a Dockerfile change
+            // (see {@see BuildFingerprint}).
+            $buildOverride = $this->buildFingerprintOverride($composeFile, $service);
+            if ($buildOverride !== null) {
+                $serviceOverride['build'] = $buildOverride;
+            }
+
             if (!empty($serviceOverride)) {
                 $override['services'][$serviceName] = $serviceOverride;
             }
@@ -161,6 +186,79 @@ YAML;
     private function buildsFromSource($service): bool
     {
         return is_array($service) && isset($service['build']);
+    }
+
+    /**
+     * The `build:` fragment carrying this service's fingerprint labels, or null
+     * when the service is not built from source or its Dockerfile cannot be
+     * read.
+     *
+     * When the base file uses the `build: <context>` short form we re-emit the
+     * context explicitly, because Compose cannot merge a scalar with a mapping
+     * and would otherwise lose it.
+     *
+     * @param mixed $service
+     * @return array<string, mixed>|null
+     */
+    private function buildFingerprintOverride(string $composeFile, $service): ?array
+    {
+        if (!$this->buildsFromSource($service)) {
+            return null;
+        }
+
+        /** @var array<string, mixed> $service */
+        $dockerfilePath = $this->fingerprint->dockerfilePathFor($composeFile, $service);
+        if ($dockerfilePath === null) {
+            return null;
+        }
+
+        $labels = $this->fingerprint->labelsFor($dockerfilePath);
+        if ($labels === []) {
+            return null;
+        }
+
+        $build = ['labels' => $labels];
+
+        if (is_string($service['build'])) {
+            $build['context'] = $service['build'];
+        }
+
+        return $build;
+    }
+
+    /**
+     * Whether any service in the compose file builds from source and has a
+     * readable Dockerfile to fingerprint. False for a missing or unparseable
+     * compose file, so callers keep their previous no-op behaviour.
+     */
+    private function hasFingerprintableServices(string $composeFile): bool
+    {
+        if (!file_exists($composeFile)) {
+            return false;
+        }
+
+        $content = file_get_contents($composeFile);
+        if ($content === false) {
+            return false;
+        }
+
+        try {
+            $config = Yaml::parse($content);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        if (!is_array($config) || !isset($config['services']) || !is_array($config['services'])) {
+            return false;
+        }
+
+        foreach ($config['services'] as $service) {
+            if ($this->buildFingerprintOverride($composeFile, $service) !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
