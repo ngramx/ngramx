@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.37.1](https://github.com/ngramx/ngramx/compare/v2.37.0...v2.37.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **docker:** detect stale images when the Dockerfile changes ([f50c0ce](https://github.com/ngramx/ngramx/commit/f50c0ced57f47f9620193911dce33594394fbf38))
+
 # [2.37.0](https://github.com/ngramx/ngramx/compare/v2.36.0...v2.37.0) (2026-08-18)
 
 
