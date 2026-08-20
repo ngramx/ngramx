@@ -17,7 +17,7 @@ final class S3Credentials
 {
     public const EXAMPLE_KEY_REF = 'op://Tech Team Vault/ngramx-db-backup-read-access/username';
 
-    public const EXAMPLE_SECRET_REF = 'op://Tech Team Vault/ngramx-db-backup-read-access/credential';
+    public const EXAMPLE_SECRET_REF = 'op://Tech Team Vault/ngramx-db-backup-read-access/password';
 
     public const OP_INSTALL_URL = 'https://developer.1password.com/docs/cli/get-started/';
 

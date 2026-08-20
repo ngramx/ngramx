@@ -459,7 +459,7 @@ ngramx postmaclone produce --dataset earl-kendrick
 
 #### Large DBs: factory produce + consumer prebuilt
 
-Downloading and anonymizing multi‑GB Forge dumps on every laptop is untenable. Use a **factory repo** with `postmaclone.yml` (see `postmaclone.example.yml`) and a scheduled container job in the **same DO region** as Spaces + scratch Postgres:
+Downloading and anonymizing multi‑GB Forge dumps on every laptop is untenable. Use the dedicated **[postmaclone-factory](https://github.com/ngramx/postmaclone-factory)** repo (`postmaclone.yml`, not an app checkout) and a scheduled container job in the **same DO region** as Spaces + scratch Postgres:
 
 1. Job: `ngramx postmaclone produce --all` — pull prod dump → restore scratch → anonymize → dump (optional `include_tables` / `exclude_tables`) → upload to a **separate anonymized bucket** + `latest.json`
 2. App `ngramx.yml`: thin `postmaclone.prebuilt` (+ `target`) — consumer downloads a copy, restores, **skips anonymize**
@@ -479,7 +479,7 @@ postmaclone:
     endpoint: "https://lon1.digitaloceanspaces.com"
     credentials:
       key: "op://Tech Team Vault/ngramx-anon-backup-read/username"
-      secret: "op://Tech Team Vault/ngramx-anon-backup-read/credential"
+      secret: "op://Tech Team Vault/ngramx-anon-backup-read/password"
   target:
     provider: auto
     ttl_hours: 4
@@ -504,7 +504,7 @@ postmaclone:
     # 1Password secret references (safe to commit — not the raw key)
     credentials:
       key: "op://Tech Team Vault/ngramx-db-backup-read-access/username"
-      secret: "op://Tech Team Vault/ngramx-db-backup-read-access/credential"
+      secret: "op://Tech Team Vault/ngramx-db-backup-read-access/password"
   target:
     provider: auto
     ttl_hours: 4

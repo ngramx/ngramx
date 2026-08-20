@@ -115,7 +115,7 @@ class PostmacloneConfigValidationTest extends TestCase
                 'backup' => [
                     'credentials' => [
                         'key' => 'op://Tech Team Vault/ngramx-db-backup-read-access/username',
-                        'secret' => 'op://Tech Team Vault/ngramx-db-backup-read-access/credential',
+                        'secret' => 'op://Tech Team Vault/ngramx-db-backup-read-access/password',
                     ],
                 ],
             ],

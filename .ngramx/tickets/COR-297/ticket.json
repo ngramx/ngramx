@@ -1,0 +1,18 @@
+{
+  "id": "COR-297",
+  "title": "Schedule Nightly Postmaclone Factory Produce For Anonymized Artifacts",
+  "url": "https://linear.app/gigabyte/issue/COR-297/schedule-nightly-postmaclone-factory-produce-for-anonymized-artifacts",
+  "gitBranchName": "cor-297-schedule-nightly-postmaclone-factory-produce-for-anonymized",
+  "status": "In Progress",
+  "priority": "Medium",
+  "estimate": "4 Points",
+  "team": "Cortex",
+  "project": "Coding Agent",
+  "milestone": "Safe Production Data Access",
+  "assignee": "Wilkie Hoare",
+  "createdAt": "2026-08-14T11:32:59.464Z",
+  "blockedBy": [],
+  "blocks": ["COR-274"],
+  "relatedTo": ["COR-169"],
+  "description": "Scheduled in-region factory job that runs ngramx postmaclone produce for Hydra (59GB) then Earl Kendrick, publishing anonymized artifacts plus latest.json to a separate Spaces bucket."
+}

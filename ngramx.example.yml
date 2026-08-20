@@ -120,11 +120,11 @@ commands:
 #     # path: "spaces://weathered-brook-object-storage/database-backups/all/"
 #     # file: "earl_kendrick_prod.sql.gz"
 #     # Or: path: "spaces://…/database-backups/all/*/earl_kendrick_prod.sql.gz"
-#     # region: ams3
-#     # endpoint: "https://ams3.digitaloceanspaces.com"
+#     # region: lon1
+#     # endpoint: "https://lon1.digitaloceanspaces.com"
 #     # credentials:
 #     #   key: "op://Tech Team Vault/ngramx-db-backup-read-access/username"
-#     #   secret: "op://Tech Team Vault/ngramx-db-backup-read-access/credential"
+#     #   secret: "op://Tech Team Vault/ngramx-db-backup-read-access/password"
 #     # (prod roles/ACLs are stripped on restore — no backup.roles needed)
 #
 #   # Prefer a nightly factory prebuilt for multi‑GB DBs (restore-only; no local anonymize).
@@ -139,7 +139,7 @@ commands:
 #   #   endpoint: "https://lon1.digitaloceanspaces.com"
 #   #   credentials:
 #   #     key: "op://Tech Team Vault/ngramx-anon-backup-read/username"
-#   #     secret: "op://Tech Team Vault/ngramx-anon-backup-read/credential"
+#   #     secret: "op://Tech Team Vault/ngramx-anon-backup-read/password"
 #
 #   target:
 #     provider: auto              # neon | docker | remote | auto (Postgres: Neon if NEON_API_KEY is set, else Docker)
