@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.38.0](https://github.com/ngramx/ngramx/compare/v2.37.2...v2.38.0) (2026-08-21)
+
+
+### Bug Fixes
+
+* shell-escape hook context values on command interpolation ([949fdc8](https://github.com/ngramx/ngramx/commit/949fdc8b7488ff5e158a391e344683cda213db38))
+
+
+### Features
+
+* add user/project event hooks for worktree and up ([a9897cf](https://github.com/ngramx/ngramx/commit/a9897cf4c99738faf08a53f0071fd94f86868915))
+
 ## [2.37.2](https://github.com/ngramx/ngramx/compare/v2.37.1...v2.37.2) (2026-08-20)
 
 ## [2.37.1](https://github.com/ngramx/ngramx/compare/v2.37.0...v2.37.1) (2026-08-19)
