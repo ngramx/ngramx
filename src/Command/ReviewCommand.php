@@ -7,8 +7,10 @@ namespace Ngramx\Command;
 use Exception;
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\HooksConfigLoader;
 use Ngramx\Config\LockFile;
 use Ngramx\Config\LockFileData;
+use Ngramx\Config\Schema\HookEvent;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Validator\SecretsValidator;
 use Ngramx\Docker\DockerCompose;
@@ -17,6 +19,7 @@ use Ngramx\Docker\NamespaceResolver;
 use Ngramx\Docker\PortOffsetManager;
 use Ngramx\Git\GitExcludeManager;
 use Ngramx\Git\GitRepositoryService;
+use Ngramx\Hooks\HookRunner;
 use Ngramx\Host\EtcHostsHint;
 use Ngramx\Http\CompletionUrlRewriter;
 use Ngramx\Http\UrlPortOffset;
@@ -59,6 +62,8 @@ class ReviewCommand extends Command
     private readonly WorktreeVhostAliaser $vhostAliaser;
     private readonly SecretsValidator $secretsValidator;
     protected readonly WorktreeInventory $inventory;
+    private readonly HooksConfigLoader $hooksConfigLoader;
+    private readonly HookRunner $hookRunner;
 
     public function __construct(
         protected readonly ConfigLoader $configLoader,
@@ -78,6 +83,8 @@ class ReviewCommand extends Command
         ?WorktreeVhostAliaser $vhostAliaser = null,
         ?SecretsValidator $secretsValidator = null,
         ?WorktreeInventory $inventory = null,
+        ?HooksConfigLoader $hooksConfigLoader = null,
+        ?HookRunner $hookRunner = null,
     ) {
         parent::__construct();
         $this->portOffsetManager = $portOffsetManager ?? new PortOffsetManager();
@@ -91,6 +98,8 @@ class ReviewCommand extends Command
         $this->vhostAliaser = $vhostAliaser ?? new WorktreeVhostAliaser();
         $this->secretsValidator = $secretsValidator ?? new SecretsValidator();
         $this->inventory = $inventory ?? new WorktreeInventory($dockerCompose, $gitRepositoryService);
+        $this->hooksConfigLoader = $hooksConfigLoader ?? new HooksConfigLoader();
+        $this->hookRunner = $hookRunner ?? new HookRunner();
     }
 
     protected function configure(): void
@@ -572,9 +581,53 @@ class ReviewCommand extends Command
             $this->openCursorWindow($worktreePath, $formatter);
         }
 
+        $resolvedWorktreePath = realpath($worktreePath) ?: $worktreePath;
+        $hooksOk = $this->runConfiguredHooks(
+            HookEvent::WorktreeCreate,
+            $repositoryPath,
+            [
+                'worktree_path' => $resolvedWorktreePath,
+                'path' => $resolvedWorktreePath,
+                'branch' => $selectedBranch,
+                'ticket' => $ticketNumber,
+                'ticket_slug' => $ticketSlug,
+                'url' => $worktreeUrl,
+                'repository_path' => $repositoryPath,
+                'folder' => $folderName,
+            ],
+            $resolvedWorktreePath,
+            $formatter,
+        );
+        if (!$hooksOk) {
+            return Command::FAILURE;
+        }
+
         $output->writeln('');
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Load merged user/project hooks and run those registered for $event.
+     *
+     * @param array<string, string> $context
+     */
+    protected function runConfiguredHooks(
+        HookEvent $event,
+        string $projectRoot,
+        array $context,
+        string $defaultCwd,
+        OutputFormatter $formatter,
+    ): bool {
+        try {
+            $hooks = $this->hooksConfigLoader->load($projectRoot);
+        } catch (ConfigException $e) {
+            $formatter->error('Hooks configuration error: ' . $e->getMessage());
+
+            return false;
+        }
+
+        return $this->hookRunner->run($hooks, $event, $context, $defaultCwd, $formatter);
     }
 
     /**

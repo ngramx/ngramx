@@ -14,3 +14,6 @@ Add event-based hooks for ngramx actions (e.g. worktree creation), loaded from a
 ## Changes
 
 - Ticket folder created; branch `cor-328-add-user-level-hooks-config-with-project-level-overrides` started from `origin/main`.
+- Added `HooksConfigLoader` with deep-merge across `~/.ngramx.yaml`, `.ngramx/config.yaml`, and `hooks:` in `ngramx.yml`.
+- Added `HookRunner` and wired `onWorktreeCreate` (worktree/review) and `onEnvironmentUp` (`up`).
+- Documented in README + `ngramx.example.yml`; unit tests for merge, loader, and runner.

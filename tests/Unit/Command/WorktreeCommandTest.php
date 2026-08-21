@@ -784,6 +784,9 @@ class WorktreeCommandTest extends TestCase
             ownershipReconciler: $reconciler,
             worktreeUrlResolver: $urlResolver,
             dependencyPrimer: $primer,
+            hooksConfigLoader: new \Ngramx\Config\HooksConfigLoader(
+                homeDirectory: sys_get_temp_dir() . '/ngramx-test-home-empty',
+            ),
         );
     }
 

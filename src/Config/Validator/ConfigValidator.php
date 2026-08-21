@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Ngramx\Config\Validator;
 
 use Ngramx\Config\Exception\ConfigException;
-use Ngramx\Config\SecretsSectionNormalizer;
 use Ngramx\Config\Schema\AgentsConfig;
+use Ngramx\Config\Schema\HookEvent;
+use Ngramx\Config\SecretsSectionNormalizer;
 
 class ConfigValidator
 {
@@ -49,6 +50,84 @@ class ConfigValidator
 
         if (isset($config['postmaclone'])) {
             $this->validatePostmacloneSection($config['postmaclone']);
+        }
+
+        if (isset($config['hooks'])) {
+            if (!is_array($config['hooks'])) {
+                throw new ConfigException('hooks must be an array');
+            }
+            $this->validateHooksSection($config['hooks']);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $hooks
+     * @throws ConfigException
+     */
+    public function validateHooksSection(array $hooks): void
+    {
+        $known = HookEvent::values();
+
+        foreach ($hooks as $eventName => $list) {
+            if (!is_string($eventName) || $eventName === '') {
+                throw new ConfigException('hooks event names must be non-empty strings');
+            }
+
+            if (!in_array($eventName, $known, true)) {
+                throw new ConfigException(
+                    "Unknown hooks event '{$eventName}'. Supported: " . implode(', ', $known)
+                );
+            }
+
+            if (!is_array($list)) {
+                throw new ConfigException("hooks.{$eventName} must be a list of commands");
+            }
+
+            if ($list !== [] && array_keys($list) !== range(0, count($list) - 1)) {
+                throw new ConfigException("hooks.{$eventName} must be a list, not an associative map");
+            }
+
+            foreach ($list as $index => $entry) {
+                $this->validateHookEntry($entry, "hooks.{$eventName}[{$index}]");
+            }
+        }
+    }
+
+    /**
+     * @throws ConfigException
+     */
+    private function validateHookEntry(mixed $entry, string $path): void
+    {
+        if (is_string($entry)) {
+            if (trim($entry) === '') {
+                throw new ConfigException("{$path} must be a non-empty string");
+            }
+
+            return;
+        }
+
+        if (!is_array($entry)) {
+            throw new ConfigException("{$path} must be a string or a mapping with a command");
+        }
+
+        if (!isset($entry['command']) || !is_string($entry['command']) || trim($entry['command']) === '') {
+            throw new ConfigException("{$path} missing required field: command");
+        }
+
+        if (isset($entry['description']) && !is_string($entry['description'])) {
+            throw new ConfigException("{$path}.description must be a string");
+        }
+
+        if (isset($entry['timeout']) && (!is_int($entry['timeout']) || $entry['timeout'] <= 0)) {
+            throw new ConfigException("{$path}.timeout must be a positive integer");
+        }
+
+        if (isset($entry['ignore_failure']) && !is_bool($entry['ignore_failure'])) {
+            throw new ConfigException("{$path}.ignore_failure must be a boolean");
+        }
+
+        if (isset($entry['cwd']) && !is_string($entry['cwd'])) {
+            throw new ConfigException("{$path}.cwd must be a string");
         }
     }
 

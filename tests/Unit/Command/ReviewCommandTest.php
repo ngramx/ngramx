@@ -1051,6 +1051,9 @@ class ReviewCommandTest extends TestCase
             worktreeUrlResolver: $urlResolver,
             dependencyPrimer: $primer,
             certSeeder: $certSeeder,
+            hooksConfigLoader: new \Ngramx\Config\HooksConfigLoader(
+                homeDirectory: sys_get_temp_dir() . '/ngramx-test-home-empty',
+            ),
         );
     }
 
