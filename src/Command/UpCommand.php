@@ -7,8 +7,10 @@ namespace Ngramx\Command;
 use Ngramx\Caddy\CaddyService;
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\Exception\ConfigException;
+use Ngramx\Config\HooksConfigLoader;
 use Ngramx\Config\LockFile;
 use Ngramx\Config\LockFileData;
+use Ngramx\Config\Schema\HookEvent;
 use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Docker\DockerLauncher;
@@ -16,6 +18,7 @@ use Ngramx\Docker\Exception\ServiceNotHealthyException;
 use Ngramx\Docker\NamespaceResolver;
 use Ngramx\Docker\PortOffsetManager;
 use Ngramx\Herd\HerdService;
+use Ngramx\Hooks\HookRunner;
 use Ngramx\Host\EtcHostsHint;
 use Ngramx\Http\UrlPortOffset;
 use Ngramx\Orchestrator\SetupOrchestrator;
@@ -39,6 +42,8 @@ class UpCommand extends Command
 {
     private readonly CertInspector $certInspector;
     private readonly WorktreeOwnershipReconciler $ownershipReconciler;
+    private readonly HooksConfigLoader $hooksConfigLoader;
+    private readonly HookRunner $hookRunner;
 
     public function __construct(
         private readonly ConfigLoader $configLoader,
@@ -54,10 +59,14 @@ class UpCommand extends Command
         ?CertInspector $certInspector = null,
         ?WorktreeOwnershipReconciler $ownershipReconciler = null,
         private readonly PostmacloneService $postmacloneService = new PostmacloneService(),
+        ?HooksConfigLoader $hooksConfigLoader = null,
+        ?HookRunner $hookRunner = null,
     ) {
         parent::__construct();
         $this->certInspector = $certInspector ?? new CertInspector();
         $this->ownershipReconciler = $ownershipReconciler ?? new WorktreeOwnershipReconciler();
+        $this->hooksConfigLoader = $hooksConfigLoader ?? new HooksConfigLoader();
+        $this->hookRunner = $hookRunner ?? new HookRunner();
     }
 
     protected function configure(): void
@@ -265,6 +274,26 @@ class UpCommand extends Command
                 $this->runPostmacloneAfterUp($formatter, $config, $projectRoot);
             }
 
+            $appUrl = UrlPortOffset::applyMap(
+                UrlPortOffset::apply($config->docker->appUrl, $portOffset),
+                $portMap,
+            );
+            $resolvedProjectRoot = realpath($projectRoot) ?: $projectRoot;
+            $hooksOk = $this->runConfiguredHooks(
+                $resolvedProjectRoot,
+                [
+                    'path' => $resolvedProjectRoot,
+                    'project_path' => $resolvedProjectRoot,
+                    'url' => $appUrl,
+                    'repository_path' => $resolvedProjectRoot,
+                ],
+                $resolvedProjectRoot,
+                $formatter,
+            );
+            if (!$hooksOk) {
+                return Command::FAILURE;
+            }
+
             return Command::SUCCESS;
         } catch (ConfigException $e) {
             $formatter->error("Configuration error: {$e->getMessage()}");
@@ -373,6 +402,32 @@ class UpCommand extends Command
             $formatter->info('  .env DB_* updated (backup: ' . $lock->envBackupPath . ')');
         }
         $formatter->info('  Tear down when finished: ngramx postmaclone down');
+    }
+
+    /**
+     * @param array<string, string> $context
+     */
+    private function runConfiguredHooks(
+        string $projectRoot,
+        array $context,
+        string $defaultCwd,
+        OutputFormatter $formatter,
+    ): bool {
+        try {
+            $hooks = $this->hooksConfigLoader->load($projectRoot);
+        } catch (ConfigException $e) {
+            $formatter->error('Hooks configuration error: ' . $e->getMessage());
+
+            return false;
+        }
+
+        return $this->hookRunner->run(
+            $hooks,
+            HookEvent::EnvironmentUp,
+            $context,
+            $defaultCwd,
+            $formatter,
+        );
     }
 
     /**

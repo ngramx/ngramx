@@ -1,0 +1,16 @@
+﻿{
+  "id": "COR-328",
+  "title": "Add user-level hooks config with project-level overrides",
+  "description": "## Summary\n\nSupport user-level `.ngramx.yaml` config in the home directory that defines **event‑based hooks** for ngramx actions (e.g., worktree creation), with project-level overrides via deep merge.\n\n## Description\n\nRob currently has a manual workflow when creating worktrees: run `git worktree`, copy the folder path, open a new TMUX window, `cd` into it, then run `code` to open all panes. He wants ngramx to support a generic hook system where hooks are triggered by **events** rather than being tied to a specific tool like TMUX. For example, an `onWorktreeCreate` event could run any configured command (e.g., launching an editor, initializing a development environment, or any custom script).\n\nThe config hierarchy should follow git conventions:\n\n* **User-level**: `~/.ngramx.yaml` — defines default event hooks for the user's machine (e.g., commands to run when a worktree is created).\n* **Project-level**: `.ngramx/config.yaml` or similar — can override user-level hooks.\n* **Merge strategy**: Deep merge with project-level values taking precedence over user-level. If hooks are defined under separate event keys (e.g., `onEnvironmentUp`, `onWorktreeCreate`), they won't conflict.\n\n## Goal\n\nEliminate repetitive manual steps when switching worktrees by allowing users to define **event‑driven hooks** that automatically execute the desired commands in response to ngramx events, without being tied to a specific tool such as TMUX.",
+  "url": "https://linear.app/gigabyte/issue/COR-328/add-user-level-hooks-config-with-project-level-overrides",
+  "status": "In Progress",
+  "priority": 4,
+  "estimate": 4,
+  "assignee": "Wilkie Hoare",
+  "createdBy": "Rob Corley",
+  "team": "Cortex",
+  "project": "Ngramx CLI",
+  "projectMilestone": "Automation & Workflow Tooling",
+  "labels": ["Gigabyte Software"],
+  "gitBranchName": "cor-328-add-user-level-hooks-config-with-project-level-overrides"
+}

@@ -179,3 +179,20 @@ agents:
     - cursor                # .cursor/skills/<name>/SKILL.md
     - claude                # .claude/skills/<name>/SKILL.md
 
+# Optional: event hooks — host commands that run after ngramx lifecycle events.
+# Prefer putting personal defaults in ~/.ngramx.yaml; use this block (or
+# .ngramx/config.yaml) for project-specific overrides. Sources deep-merge with
+# precedence: ~/.ngramx.yaml < .ngramx/config.yaml < ngramx.yml hooks.
+#
+# Placeholders: {worktree_path}, {path}, {branch}, {ticket}, {ticket_slug},
+# {url}, {repository_path}, {folder}, {project_path}
+#
+# hooks:
+#   onWorktreeCreate:
+#     - command: "cursor --new-window {worktree_path}"
+#       description: "Open the worktree in Cursor"
+#     - "tmux new-window -c {worktree_path}"
+#   onEnvironmentUp:
+#     - command: "echo Ready at {url}"
+#       ignore_failure: true
+

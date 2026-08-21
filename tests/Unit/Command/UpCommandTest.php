@@ -829,7 +829,10 @@ class UpCommandTest extends TestCase
             $this->dockerCompose,
             $this->herdService,
             $this->caddyService,
-            $this->dockerLauncher
+            $this->dockerLauncher,
+            hooksConfigLoader: new \Ngramx\Config\HooksConfigLoader(
+                homeDirectory: sys_get_temp_dir() . '/ngramx-test-home-empty',
+            ),
         );
     }
 

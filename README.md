@@ -309,6 +309,36 @@ This command:
 
 When you're done, run `ngramx worktree <ticket> --cleanup` (or `ngramx review <ticket> --cleanup`) to tear down the worktree environment.
 
+### Event hooks
+
+Ngramx can run host commands after lifecycle events. Configure them in any of:
+
+1. **User-level** — `~/.ngramx.yaml` (or `~/.ngramx.yml`) — personal defaults for your machine
+2. **Project-level** — `.ngramx/config.yaml` (or `.yml`) — shared project overrides
+3. **Project `ngramx.yml`** — optional `hooks:` block (highest precedence)
+
+Sources are **deep-merged**. Sibling event keys are kept; when the same event appears in more than one source, the later source's command list **replaces** the earlier one.
+
+```yaml
+# ~/.ngramx.yaml
+hooks:
+  onWorktreeCreate:
+    - command: "cursor --new-window {worktree_path}"
+      description: "Open Cursor"
+    - "tmux new-window -c {worktree_path}"
+  onEnvironmentUp:
+    - command: "echo Stack ready at {url}"
+```
+
+| Event | Fires when |
+|-------|------------|
+| `onWorktreeCreate` | `ngramx worktree` / `ngramx review --worktree` finishes successfully (create or reuse) |
+| `onEnvironmentUp` | `ngramx up` finishes successfully |
+
+Placeholders: `{worktree_path}`, `{path}`, `{branch}`, `{ticket}`, `{ticket_slug}`, `{url}`, `{repository_path}`, `{folder}`, `{project_path}`. Values substituted into the command string are shell-escaped automatically so metacharacters in branch names or paths cannot break out of the intended command.
+
+Hook entries may be a bare string or a mapping (`command`, optional `description`, `timeout`, `cwd`, `ignore_failure`). Failures are ignored by default (`ignore_failure: true`) so a broken editor launch cannot undo a successful worktree.
+
 ### `ngramx status`
 
 The project overview — what this repository has running, everywhere:

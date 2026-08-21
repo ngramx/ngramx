@@ -1,0 +1,59 @@
+{
+  "title": "COR-328: Add User-Level Hooks Config With Project-Level Overrides",
+  "description": "Adds event-based host command hooks loaded from ~/.ngramx.yaml, .ngramx/config.yaml, and optional hooks: in ngramx.yml, with deep-merge overrides for onWorktreeCreate and onEnvironmentUp.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/6",
+  "linear_url": "https://linear.app/gigabyte/issue/COR-328/add-user-level-hooks-config-with-project-level-overrides",
+  "test_urls": [
+    {
+      "label": "GitHub PR",
+      "url": "https://github.com/ngramx/ngramx/pull/6"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Unit tests for merge, loader, and runner",
+      "status": "stale",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Config/ArrayDeepMergerTest.php tests/Unit/Config/HooksConfigLoaderTest.php tests/Unit/Hooks/HookRunnerTest.php",
+        "Confirm all tests pass"
+      ]
+    },
+    {
+      "description": "User-level onWorktreeCreate hook runs after worktree",
+      "status": "stale",
+      "steps": [
+        "Create ~/.ngramx.yaml with hooks.onWorktreeCreate containing a harmless command such as echo READY-{ticket}",
+        "Run ngramx worktree <ticket> (or reuse an existing worktree flow)",
+        "Confirm the hook section appears in output and the command ran after the worktree is ready"
+      ]
+    },
+    {
+      "description": "Project override replaces the matching user event list",
+      "status": "stale",
+      "steps": [
+        "Keep a user onWorktreeCreate hook that echoes USER",
+        "Add .ngramx/config.yaml with onWorktreeCreate that echoes PROJECT",
+        "Run ngramx worktree <ticket>",
+        "Confirm only the PROJECT hook runs for that event"
+      ]
+    },
+    {
+      "description": "onEnvironmentUp fires after ngramx up",
+      "status": "stale",
+      "steps": [
+        "Configure hooks.onEnvironmentUp with echo UP-{url}",
+        "Run ngramx up in a project",
+        "Confirm the hook runs after a successful start"
+      ]
+    },
+    {
+      "description": "Hook context values are shell-escaped (injection fix)",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Hooks/HookRunnerTest.php",
+        "Confirm test_it_shell_escapes_context_values_in_commands passes",
+        "Optionally configure a hook using {branch} and verify a branch name with shell metacharacters is treated as a single argument"
+      ]
+    }
+  ]
+}
