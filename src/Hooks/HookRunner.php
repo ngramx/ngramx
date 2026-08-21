@@ -15,7 +15,10 @@ use Symfony\Component\Process\Process;
  * Runs host commands configured for a lifecycle event.
  *
  * Commands may include `{placeholder}` tokens substituted from the context map
- * (e.g. `{worktree_path}`, `{branch}`, `{url}`).
+ * (e.g. `{worktree_path}`, `{branch}`, `{url}`). Context values interpolated into
+ * the shell command line are escaped with {@see escapeshellarg()} so metacharacters
+ * in git refs or paths cannot break out of the intended command. cwd placeholders
+ * are substituted without shell escaping (they are not passed through a shell).
  */
 class HookRunner
 {
@@ -58,9 +61,9 @@ class HookRunner
         string $defaultCwd,
         ?OutputFormatter $formatter,
     ): bool {
-        $command = $this->interpolate($hook->command, $context);
+        $command = $this->interpolate($hook->command, $context, escapeForShell: true);
         $cwd = $hook->cwd !== null
-            ? $this->interpolate($hook->cwd, $context)
+            ? $this->interpolate($hook->cwd, $context, escapeForShell: false)
             : $defaultCwd;
 
         $label = $hook->description !== ''
@@ -105,9 +108,12 @@ class HookRunner
     /**
      * @param array<string, string> $context
      */
-    private function interpolate(string $value, array $context): string
+    private function interpolate(string $value, array $context, bool $escapeForShell): string
     {
         foreach ($context as $key => $replacement) {
+            if ($escapeForShell) {
+                $replacement = escapeshellarg($replacement);
+            }
             $value = str_replace('{' . $key . '}', $replacement, $value);
         }
 

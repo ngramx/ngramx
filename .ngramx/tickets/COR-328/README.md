@@ -17,3 +17,4 @@ Add event-based hooks for ngramx actions (e.g. worktree creation), loaded from a
 - Added `HooksConfigLoader` with deep-merge across `~/.ngramx.yaml`, `.ngramx/config.yaml`, and `hooks:` in `ngramx.yml`.
 - Added `HookRunner` and wired `onWorktreeCreate` (worktree/review) and `onEnvironmentUp` (`up`).
 - Documented in README + `ngramx.example.yml`; unit tests for merge, loader, and runner.
+- Shell-escape context values when interpolating into hook command lines (`escapeshellarg`) so crafted branch/path values cannot inject host commands.

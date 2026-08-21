@@ -12,7 +12,7 @@
   "test_plan": [
     {
       "description": "Unit tests for merge, loader, and runner",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run vendor/bin/phpunit tests/Unit/Config/ArrayDeepMergerTest.php tests/Unit/Config/HooksConfigLoaderTest.php tests/Unit/Hooks/HookRunnerTest.php",
         "Confirm all tests pass"
@@ -20,7 +20,7 @@
     },
     {
       "description": "User-level onWorktreeCreate hook runs after worktree",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Create ~/.ngramx.yaml with hooks.onWorktreeCreate containing a harmless command such as echo READY-{ticket}",
         "Run ngramx worktree <ticket> (or reuse an existing worktree flow)",
@@ -29,7 +29,7 @@
     },
     {
       "description": "Project override replaces the matching user event list",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Keep a user onWorktreeCreate hook that echoes USER",
         "Add .ngramx/config.yaml with onWorktreeCreate that echoes PROJECT",
@@ -39,11 +39,20 @@
     },
     {
       "description": "onEnvironmentUp fires after ngramx up",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Configure hooks.onEnvironmentUp with echo UP-{url}",
         "Run ngramx up in a project",
         "Confirm the hook runs after a successful start"
+      ]
+    },
+    {
+      "description": "Hook context values are shell-escaped (injection fix)",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Hooks/HookRunnerTest.php",
+        "Confirm test_it_shell_escapes_context_values_in_commands passes",
+        "Optionally configure a hook using {branch} and verify a branch name with shell metacharacters is treated as a single argument"
       ]
     }
   ]

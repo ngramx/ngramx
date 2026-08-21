@@ -41,10 +41,13 @@ class HookRunnerTest extends TestCase
     public function test_it_interpolates_placeholders_and_runs_command(): void
     {
         $marker = $this->cwd . DIRECTORY_SEPARATOR . 'ok.txt';
+        // Placeholder is its own shell word so escapeshellarg wraps the whole value.
         $config = new HooksConfig([
             HookEvent::WorktreeCreate->value => [
                 new HookDefinition(
-                    command: $this->phpWriteFileCommand($marker, 'from-{ticket}'),
+                    command: escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg(
+                        'file_put_contents($argv[1], $argv[2]);'
+                    ) . ' -- ' . escapeshellarg($marker) . ' {ticket}',
                 ),
             ],
         ]);
@@ -58,7 +61,40 @@ class HookRunnerTest extends TestCase
 
         $this->assertTrue($ok);
         $this->assertFileExists($marker);
-        $this->assertSame('from-gig-1', trim((string) file_get_contents($marker)));
+        $this->assertSame('gig-1', trim((string) file_get_contents($marker)));
+    }
+
+    public function test_it_shell_escapes_context_values_in_commands(): void
+    {
+        $marker = $this->cwd . DIRECTORY_SEPARATOR . 'payload.txt';
+        $injected = $this->cwd . DIRECTORY_SEPARATOR . 'injected.txt';
+
+        // Without escaping, the shell would chain a second command that creates injected.txt.
+        $separator = DIRECTORY_SEPARATOR === '\\' ? '&' : ';';
+        $maliciousBranch = 'safe' . $separator . 'echo pwned>' . $injected;
+
+        $config = new HooksConfig([
+            HookEvent::WorktreeCreate->value => [
+                new HookDefinition(
+                    command: escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg(
+                        'file_put_contents($argv[1], $argv[2]);'
+                    ) . ' -- ' . escapeshellarg($marker) . ' {branch}',
+                    ignoreFailure: false,
+                ),
+            ],
+        ]);
+
+        $ok = $this->runner->run(
+            $config,
+            HookEvent::WorktreeCreate,
+            ['branch' => $maliciousBranch],
+            $this->cwd,
+        );
+
+        $this->assertTrue($ok);
+        $this->assertFileExists($marker);
+        $this->assertSame($maliciousBranch, (string) file_get_contents($marker));
+        $this->assertFileDoesNotExist($injected);
     }
 
     public function test_failed_hook_is_ignored_by_default(): void
@@ -100,13 +136,6 @@ class HookRunnerTest extends TestCase
         );
 
         $this->assertFalse($ok);
-    }
-
-    private function phpWriteFileCommand(string $path, string $contents): string
-    {
-        return escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg(
-            'file_put_contents(' . var_export($path, true) . ', ' . var_export($contents, true) . ');'
-        );
     }
 
     private function phpExitCommand(int $code): string

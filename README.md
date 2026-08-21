@@ -335,7 +335,7 @@ hooks:
 | `onWorktreeCreate` | `ngramx worktree` / `ngramx review --worktree` finishes successfully (create or reuse) |
 | `onEnvironmentUp` | `ngramx up` finishes successfully |
 
-Placeholders: `{worktree_path}`, `{path}`, `{branch}`, `{ticket}`, `{ticket_slug}`, `{url}`, `{repository_path}`, `{folder}`, `{project_path}`.
+Placeholders: `{worktree_path}`, `{path}`, `{branch}`, `{ticket}`, `{ticket_slug}`, `{url}`, `{repository_path}`, `{folder}`, `{project_path}`. Values substituted into the command string are shell-escaped automatically so metacharacters in branch names or paths cannot break out of the intended command.
 
 Hook entries may be a bare string or a mapping (`command`, optional `description`, `timeout`, `cwd`, `ignore_failure`). Failures are ignored by default (`ignore_failure: true`) so a broken editor launch cannot undo a successful worktree.
 
