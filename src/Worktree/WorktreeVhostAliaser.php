@@ -40,12 +40,19 @@ class WorktreeVhostAliaser
      * Add $aliases to every vhost served by $service.
      *
      * @param list<string> $aliases Hostnames the app should also answer to.
+     * @param string|null $canonicalHost Only alias the vhost that serves this
+     *        hostname. Projects commonly enable several vhosts (hydra serves
+     *        five), and aliasing all of them makes the new name ambiguous:
+     *        apache answers from whichever config loaded first — the API vhost,
+     *        alphabetically — so the app itself 404s. Null aliases every vhost,
+     *        which is only right for a single-vhost container.
      * @return bool True when the web server was reconfigured and reloaded.
      */
     public function alias(
         string $composeFile,
         string $service,
         array $aliases,
+        ?string $canonicalHost = null,
         ?string $projectName = null,
         ?OutputFormatter $formatter = null,
     ): bool {
@@ -61,7 +68,7 @@ class WorktreeVhostAliaser
             return false;
         }
 
-        $script = $this->script($aliases);
+        $script = $this->script($aliases, $canonicalHost);
 
         $process = $this->executor->exec(
             $composeFile,
@@ -104,16 +111,21 @@ class WorktreeVhostAliaser
      *
      * @param list<string> $aliases Already validated as DNS names by alias().
      */
-    private function script(array $aliases): string
+    private function script(array $aliases, ?string $canonicalHost = null): string
     {
         // Safe to interpolate unquoted: alias() has already restricted these to
         // DNS characters.
         $list = implode(' ', $aliases);
+        // Empty means "every vhost"; otherwise the vhost must name this host.
+        $canonical = $canonicalHost !== null && preg_match('/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/', $canonicalHost) === 1
+            ? $canonicalHost
+            : '';
 
         return <<<SH
         set -e
         CHANGED=0
         ALIASES="{$list}"
+        CANONICAL="{$canonical}"
         # Empty in a container. Tests point it at a fixture tree so the real
         # sed/grep logic below is exercised rather than mocked away.
         ROOT="\${NGRAMX_CONFIG_ROOT:-}"
@@ -122,6 +134,11 @@ class WorktreeVhostAliaser
         if [ -d "\$ROOT/etc/apache2/sites-enabled" ]; then
           for conf in "\$ROOT"/etc/apache2/sites-enabled/*.conf; do
             [ -f "\$conf" ] || continue
+            # One vhost owns the app; aliasing its siblings would make the new
+            # name resolve to whichever config apache loaded first.
+            if [ -n "\$CANONICAL" ]; then
+              grep -qE "^[[:space:]]*ServerName[[:space:]]+\$CANONICAL[[:space:]]*\$" "\$conf" || continue
+            fi
             for host in \$ALIASES; do
               grep -qF "ServerAlias \$host" "\$conf" && continue
               grep -qE '^[[:space:]]*ServerName' "\$conf" || continue
@@ -147,6 +164,10 @@ class WorktreeVhostAliaser
           [ -d "\$dir" ] || continue
           for conf in "\$dir"/*; do
             [ -f "\$conf" ] || continue
+            # As above: only the block that already serves the app's own host.
+            if [ -n "\$CANONICAL" ]; then
+              grep -qE "^[[:space:]]*server_name([[:space:]]+[^;]*)?[[:space:]]\$CANONICAL([[:space:];]|\$)" "\$conf" || continue
+            fi
             for host in \$ALIASES; do
               grep -qF "\$host" "\$conf" && continue
               grep -qE '^[[:space:]]*server_name' "\$conf" || continue

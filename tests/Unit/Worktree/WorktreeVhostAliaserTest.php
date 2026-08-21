@@ -61,9 +61,8 @@ class WorktreeVhostAliaserTest extends TestCase
         $this->assertLessThan($closeAt, $aliasAt, 'the alias must be inside the vhost');
     }
 
-    public function test_it_aliases_every_enabled_vhost(): void
+    public function test_it_aliases_every_vhost_when_no_canonical_host_is_given(): void
     {
-        // hydra serves four: the app, its API, the customer and supplier sites.
         $main = $this->apacheVhost('dev.hydra');
         $api = $this->apacheVhost('dev.api.hydra', 'dev.api.hydra.conf');
 
@@ -71,6 +70,57 @@ class WorktreeVhostAliaserTest extends TestCase
 
         $this->assertStringContainsString('ServerAlias gig-2857', $this->read($main));
         $this->assertStringContainsString('ServerAlias gig-2857', $this->read($api));
+    }
+
+    public function test_it_aliases_only_the_vhost_serving_the_canonical_host(): void
+    {
+        // hydra enables five vhosts. Aliasing them all makes the new hostname
+        // ambiguous and apache answers from the alphabetically first config —
+        // dev.api.hydra — which 404s the app. Observed in production on
+        // GIG-2979 before this restriction existed.
+        $main = $this->apacheVhost('dev.hydra');
+        $api = $this->apacheVhost('dev.api.hydra', 'dev.api.hydra.conf');
+        $customer = $this->apacheVhost('dev.customer.hydra', 'dev.customer.hydra.conf');
+
+        $aliased = $this->aliaser()->alias(
+            'compose.yml',
+            'app',
+            ['gig-2857-hydra-main.localhost'],
+            'dev.hydra',
+        );
+
+        $this->assertTrue($aliased);
+        $this->assertStringContainsString('ServerAlias gig-2857', $this->read($main));
+        $this->assertStringNotContainsString('ServerAlias', $this->read($api));
+        $this->assertStringNotContainsString('ServerAlias', $this->read($customer));
+    }
+
+    public function test_a_canonical_host_no_vhost_serves_changes_nothing(): void
+    {
+        $conf = $this->apacheVhost('dev.hydra');
+
+        $aliased = $this->aliaser()->alias(
+            'compose.yml',
+            'app',
+            ['gig-2857-hydra-main.localhost'],
+            'not.this.host',
+        );
+
+        $this->assertFalse($aliased);
+        $this->assertStringNotContainsString('ServerAlias', $this->read($conf));
+    }
+
+    public function test_it_extends_only_the_matching_nginx_server_block(): void
+    {
+        $mine = $this->root . '/etc/nginx/conf.d/app.conf';
+        $other = $this->root . '/etc/nginx/conf.d/api.conf';
+        $this->write($mine, "server {\n    server_name dev.hydra;\n}\n");
+        $this->write($other, "server {\n    server_name dev.api.hydra;\n}\n");
+
+        $this->aliaser()->alias('compose.yml', 'app', ['gig-2857-hydra-main.localhost'], 'dev.hydra');
+
+        $this->assertStringContainsString('gig-2857-hydra-main.localhost', $this->read($mine));
+        $this->assertStringNotContainsString('gig-2857', $this->read($other));
     }
 
     public function test_running_it_twice_does_not_duplicate_the_alias(): void
