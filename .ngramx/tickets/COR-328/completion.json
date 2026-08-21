@@ -1,12 +1,12 @@
 {
   "title": "COR-328: Add User-Level Hooks Config With Project-Level Overrides",
   "description": "Adds event-based host command hooks loaded from ~/.ngramx.yaml, .ngramx/config.yaml, and optional hooks: in ngramx.yml, with deep-merge overrides for onWorktreeCreate and onEnvironmentUp.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/6",
   "linear_url": "https://linear.app/gigabyte/issue/COR-328/add-user-level-hooks-config-with-project-level-overrides",
   "test_urls": [
     {
       "label": "GitHub PR",
-      "url": "https://github.com/ngramx/ngramx/pull/PLACEHOLDER"
+      "url": "https://github.com/ngramx/ngramx/pull/6"
     }
   ],
   "test_plan": [
