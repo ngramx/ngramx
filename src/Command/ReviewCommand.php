@@ -506,6 +506,7 @@ class ReviewCommand extends Command
                 $config->docker->composeFile,
                 $config->docker->primaryService,
                 [$folderName . '.localhost'],
+                parse_url($config->docker->appUrl, PHP_URL_HOST) ?: null,
                 $namespace,
                 $formatter,
             );
