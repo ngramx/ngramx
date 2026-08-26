@@ -346,6 +346,8 @@ The project overview — what this repository has running, everywhere:
 ```bash
 ngramx status
 ngramx status --services   # per-service health for the environment you are in
+ngramx status --json       # machine-readable, for scripts and other tools
+ngramx status --no-cloud   # this machine only, skipping the Codabyte lookup
 ```
 
 Prints:
@@ -377,6 +379,107 @@ environment you are standing in. `ngramx worktree --list` prints the same view.
 
 The per-service health table (service, running state, health) is still there
 behind `--services`, and reports on the environment in the current directory.
+
+#### Coding-agent runs
+
+An environment worked on by a coding agent gets an extra `agent` column, read
+from a `.ngramx-agent.json` file the agent runner leaves in the worktree:
+
+```
+    #   worktree              branch                status   agent      url
+    1   cor-301-ngramx        cor-301               running  started    https://cor-301-ngramx.localhost:8443
+    2   cor-299-ngramx        cor-299               stopped  succeeded  —
+```
+
+The column only appears once something has actually recorded a run, so it costs
+nothing if you are not using one.
+
+`started` means the runner recorded a beginning and no ending. It deliberately
+does **not** say `running`: nothing keeps a file honest, and a run killed by a
+reboot never gets to update its own record. Whether an agent is alive right now
+is only knowable from the runner that owns the process.
+
+Any tool can write the file. All fields are optional:
+
+```json
+{
+  "source": "codabyte",
+  "runId": "b3f1…",
+  "sessionId": "8c2a…",
+  "ticket": "cor-301",
+  "issue": "COR-301",
+  "issueUrl": "https://linear.app/…/COR-301",
+  "startedAt": "2026-08-26T09:00:00+00:00",
+  "endedAt": "2026-08-26T09:24:00+00:00",
+  "outcome": "succeeded",
+  "prUrl": "https://github.com/ngramx/ngramx/pull/42"
+}
+```
+
+Two rules for whoever writes it. Record only facts that cannot go stale — never
+a `running` flag, for the reason above. And write atomically (temp file, then
+rename), because `ngramx status` may read it mid-write.
+
+#### Cloud runs
+
+`ngramx status` can also report the environments a [Codabyte](#ngramx-codabyte-login)
+server is running for this repository, so one command covers both machines:
+
+```
+▸ Cloud (Codabyte)
+
+    environment           branch                status   agent
+    cor-410-ngramx        cor-410               running  running
+    cor-388-ngramx        cor-388               stopped  interrupted
+```
+
+Here `running` in the agent column *is* trustworthy — the server derives it from
+the live process rather than from a file. `interrupted` is the one state neither
+source can report alone: a run that started, never recorded an ending, and has
+no live process behind it. In practice, the server was redeployed mid-task.
+
+Switch it on with an API key; the host defaults to the same one
+`ngramx codabyte login` uses:
+
+| Variable | Default |
+| --- | --- |
+| `NGRAMX_CODABYTE_API_KEY` | (unset — the section is hidden without it) |
+| `NGRAMX_CODABYTE_API_URL` | `https://$NGRAMX_CODABYTE_HOST` |
+
+The lookup never gets in the way of the local answer: a two-second timeout, no
+retries, and any failure costs one dim `unavailable — …` line rather than an
+error. `--no-cloud` skips it entirely. Repositories with no `origin` remote are
+skipped too — there would be no name the server knows them by.
+
+Requires a Codabyte deployment serving `GET /v1/runs`.
+
+#### `--json`
+
+For tools that drive Ngramx rather than read its output. Scraping the pretty
+overview is not viable — it is ANSI-coloured, column-padded, and its wording
+changes between releases — so this is the stable contract instead:
+
+```json
+{
+  "schema": 1,
+  "repository": { "name": "ngramx", "path": "/home/rob/projects/ngramx" },
+  "project": { "name": "ngramx", "branch": "main", "running": false, "url": null,
+               "namespace": null, "isCurrent": true, "portOffset": null, "agent": null },
+  "worktrees": [
+    { "name": "cor-301-ngramx", "path": "…", "branch": "cor-301", "running": true,
+      "url": "https://cor-301-ngramx.localhost:8443", "namespace": "ngramx-cor-301-ngramx",
+      "isCurrent": false, "portOffset": 1000,
+      "agent": { "source": "codabyte", "issue": "COR-301", "outcome": null, "state": "started" } }
+  ]
+}
+```
+
+`schema` is the envelope version: check it and degrade rather than guess. New
+keys may be added within a version; existing keys will not change meaning
+without a bump. `cloud` is present only when a Codabyte lookup was attempted, so
+"nothing running there" stays distinguishable from "we never asked". Errors are
+reported in the same envelope (`{"schema": 1, "error": "…"}`) with a non-zero
+exit code, so a parser is never handed prose. Works with `--services` too.
 
 ### `ngramx show-url` (alias: `ngramx url`)
 
