@@ -8,6 +8,7 @@ use GuzzleHttp\Client;
 use Ngramx\Agents\AgentsMdSynchronizer;
 use Ngramx\Agents\AgentsSyncOrchestrator;
 use Ngramx\Caddy\CaddyService;
+use Ngramx\Command\CoderCommand;
 use Ngramx\Command\DownCommand;
 use Ngramx\Command\DynamicCommand;
 use Ngramx\Command\InitCommand;
@@ -50,6 +51,8 @@ use Ngramx\Laravel\LaravelLogParser;
 use Ngramx\Laravel\LaravelService;
 use Ngramx\Orchestrator\CommandOrchestrator;
 use Ngramx\Orchestrator\SetupOrchestrator;
+use Ngramx\Remote\CoderTargetResolver;
+use Ngramx\Remote\SshRunner;
 use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Application as BaseApplication;
 use Symfony\Component\Console\Command\Command;
@@ -61,7 +64,7 @@ class Application extends BaseApplication
 {
     private const SKIP_WARNINGS_FOR = [
         'init', 'self-update', 'list', 'help', '_complete', 'completion', 'style-demo',
-        'up', 'rebuild',
+        'up', 'rebuild', 'coder',
     ];
 
     /**
@@ -71,7 +74,7 @@ class Application extends BaseApplication
      */
     private const SKIP_AGENTS_SYNC_FOR = [
         '_complete', 'completion', 'list', 'help', 'self-update', 'style-demo', 'sync-agents',
-        'postmaclone',
+        'postmaclone', 'coder',
     ];
 
     /** @var list<string> */
@@ -166,6 +169,7 @@ class Application extends BaseApplication
 
         // Register built-in commands (these take precedence over custom commands)
         $this->add(new InitCommand());
+        $this->add(new CoderCommand(new SshRunner(), CoderTargetResolver::fromEnvironment()));
         $this->add(new InitGithubActionsCommand());
         $this->add(new SyncAgentsCommand());
         $this->add(new UpCommand(

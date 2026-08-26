@@ -418,6 +418,52 @@ Perfect for:
 - Exploring the container's filesystem
 - Interactive development
 
+### `ngramx coder`
+
+SSH to the coding agent server and land directly inside the container that runs
+Claude Code — one command instead of `ssh` followed by `docker exec`:
+
+```bash
+ngramx coder
+```
+
+This command:
+1. SSHes to `codabyte.gigabyte.software` as `forge`
+2. Runs `docker exec` into the `coding-agent` container as the `node` user
+3. Starts an interactive bash shell in `/workspace`, where the cloned repos and
+   ticket worktrees live, with a prompt that names the host so you can tell a
+   remote shell from a local one
+
+Other forms:
+
+```bash
+ngramx coder -- claude --version   # run one command in the container and exit
+ngramx coder -- tail -f /workspace/logs/global.log
+ngramx coder --root                # shell in as root (e.g. to run `ngramx update`)
+ngramx coder --server              # stop on the server, outside the container
+ngramx coder --server -- docker ps # inspect the stack from the host
+ngramx coder --dry-run             # print the ssh command instead of running it
+```
+
+Anything after `--` is forwarded verbatim, so quoting is preserved through both
+the SSH and container hops.
+
+The defaults match the current deployment. Override them per-invocation with
+`--host`, `--ssh-user`, `--port`, `--container`, `--container-user` and
+`--workdir`, or per-machine with the matching environment variables:
+
+| Variable | Default |
+| --- | --- |
+| `NGRAMX_CODER_HOST` | `codabyte.gigabyte.software` |
+| `NGRAMX_CODER_SSH_USER` | `forge` |
+| `NGRAMX_CODER_PORT` | (ssh default) |
+| `NGRAMX_CODER_CONTAINER` | `coding-agent` |
+| `NGRAMX_CODER_CONTAINER_USER` | `node` |
+| `NGRAMX_CODER_WORKDIR` | `/workspace` |
+
+Authentication is plain SSH, so it uses whatever key or agent your `ssh` already
+uses for that host — Ngramx stores no credentials of its own.
+
 ### `ngramx secure`
 
 Generate browser-trusted SSL certificates for your local development environment using [mkcert](https://github.com/FiloSottile/mkcert):
