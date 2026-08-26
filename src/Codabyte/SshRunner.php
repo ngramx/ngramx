@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Ngramx\Remote;
+namespace Ngramx\Codabyte;
 
 /**
  * Runs ssh with the caller's terminal attached, so the remote shell behaves

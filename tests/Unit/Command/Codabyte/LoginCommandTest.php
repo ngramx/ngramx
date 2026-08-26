@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace Ngramx\Tests\Unit\Command;
+namespace Ngramx\Tests\Unit\Command\Codabyte;
 
-use Ngramx\Command\CoderCommand;
-use Ngramx\Remote\CoderTargetResolver;
-use Ngramx\Remote\SshRunner;
+use Ngramx\Codabyte\ServerTargetResolver;
+use Ngramx\Codabyte\SshRunner;
+use Ngramx\Command\Codabyte\LoginCommand;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
-class CoderCommandTest extends TestCase
+class LoginCommandTest extends TestCase
 {
     public function testCommandIsConfiguredCorrectly(): void
     {
-        $command = new CoderCommand($this->runner(), new CoderTargetResolver());
+        $command = new LoginCommand($this->runner(), new ServerTargetResolver());
 
-        $this->assertSame('coder', $command->getName());
+        $this->assertSame('codabyte:login', $command->getName());
         $this->assertSame(
-            'SSH to the coding agent server and drop into the Claude Code container',
+            'Log in to the Codabyte server, inside the container running Claude Code',
             $command->getDescription()
         );
     }
@@ -37,7 +37,7 @@ class CoderCommandTest extends TestCase
             }))
             ->willReturn(0);
 
-        $tester = new CommandTester(new CoderCommand($runner, new CoderTargetResolver()));
+        $tester = new CommandTester(new LoginCommand($runner, new ServerTargetResolver()));
 
         $this->assertSame(0, $tester->execute([]));
         $this->assertStringContainsString('coding-agent on codabyte.gigabyte.software', $tester->getDisplay());
@@ -48,7 +48,7 @@ class CoderCommandTest extends TestCase
         $runner = $this->runner();
         $runner->method('run')->willReturn(255);
 
-        $tester = new CommandTester(new CoderCommand($runner, new CoderTargetResolver()));
+        $tester = new CommandTester(new LoginCommand($runner, new ServerTargetResolver()));
 
         $this->assertSame(255, $tester->execute([]));
     }
@@ -58,7 +58,7 @@ class CoderCommandTest extends TestCase
         $runner = $this->runner();
         $runner->expects($this->never())->method('run');
 
-        $tester = new CommandTester(new CoderCommand($runner, new CoderTargetResolver()));
+        $tester = new CommandTester(new LoginCommand($runner, new ServerTargetResolver()));
         $tester->execute(['--dry-run' => true]);
 
         $display = $tester->getDisplay();
@@ -68,7 +68,7 @@ class CoderCommandTest extends TestCase
 
     public function testRootOptionOverridesTheContainerUser(): void
     {
-        $tester = new CommandTester(new CoderCommand($this->runner(), new CoderTargetResolver()));
+        $tester = new CommandTester(new LoginCommand($this->runner(), new ServerTargetResolver()));
         $tester->execute(['--dry-run' => true, '--root' => true]);
 
         $this->assertStringContainsString('root', $tester->getDisplay());
@@ -76,7 +76,7 @@ class CoderCommandTest extends TestCase
 
     public function testServerOptionStaysOnTheHost(): void
     {
-        $tester = new CommandTester(new CoderCommand($this->runner(), new CoderTargetResolver()));
+        $tester = new CommandTester(new LoginCommand($this->runner(), new ServerTargetResolver()));
         $tester->execute(['--dry-run' => true, '--server' => true]);
 
         $this->assertStringNotContainsString('docker', $tester->getDisplay());
@@ -84,7 +84,7 @@ class CoderCommandTest extends TestCase
 
     public function testOptionsOverrideTheTarget(): void
     {
-        $tester = new CommandTester(new CoderCommand($this->runner(), new CoderTargetResolver()));
+        $tester = new CommandTester(new LoginCommand($this->runner(), new ServerTargetResolver()));
         $tester->execute([
             '--dry-run' => true,
             '--host' => 'example.test',
@@ -101,7 +101,7 @@ class CoderCommandTest extends TestCase
 
     public function testATrailingCommandIsForwardedToTheContainer(): void
     {
-        $tester = new CommandTester(new CoderCommand($this->runner(), new CoderTargetResolver()));
+        $tester = new CommandTester(new LoginCommand($this->runner(), new ServerTargetResolver()));
         $tester->execute(['--dry-run' => true, 'cmd' => ['claude', '--version']]);
 
         $display = $tester->getDisplay();

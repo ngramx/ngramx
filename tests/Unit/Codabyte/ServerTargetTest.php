@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Ngramx\Tests\Unit\Remote;
+namespace Ngramx\Tests\Unit\Codabyte;
 
-use Ngramx\Remote\CoderTarget;
+use Ngramx\Codabyte\ServerTarget;
 use PHPUnit\Framework\TestCase;
 
-class CoderTargetTest extends TestCase
+class ServerTargetTest extends TestCase
 {
     public function testDefaultsPointAtTheCodingAgentServer(): void
     {
-        $target = new CoderTarget();
+        $target = new ServerTarget();
 
         $this->assertSame('codabyte.gigabyte.software', $target->host);
         $this->assertSame('forge@codabyte.gigabyte.software', $target->sshDestination());
@@ -23,7 +23,7 @@ class CoderTargetTest extends TestCase
 
     public function testInteractiveShellExecsIntoTheContainer(): void
     {
-        $args = (new CoderTarget())->sshArgs();
+        $args = (new ServerTarget())->sshArgs();
 
         $this->assertSame('ssh', $args[0]);
         $this->assertSame('-t', $args[1]);
@@ -39,7 +39,7 @@ class CoderTargetTest extends TestCase
 
     public function testInteractiveShellSetsABrandedPrompt(): void
     {
-        $remote = (new CoderTarget())->sshArgs()[3];
+        $remote = (new ServerTarget())->sshArgs()[3];
 
         $this->assertStringContainsString("'-e' 'PS1=", $remote);
         $this->assertStringContainsString('coding-agent@codabyte.gigabyte.software', $remote);
@@ -47,7 +47,7 @@ class CoderTargetTest extends TestCase
 
     public function testExplicitCommandReplacesTheShellAndDropsThePrompt(): void
     {
-        $remote = (new CoderTarget())->sshArgs(['claude', '--version'])[3];
+        $remote = (new ServerTarget())->sshArgs(['claude', '--version'])[3];
 
         $this->assertStringEndsWith("'coding-agent' 'claude' '--version'", $remote);
         $this->assertStringNotContainsString('PS1=', $remote);
@@ -56,7 +56,7 @@ class CoderTargetTest extends TestCase
 
     public function testCommandArgumentsAreQuotedForTheRemoteShell(): void
     {
-        $remote = (new CoderTarget())->sshArgs(['bash', '-c', 'echo "hi there"; rm -rf /'])[3];
+        $remote = (new ServerTarget())->sshArgs(['bash', '-c', 'echo "hi there"; rm -rf /'])[3];
 
         // The remote login shell must see one argument, not three commands.
         $this->assertStringEndsWith("'bash' '-c' 'echo \"hi there\"; rm -rf /'", $remote);
@@ -64,21 +64,21 @@ class CoderTargetTest extends TestCase
 
     public function testServerModeSkipsTheContainer(): void
     {
-        $args = (new CoderTarget())->sshArgs([], false);
+        $args = (new ServerTarget())->sshArgs([], false);
 
         $this->assertSame(['ssh', '-t', 'forge@codabyte.gigabyte.software'], $args);
     }
 
     public function testServerModeCanRunACommandOnTheHost(): void
     {
-        $args = (new CoderTarget())->sshArgs(['docker', 'ps'], false);
+        $args = (new ServerTarget())->sshArgs(['docker', 'ps'], false);
 
         $this->assertSame("'docker' 'ps'", $args[3]);
     }
 
     public function testWithoutATtyNoTerminalIsRequestedAnywhere(): void
     {
-        $args = (new CoderTarget())->sshArgs([], true, false);
+        $args = (new ServerTarget())->sshArgs([], true, false);
 
         $this->assertNotContains('-t', $args);
         $this->assertStringContainsString("'docker' 'exec' '-i' '-u'", $args[2]);
@@ -86,7 +86,7 @@ class CoderTargetTest extends TestCase
 
     public function testPortAndOverridesAreApplied(): void
     {
-        $target = new CoderTarget(
+        $target = new ServerTarget(
             host: 'example.test',
             sshUser: 'deploy',
             container: 'other-agent',

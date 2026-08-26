@@ -2,28 +2,28 @@
 
 declare(strict_types=1);
 
-namespace Ngramx\Tests\Unit\Remote;
+namespace Ngramx\Tests\Unit\Codabyte;
 
-use Ngramx\Remote\CoderTarget;
-use Ngramx\Remote\CoderTargetResolver;
+use Ngramx\Codabyte\ServerTarget;
+use Ngramx\Codabyte\ServerTargetResolver;
 use PHPUnit\Framework\TestCase;
 
-class CoderTargetResolverTest extends TestCase
+class ServerTargetResolverTest extends TestCase
 {
     public function testFallsBackToDefaults(): void
     {
-        $target = (new CoderTargetResolver())->resolve();
+        $target = (new ServerTargetResolver())->resolve();
 
-        $this->assertSame(CoderTarget::DEFAULT_HOST, $target->host);
-        $this->assertSame(CoderTarget::DEFAULT_CONTAINER, $target->container);
+        $this->assertSame(ServerTarget::DEFAULT_HOST, $target->host);
+        $this->assertSame(ServerTarget::DEFAULT_CONTAINER, $target->container);
     }
 
     public function testEnvironmentOverridesDefaults(): void
     {
-        $resolver = new CoderTargetResolver([
-            CoderTargetResolver::ENV_HOST => 'staging.test',
-            CoderTargetResolver::ENV_CONTAINER => 'agent-2',
-            CoderTargetResolver::ENV_PORT => '2222',
+        $resolver = new ServerTargetResolver([
+            ServerTargetResolver::ENV_HOST => 'staging.test',
+            ServerTargetResolver::ENV_CONTAINER => 'agent-2',
+            ServerTargetResolver::ENV_PORT => '2222',
         ]);
 
         $target = $resolver->resolve();
@@ -31,13 +31,13 @@ class CoderTargetResolverTest extends TestCase
         $this->assertSame('staging.test', $target->host);
         $this->assertSame('agent-2', $target->container);
         $this->assertSame(2222, $target->port);
-        $this->assertSame(CoderTarget::DEFAULT_SSH_USER, $target->sshUser);
+        $this->assertSame(ServerTarget::DEFAULT_SSH_USER, $target->sshUser);
     }
 
     public function testOptionsOverrideEnvironment(): void
     {
-        $resolver = new CoderTargetResolver([
-            CoderTargetResolver::ENV_HOST => 'staging.test',
+        $resolver = new ServerTargetResolver([
+            ServerTargetResolver::ENV_HOST => 'staging.test',
         ]);
 
         $target = $resolver->resolve(['host' => 'prod.test', 'container-user' => 'root']);
@@ -48,7 +48,7 @@ class CoderTargetResolverTest extends TestCase
 
     public function testEmptyOptionsAreIgnored(): void
     {
-        $resolver = new CoderTargetResolver([CoderTargetResolver::ENV_HOST => 'staging.test']);
+        $resolver = new ServerTargetResolver([ServerTargetResolver::ENV_HOST => 'staging.test']);
 
         $target = $resolver->resolve(['host' => null, 'port' => null]);
 

@@ -418,14 +418,18 @@ Perfect for:
 - Exploring the container's filesystem
 - Interactive development
 
-### `ngramx coder`
+### `ngramx codabyte login`
 
-SSH to the coding agent server and land directly inside the container that runs
+Log in to the Codabyte server and land directly inside the container that runs
 Claude Code — one command instead of `ssh` followed by `docker exec`:
 
 ```bash
-ngramx coder
+ngramx codabyte login
 ```
+
+Commands in the `codabyte` group can be typed with a space, as above, or with a
+colon (`ngramx codabyte:login`) to match `n8n:export` and friends. `ngramx
+codabyte` on its own lists what the group contains.
 
 This command:
 1. SSHes to `codabyte.gigabyte.software` as `forge`
@@ -437,12 +441,12 @@ This command:
 Other forms:
 
 ```bash
-ngramx coder -- claude --version   # run one command in the container and exit
-ngramx coder -- tail -f /workspace/logs/global.log
-ngramx coder --root                # shell in as root (e.g. to run `ngramx update`)
-ngramx coder --server              # stop on the server, outside the container
-ngramx coder --server -- docker ps # inspect the stack from the host
-ngramx coder --dry-run             # print the ssh command instead of running it
+ngramx codabyte login -- claude --version   # run one command in the container and exit
+ngramx codabyte login -- tail -f /workspace/logs/global.log
+ngramx codabyte login --root                # shell in as root (e.g. to run `ngramx update`)
+ngramx codabyte login --server              # stop on the server, outside the container
+ngramx codabyte login --server -- docker ps # inspect the stack from the host
+ngramx codabyte login --dry-run             # print the ssh command instead of running it
 ```
 
 Anything after `--` is forwarded verbatim, so quoting is preserved through both
@@ -454,12 +458,12 @@ The defaults match the current deployment. Override them per-invocation with
 
 | Variable | Default |
 | --- | --- |
-| `NGRAMX_CODER_HOST` | `codabyte.gigabyte.software` |
-| `NGRAMX_CODER_SSH_USER` | `forge` |
-| `NGRAMX_CODER_PORT` | (ssh default) |
-| `NGRAMX_CODER_CONTAINER` | `coding-agent` |
-| `NGRAMX_CODER_CONTAINER_USER` | `node` |
-| `NGRAMX_CODER_WORKDIR` | `/workspace` |
+| `NGRAMX_CODABYTE_HOST` | `codabyte.gigabyte.software` |
+| `NGRAMX_CODABYTE_SSH_USER` | `forge` |
+| `NGRAMX_CODABYTE_PORT` | (ssh default) |
+| `NGRAMX_CODABYTE_CONTAINER` | `coding-agent` |
+| `NGRAMX_CODABYTE_CONTAINER_USER` | `node` |
+| `NGRAMX_CODABYTE_WORKDIR` | `/workspace` |
 
 Authentication is plain SSH, so it uses whatever key or agent your `ssh` already
 uses for that host — Ngramx stores no credentials of its own.

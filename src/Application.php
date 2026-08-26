@@ -8,7 +8,9 @@ use GuzzleHttp\Client;
 use Ngramx\Agents\AgentsMdSynchronizer;
 use Ngramx\Agents\AgentsSyncOrchestrator;
 use Ngramx\Caddy\CaddyService;
-use Ngramx\Command\CoderCommand;
+use Ngramx\Codabyte\ServerTargetResolver;
+use Ngramx\Codabyte\SshRunner;
+use Ngramx\Command\Codabyte\LoginCommand as CodabyteLoginCommand;
 use Ngramx\Command\DownCommand;
 use Ngramx\Command\DynamicCommand;
 use Ngramx\Command\InitCommand;
@@ -34,6 +36,7 @@ use Ngramx\Config\ConfigWarningChecker;
 use Ngramx\Config\Exception\ConfigException;
 use Ngramx\Config\LockFile;
 use Ngramx\Config\Validator\ConfigValidator;
+use Ngramx\Console\CommandGroupArgv;
 use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\ContainerExecutor;
 use Ngramx\Docker\DockerCompose;
@@ -51,11 +54,10 @@ use Ngramx\Laravel\LaravelLogParser;
 use Ngramx\Laravel\LaravelService;
 use Ngramx\Orchestrator\CommandOrchestrator;
 use Ngramx\Orchestrator\SetupOrchestrator;
-use Ngramx\Remote\CoderTargetResolver;
-use Ngramx\Remote\SshRunner;
 use Ngramx\Output\OutputFormatter;
 use Symfony\Component\Console\Application as BaseApplication;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -64,7 +66,7 @@ class Application extends BaseApplication
 {
     private const SKIP_WARNINGS_FOR = [
         'init', 'self-update', 'list', 'help', '_complete', 'completion', 'style-demo',
-        'up', 'rebuild', 'coder',
+        'up', 'rebuild', 'codabyte:login',
     ];
 
     /**
@@ -74,8 +76,14 @@ class Application extends BaseApplication
      */
     private const SKIP_AGENTS_SYNC_FOR = [
         '_complete', 'completion', 'list', 'help', 'self-update', 'style-demo', 'sync-agents',
-        'postmaclone', 'coder',
+        'postmaclone', 'codabyte:login',
     ];
+
+    /**
+     * Command groups that may also be typed with a space, so `ngramx codabyte
+     * login` reaches `codabyte:login`.
+     */
+    private const COMMAND_GROUPS = ['codabyte', 'n8n'];
 
     /** @var list<string> */
     private array $configWarnings = [];
@@ -105,6 +113,17 @@ class Application extends BaseApplication
     {
         return $this->configLoadErrors;
     }
+    public function run(?InputInterface $input = null, ?OutputInterface $output = null): int
+    {
+        if ($input === null) {
+            /** @var list<string> $argv */
+            $argv = $_SERVER['argv'] ?? [];
+            $input = new ArgvInput(CommandGroupArgv::rewrite($argv, self::COMMAND_GROUPS));
+        }
+
+        return parent::run($input, $output);
+    }
+
     protected function getDefaultCommands(): array
     {
         // The `_complete` command is the engine that powers tab completion at runtime;
@@ -169,7 +188,7 @@ class Application extends BaseApplication
 
         // Register built-in commands (these take precedence over custom commands)
         $this->add(new InitCommand());
-        $this->add(new CoderCommand(new SshRunner(), CoderTargetResolver::fromEnvironment()));
+        $this->add(new CodabyteLoginCommand(new SshRunner(), ServerTargetResolver::fromEnvironment()));
         $this->add(new InitGithubActionsCommand());
         $this->add(new SyncAgentsCommand());
         $this->add(new UpCommand(

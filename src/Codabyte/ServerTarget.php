@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Ngramx\Remote;
+namespace Ngramx\Codabyte;
 
 /**
- * Where the remote coding agent lives, and how to get a shell inside it.
+ * Where the Codabyte coding agent lives, and how to get a shell inside it.
  *
- * The coding agent runs as a long-lived container on a single host, so the
- * defaults here are the ones that are true in practice. Every one of them can
- * still be overridden per-invocation (CLI options) or per-machine (environment
- * variables) via {@see CoderTargetResolver}.
+ * The agent runs as a long-lived container on a single host, so the defaults
+ * here are the ones that are true in practice. Every one of them can still be
+ * overridden per-invocation (CLI options) or per-machine (environment
+ * variables) via {@see ServerTargetResolver}.
  */
-final class CoderTarget
+final class ServerTarget
 {
     public const DEFAULT_HOST = 'codabyte.gigabyte.software';
     public const DEFAULT_SSH_USER = 'forge';

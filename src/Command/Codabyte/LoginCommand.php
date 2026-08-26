@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace Ngramx\Command;
+namespace Ngramx\Command\Codabyte;
 
+use Ngramx\Codabyte\ServerTargetResolver;
+use Ngramx\Codabyte\SshRunner;
 use Ngramx\Output\OutputFormatter;
-use Ngramx\Remote\CoderTargetResolver;
-use Ngramx\Remote\SshRunner;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class CoderCommand extends Command
+class LoginCommand extends Command
 {
     public function __construct(
         private readonly SshRunner $sshRunner,
-        private readonly CoderTargetResolver $resolver,
+        private readonly ServerTargetResolver $resolver,
     ) {
         parent::__construct();
     }
@@ -25,21 +25,24 @@ class CoderCommand extends Command
     protected function configure(): void
     {
         $this
-            ->setName('coder')
-            ->setDescription('SSH to the coding agent server and drop into the Claude Code container')
+            ->setName('codabyte:login')
+            ->setDescription('Log in to the Codabyte server, inside the container running Claude Code')
             ->setHelp(<<<'HELP'
 Opens an interactive shell inside the container that runs Claude Code on the
-remote coding agent server.
+Codabyte server, so getting there is one command rather than an SSH hop
+followed by a `docker exec`.
 
-  <info>ngramx coder</info>                       Shell inside the container
-  <info>ngramx coder -- claude --version</info>   Run one command and exit
-  <info>ngramx coder --server</info>              Stop on the server, outside the container
-  <info>ngramx coder --root</info>                Shell in as root
-  <info>ngramx coder --dry-run</info>             Print the ssh command instead of running it
+  <info>ngramx codabyte login</info>                      Shell inside the container
+  <info>ngramx codabyte login -- claude --version</info>  Run one command and exit
+  <info>ngramx codabyte login --server</info>             Stop on the server, outside the container
+  <info>ngramx codabyte login --root</info>               Shell in as root
+  <info>ngramx codabyte login --dry-run</info>            Print the ssh command instead of running it
 
-Defaults can be overridden per-machine with NGRAMX_CODER_HOST,
-NGRAMX_CODER_SSH_USER, NGRAMX_CODER_CONTAINER, NGRAMX_CODER_CONTAINER_USER,
-NGRAMX_CODER_WORKDIR and NGRAMX_CODER_PORT.
+Anything after <info>--</info> is forwarded to the container verbatim.
+
+Defaults can be overridden per-machine with NGRAMX_CODABYTE_HOST,
+NGRAMX_CODABYTE_SSH_USER, NGRAMX_CODABYTE_PORT, NGRAMX_CODABYTE_CONTAINER,
+NGRAMX_CODABYTE_CONTAINER_USER and NGRAMX_CODABYTE_WORKDIR.
 HELP)
             ->addArgument(
                 'cmd',
