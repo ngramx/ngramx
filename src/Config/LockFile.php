@@ -53,6 +53,15 @@ class LockFile
             }
         }
 
+        $urls = [];
+        if (isset($data['urls']) && is_array($data['urls'])) {
+            foreach ($data['urls'] as $name => $url) {
+                if (is_string($name) && is_string($url) && $url !== '') {
+                    $urls[$name] = $url;
+                }
+            }
+        }
+
         return new LockFileData(
             namespace: $data['namespace'] ?? null,
             portOffset: $data['port_offset'] ?? null,
@@ -62,6 +71,7 @@ class LockFile
             caddyStopped: $data['caddy_stopped'] ?? false,
             portMap: $portMap,
             url: $data['url'] ?? null,
+            urls: $urls,
         );
     }
 
@@ -79,6 +89,7 @@ class LockFile
             'caddy_stopped' => $data->caddyStopped,
             'port_map' => $data->portMap === [] ? null : $data->portMap,
             'url' => $data->url,
+            'urls' => $data->urls === [] ? null : $data->urls,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         file_put_contents($this->getLockFilePath(), $content);

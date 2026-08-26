@@ -86,6 +86,88 @@ class ConfigLoaderTest extends TestCase
         $this->assertEquals('http://localhost:8080', $config->docker->appUrl);
     }
 
+    public function test_it_defaults_to_no_endpoints(): void
+    {
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
+
+        $this->assertSame([], $config->docker->endpoints);
+        $this->assertSame([], $config->docker->env);
+    }
+
+    public function test_it_parses_endpoints_and_env_maps(): void
+    {
+        $root = $this->makeTempDir();
+        file_put_contents($root . '/ngramx.yml', <<<YAML
+            version: "1.0"
+            docker:
+              compose_file: "docker-compose.yml"
+              primary_service: "app"
+              app_url: "http://earl-kendrick.localhost"
+              env:
+                REVERB_HOST: "{host}"
+                REVERB_PORT: "{port}"
+              endpoints:
+                api: "http://api.earl-kendrick.localhost"
+                pwa:
+                  url: "http://localhost:5173"
+                  service: pwa
+                  file: "pwa/.env"
+                  env:
+                    VITE_API_BASE_URL: "{url.primary}"
+                    VITE_FLAG: true
+            YAML);
+
+        $docker = $this->loader->load($root . '/ngramx.yml')->docker;
+
+        $this->assertSame(['REVERB_HOST' => '{host}', 'REVERB_PORT' => '{port}'], $docker->env);
+        $this->assertSame(['api', 'pwa'], array_keys($docker->endpoints));
+
+        $api = $docker->endpoints['api'];
+        $this->assertSame('http://api.earl-kendrick.localhost', $api->url);
+        $this->assertNull($api->service);
+        $this->assertSame('app', $api->serviceOr('app'));
+        $this->assertSame('.env', $api->file);
+        $this->assertSame([], $api->env);
+
+        $pwa = $docker->endpoints['pwa'];
+        $this->assertSame('pwa', $pwa->service);
+        $this->assertSame('pwa/.env', $pwa->file);
+        $this->assertSame(['VITE_API_BASE_URL' => '{url.primary}', 'VITE_FLAG' => '1'], $pwa->env);
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function invalidEndpointProvider(): iterable
+    {
+        yield 'bad name' => ["endpoints:\n    Bad_Name: \"http://x.localhost\"", 'not a valid endpoint name'];
+        yield 'reserved name' => ["endpoints:\n    primary: \"http://x.localhost\"", 'reserved'];
+        yield 'missing url' => ["endpoints:\n    api:\n      service: app", 'must have a url'];
+        yield 'not http' => ["endpoints:\n    api: \"ftp://x.localhost\"", 'http(s) URL'];
+        yield 'absolute file' => ["endpoints:\n    api:\n      url: \"http://x.localhost\"\n      file: /etc/passwd", 'project-relative'];
+        yield 'bad env key' => ["endpoints:\n    api:\n      url: \"http://x.localhost\"\n      env:\n        \"1BAD\": x", 'not a valid environment variable name'];
+        yield 'docker env not a map' => ['env: "nope"', 'docker.env must be a map'];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('invalidEndpointProvider')]
+    public function test_it_rejects_invalid_endpoint_config(string $snippet, string $message): void
+    {
+        $root = $this->makeTempDir();
+        file_put_contents($root . '/ngramx.yml', <<<YAML
+            version: "1.0"
+            docker:
+              compose_file: "docker-compose.yml"
+              primary_service: "app"
+              app_url: "http://x.localhost"
+              {$snippet}
+            YAML);
+
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage($message);
+
+        $this->loader->load($root . '/ngramx.yml');
+    }
+
     public function test_it_defaults_verify_timeout_to_null_when_omitted(): void
     {
         $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');

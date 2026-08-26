@@ -6,10 +6,12 @@ namespace Ngramx\Command;
 
 use Exception;
 use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\EnvFileSeeder;
 use Ngramx\Config\Exception\ConfigException;
 use Ngramx\Config\HooksConfigLoader;
 use Ngramx\Config\LockFile;
 use Ngramx\Config\LockFileData;
+use Ngramx\Config\Schema\DockerConfig;
 use Ngramx\Config\Schema\HookEvent;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Validator\SecretsValidator;
@@ -22,6 +24,7 @@ use Ngramx\Git\GitRepositoryService;
 use Ngramx\Hooks\HookRunner;
 use Ngramx\Host\EtcHostsHint;
 use Ngramx\Http\CompletionUrlRewriter;
+use Ngramx\Http\EndpointUrls;
 use Ngramx\Http\UrlPortOffset;
 use Ngramx\Laravel\LaravelService;
 use Ngramx\Orchestrator\CommandOrchestrator;
@@ -279,11 +282,8 @@ class ReviewCommand extends Command
             // a per-port map instead of an offset — the printed URL and the
             // localised completion.json deep-links must follow the web port
             // wherever the map moved it.
-            $environmentUrl = UrlPortOffset::applyMap(
-                UrlPortOffset::apply($config->docker->appUrl, $portOffset),
-                $portMap
-            );
-            $this->displayCompletionUrls($repositoryPath, $ticketNumber, $formatter, $environmentUrl);
+            $environmentUrls = EndpointUrls::shifted($config->docker, $portOffset, $portMap);
+            $this->displayCompletionUrls($repositoryPath, $ticketNumber, $formatter, $config->docker, $environmentUrls);
 
             $output->writeln('');
 
@@ -340,7 +340,8 @@ class ReviewCommand extends Command
         // valid origin. Once the stack is up we may upgrade this to the prettier
         // "<folder>.localhost" subdomain if the app turns out to be host-agnostic
         // (see the post-start resolver below).
-        $worktreeUrl = UrlPortOffset::apply($config->docker->appUrl, $portOffset);
+        $worktreeUrls = EndpointUrls::shifted($config->docker, $portOffset);
+        $worktreeUrl = $worktreeUrls->primary;
 
         if ($this->gitRepositoryService->worktreeExists($repositoryPath, $worktreePath)) {
             $formatter->info("Reusing existing worktree: $worktreePath");
@@ -364,6 +365,11 @@ class ReviewCommand extends Command
 
         $this->seedWorktreeConfig($repositoryPath, $worktreePath, $formatter);
         $this->seedWorktreeEnv($repositoryPath, $worktreePath, $worktreeUrl, $formatter);
+        // Endpoint env (`docker.env`, `docker.endpoints.*.env`) must be right
+        // before `up`: compose interpolates `${VAR}` from .env at start, and a
+        // Vite dev server bakes VITE_* in when it boots. Ports are final
+        // already; hostnames are upgraded after the probe below.
+        $this->seedEndpointEnv($repositoryPath, $worktreePath, $config->docker, $worktreeUrls, $formatter);
 
         $secretsExit = $this->validateWorktreeSecrets($worktreePath, $formatter);
         if ($secretsExit !== Command::SUCCESS) {
@@ -381,7 +387,8 @@ class ReviewCommand extends Command
             $config->docker->appUrl,
             $config->docker->sslPath,
             $folderName,
-            $formatter
+            $formatter,
+            $this->httpsEndpointHosts($config->docker, $folderName),
         );
 
         // Start the dependency copies but don't wait: image reuse and `up` only
@@ -502,38 +509,57 @@ class ReviewCommand extends Command
             // from a sibling container, which has no host ports to aim at.
             // Doing this first means the probe below sees an app that answers
             // to the subdomain and awards it the isolated origin.
-            $this->vhostAliaser->alias(
-                $config->docker->composeFile,
-                $config->docker->primaryService,
-                [$folderName . '.localhost'],
-                parse_url($config->docker->appUrl, PHP_URL_HOST) ?: null,
-                $namespace,
-                $formatter,
-            );
+            // Every endpoint gets its own alias on the vhost that serves its
+            // canonical host — projects like hydra serve several vhosts from one
+            // container, so each name must land on exactly one of them.
+            foreach (EndpointUrls::canonical($config->docker)->all() as $endpointName => $canonicalUrl) {
+                $this->vhostAliaser->alias(
+                    $config->docker->composeFile,
+                    $endpointName === EndpointUrls::PRIMARY
+                        ? $config->docker->primaryService
+                        : $config->docker->endpoints[$endpointName]->serviceOr($config->docker->primaryService),
+                    [EndpointUrls::worktreeHost($endpointName, $folderName)],
+                    parse_url($canonicalUrl, PHP_URL_HOST) ?: null,
+                    $namespace,
+                    $formatter,
+                );
+            }
 
             // Now the app is up, decide the final URL: the pretty
             // "<folder>.localhost" subdomain for host-agnostic apps (typical
             // Laravel), or the app's own host for host-routed ones (e.g. apache
             // vhosts). Re-seed .env so the app's self-generated links match what we
             // print; the reset step below boots/clears with the corrected APP_URL.
-            $resolvedUrl = UrlPortOffset::applyMap(
-                $this->worktreeUrlResolver->resolve(
-                    $config->docker->appUrl,
-                    $folderName,
-                    $portOffset
-                ),
-                $portMap
+            $resolvedUrls = EndpointUrls::canonical($config->docker)->map(
+                fn (string $canonicalUrl, string $endpointName): string => UrlPortOffset::applyMap(
+                    $this->worktreeUrlResolver->resolve(
+                        $canonicalUrl,
+                        $folderName,
+                        $portOffset,
+                        $endpointName === EndpointUrls::PRIMARY ? null : $endpointName,
+                    ),
+                    $portMap
+                )
             );
-            if ($resolvedUrl !== $worktreeUrl) {
-                $worktreeUrl = $resolvedUrl;
+            if ($resolvedUrls->primary !== $worktreeUrl) {
+                $worktreeUrl = $resolvedUrls->primary;
                 $this->seedWorktreeEnv($repositoryPath, $worktreePath, $worktreeUrl, $formatter);
+            }
+            $worktreeUrls = $resolvedUrls;
+            // Hostnames may have changed since the pre-start seed; a Vite dev
+            // server only reads VITE_* at boot, so recreate any endpoint
+            // service whose env moved. The primary service is covered by the
+            // reset step below.
+            $changedEnvFiles = $this->seedEndpointEnv($repositoryPath, $worktreePath, $config->docker, $worktreeUrls, $formatter);
+            if ($changedEnvFiles !== []) {
+                $this->recreateEndpointServices($config->docker, $changedEnvFiles, $namespace, $formatter);
             }
 
             // Record the decision in the lock file. The hostname half of it was
             // decided by probing the live app, so nothing downstream (notably
             // `ngramx show-url`, run from inside the worktree) can re-derive it
             // from config alone.
-            $this->recordWorktreeUrl($worktreeLock, $worktreeUrl);
+            $this->recordWorktreeUrl($worktreeLock, $worktreeUrls);
 
             // The reset/install step is the first thing that reads vendor and
             // node_modules, so the priming copies must have landed by now.
@@ -576,7 +602,7 @@ class ReviewCommand extends Command
             $formatter->info('  ' . $hostsLine);
         }
 
-        $this->displayCompletionUrls($worktreePath, $ticketNumber, $formatter, $worktreeUrl);
+        $this->displayCompletionUrls($worktreePath, $ticketNumber, $formatter, $config->docker, $worktreeUrls);
 
         if ((bool) $input->getOption('cursor')) {
             $this->openCursorWindow($worktreePath, $formatter);
@@ -595,6 +621,7 @@ class ReviewCommand extends Command
                 'url' => $worktreeUrl,
                 'repository_path' => $repositoryPath,
                 'folder' => $folderName,
+                ...self::endpointHookContext($worktreeUrls),
             ],
             $resolvedWorktreePath,
             $formatter,
@@ -636,10 +663,10 @@ class ReviewCommand extends Command
      * file, leaving every other field untouched. Best effort: an unreadable
      * lock just means `show-url` falls back to deriving the URL itself.
      */
-    private function recordWorktreeUrl(LockFile $lock, string $url): void
+    private function recordWorktreeUrl(LockFile $lock, EndpointUrls $urls): void
     {
         $data = $lock->read();
-        if ($data === null || $data->url === $url) {
+        if ($data === null || ($data->url === $urls->primary && $data->urls === $urls->endpoints)) {
             return;
         }
 
@@ -651,8 +678,105 @@ class ReviewCommand extends Command
             herdStopped: $data->herdStopped,
             caddyStopped: $data->caddyStopped,
             portMap: $data->portMap,
-            url: $url,
+            url: $urls->primary,
+            urls: $urls->endpoints,
         ));
+    }
+
+    /**
+     * Write `docker.env` / `docker.endpoints.*.env` into the worktree's env
+     * file(s), expanded against the URLs the environment is (or will be)
+     * advertised on. Missing files are copied from the parent checkout first.
+     *
+     * @return list<string> project-relative env files that changed
+     */
+    private function seedEndpointEnv(
+        string $repositoryPath,
+        string $worktreePath,
+        DockerConfig $docker,
+        EndpointUrls $urls,
+        OutputFormatter $formatter,
+    ): array {
+        $files = $urls->envFiles($docker);
+        if ($files === []) {
+            return [];
+        }
+
+        $changed = (new EnvFileSeeder())->seed($worktreePath, $files, $repositoryPath);
+        foreach ($changed as $file) {
+            $formatter->info(sprintf('Set %s in %s', implode(', ', array_keys($files[$file])), $file));
+        }
+
+        return $changed;
+    }
+
+    /**
+     * Recreate the compose services behind endpoints whose env file changed,
+     * so processes that read env only at boot (Vite) pick the new URLs up.
+     * The primary service is left alone: the reset step restarts it.
+     *
+     * @param list<string> $changedFiles
+     */
+    private function recreateEndpointServices(
+        DockerConfig $docker,
+        array $changedFiles,
+        ?string $namespace,
+        OutputFormatter $formatter,
+    ): void {
+        $services = [];
+        foreach ($docker->endpoints as $endpoint) {
+            if ($endpoint->env === [] || !in_array($endpoint->file, $changedFiles, true)) {
+                continue;
+            }
+            $service = $endpoint->serviceOr($docker->primaryService);
+            if ($service !== $docker->primaryService) {
+                $services[$service] = true;
+            }
+        }
+
+        foreach (array_keys($services) as $service) {
+            try {
+                $formatter->info("Restarting $service to pick up its worktree URLs...");
+                $this->dockerCompose->recreateService($docker->composeFile, $service, $namespace);
+            } catch (\Throwable $e) {
+                $formatter->warning("Could not restart $service: {$e->getMessage()}");
+            }
+        }
+    }
+
+    /**
+     * Canonical + worktree hostnames of every https endpoint, for the TLS cert.
+     *
+     * @return list<string>
+     */
+    private function httpsEndpointHosts(DockerConfig $docker, string $folderName): array
+    {
+        $hosts = [];
+        foreach ($docker->endpoints as $name => $endpoint) {
+            $parts = parse_url($endpoint->url);
+            if (!is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'https' || !isset($parts['host'])) {
+                continue;
+            }
+            $hosts[] = (string) $parts['host'];
+            $hosts[] = EndpointUrls::worktreeHost($name, $folderName);
+        }
+
+        return $hosts;
+    }
+
+    /**
+     * `{url.<name>}` hook placeholders for every endpoint (`{url.primary}` too).
+     *
+     * @return array<string,string>
+     */
+    private static function endpointHookContext(EndpointUrls $urls): array
+    {
+        $context = [];
+        foreach ($urls->all() as $name => $url) {
+            $context['url.' . $name] = $url;
+        }
+
+        return $context;
     }
 
     /**
@@ -1466,7 +1590,7 @@ class ReviewCommand extends Command
      * Look for completion.json (preferred) or completion.md (legacy fallback) in
      * .ngramx/tickets/<ticket>/ and display the completion info.
      */
-    private function displayCompletionUrls(string $repositoryPath, string $ticketNumber, OutputFormatter $formatter, ?string $environmentUrl = null): void
+    private function displayCompletionUrls(string $repositoryPath, string $ticketNumber, OutputFormatter $formatter, ?DockerConfig $docker = null, ?EndpointUrls $environmentUrls = null): void
     {
         $ticketDir = $this->findTicketDirectory($repositoryPath, $ticketNumber);
 
@@ -1476,7 +1600,7 @@ class ReviewCommand extends Command
 
         $jsonFile = $this->findFileInDirectory($ticketDir, 'completion.json');
         if ($jsonFile !== null) {
-            $this->displayCompletionJson($jsonFile, $formatter, $environmentUrl);
+            $this->displayCompletionJson($jsonFile, $formatter, $docker, $environmentUrls);
 
             return;
         }
@@ -1506,13 +1630,16 @@ class ReviewCommand extends Command
      * the correct host/port. Falls back to the stored URL when no environment
      * URL is known. See {@see CompletionUrlRewriter} for the rules.
      */
-    private function localiseTestUrl(string $url, ?string $environmentUrl): string
+    private function localiseTestUrl(string $url, ?DockerConfig $docker, ?EndpointUrls $environmentUrls): string
     {
-        if ($environmentUrl === null || $environmentUrl === '') {
+        if ($environmentUrls === null) {
             return $url;
         }
+        if ($docker === null) {
+            return CompletionUrlRewriter::rewrite($url, $environmentUrls->primary);
+        }
 
-        return CompletionUrlRewriter::rewrite($url, $environmentUrl);
+        return CompletionUrlRewriter::rewriteEndpoints($url, EndpointUrls::canonical($docker), $environmentUrls);
     }
 
     private const COMPLETION_RULE_WIDTH = 78;
@@ -1524,7 +1651,7 @@ class ReviewCommand extends Command
      * Parse and display the full completion.json with title, description,
      * test plan (with active/stale status), and links.
      */
-    private function displayCompletionJson(string $filePath, OutputFormatter $formatter, ?string $environmentUrl = null): void
+    private function displayCompletionJson(string $filePath, OutputFormatter $formatter, ?DockerConfig $docker = null, ?EndpointUrls $environmentUrls = null): void
     {
         $contents = file_get_contents($filePath);
         if ($contents === false) {
@@ -1610,7 +1737,7 @@ class ReviewCommand extends Command
         if (isset($data['test_urls']) && is_array($data['test_urls'])) {
             foreach ($data['test_urls'] as $entry) {
                 if (is_array($entry) && isset($entry['label'], $entry['url']) && is_string($entry['label']) && is_string($entry['url'])) {
-                    $formatter->url($entry['label'], $this->localiseTestUrl($entry['url'], $environmentUrl));
+                    $formatter->url($entry['label'], $this->localiseTestUrl($entry['url'], $docker, $environmentUrls));
                 }
             }
         }

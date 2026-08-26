@@ -17,6 +17,9 @@ readonly class LockFileData
      *        Recorded so `ngramx show-url` can reproduce it exactly — notably
      *        for worktrees, whose URL is resolved by probing the running app
      *        (subdomain vs canonical host) and cannot be re-derived offline.
+     * @param array<string,string> $urls Every additional endpoint's advertised
+     *        URL keyed by name (`docker.endpoints.*`), for the same reason. The
+     *        primary lives in $url, not here.
      */
     public function __construct(
         public ?string $namespace,
@@ -27,6 +30,7 @@ readonly class LockFileData
         public bool $caddyStopped = false,
         public array $portMap = [],
         public ?string $url = null,
+        public array $urls = [],
     ) {
     }
 }

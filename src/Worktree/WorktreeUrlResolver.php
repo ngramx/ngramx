@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ngramx\Worktree;
 
 use Ngramx\Http\AppUrlProbe;
+use Ngramx\Http\EndpointUrls;
 use Ngramx\Http\UrlPortOffset;
 
 /**
@@ -50,7 +51,7 @@ class WorktreeUrlResolver
      * host + offset port when the app is host-routed (or unreachable), and the
      * "<folder>.localhost" subdomain when the app is host-agnostic.
      */
-    public function resolve(string $appUrl, string $folderName, int $portOffset): string
+    public function resolve(string $appUrl, string $folderName, int $portOffset, ?string $endpointName = null): string
     {
         $fallback = UrlPortOffset::apply($appUrl, $portOffset);
 
@@ -65,7 +66,9 @@ class WorktreeUrlResolver
             ? (int) $parts['port']
             : ($scheme === 'https' ? 443 : 80);
 
-        $subHost = WorktreeIdentity::sanitizeSegment($folderName) . '.localhost';
+        // Additional endpoints (docker.endpoints.<name>) get their own label in
+        // front of the worktree host so each keeps a distinct origin.
+        $subHost = EndpointUrls::worktreeHost($endpointName ?? EndpointUrls::PRIMARY, $folderName);
 
         // app_url is already a loopback subdomain — nothing to probe or swap.
         if (strcasecmp($realHost, $subHost) === 0) {

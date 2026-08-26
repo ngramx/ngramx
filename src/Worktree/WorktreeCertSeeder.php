@@ -76,6 +76,9 @@ class WorktreeCertSeeder
      * advertise. Returns true when the cert on disk was created or replaced
      * (callers use this to know a running proxy must be restarted to pick the
      * new cert up).
+     *
+     * @param list<string> $extraHosts Further hostnames to cover — the canonical
+     *        and worktree hostnames of every https `docker.endpoints.*`.
      */
     public function seed(
         string $repositoryPath,
@@ -84,6 +87,7 @@ class WorktreeCertSeeder
         string $sslPath,
         string $folderName,
         OutputFormatter $formatter,
+        array $extraHosts = [],
     ): bool {
         $parts = parse_url($appUrl);
         if (!is_array($parts) || (($parts['scheme'] ?? '') !== 'https') || !isset($parts['host'])) {
@@ -92,6 +96,12 @@ class WorktreeCertSeeder
 
         $appHost = strtolower((string) $parts['host']);
         $subHost = WorktreeIdentity::sanitizeSegment($folderName) . '.localhost';
+        // Additional https endpoints (their canonical and worktree hostnames)
+        // ride on the same cert so every advertised URL is trusted.
+        $extraHosts = array_values(array_unique(array_filter(
+            array_map(static fn (string $h): string => strtolower($h), $extraHosts),
+            static fn (string $h): bool => $h !== '' && $h !== $appHost && $h !== $subHost,
+        )));
 
         $sslDir = $worktreePath . '/' . trim($sslPath, '/');
         $certFile = $sslDir . '/' . $appHost . '.crt';
@@ -113,7 +123,7 @@ class WorktreeCertSeeder
             }
         }
 
-        if ($this->certCovers($certFile, $appHost, $subHost)) {
+        if ($this->certCovers($certFile, $appHost, $subHost, $extraHosts)) {
             return $changed;
         }
 
@@ -126,8 +136,9 @@ class WorktreeCertSeeder
             return $changed;
         }
 
-        $formatter->info("Generating a TLS certificate for $appHost and $subHost...");
-        if (!($this->mkcertRunner)([$appHost, $subHost], $certFile, $keyFile)) {
+        $hosts = [$appHost, $subHost, ...$extraHosts];
+        $formatter->info('Generating a TLS certificate for ' . implode(', ', $hosts) . '...');
+        if (!($this->mkcertRunner)($hosts, $certFile, $keyFile)) {
             $formatter->warning('mkcert failed to generate the worktree certificate — HTTPS may show a hostname mismatch.');
 
             return $changed;
@@ -142,18 +153,29 @@ class WorktreeCertSeeder
     }
 
     /**
-     * Whether the cert at $certFile covers both hostnames the worktree
+     * Whether the cert at $certFile covers every hostname the worktree
      * environment may end up advertising.
+     *
+     * @param list<string> $extraHosts
      */
-    private function certCovers(string $certFile, string $appHost, string $subHost): bool
+    private function certCovers(string $certFile, string $appHost, string $subHost, array $extraHosts = []): bool
     {
         if (!is_file($certFile)) {
             return false;
         }
 
         $info = $this->inspector->inspectPath($certFile);
+        if ($info === null) {
+            return false;
+        }
 
-        return $info !== null && $info->coversHost($appHost) && $info->coversHost($subHost);
+        foreach ([$appHost, $subHost, ...$extraHosts] as $host) {
+            if (!$info->coversHost($host)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function copyFromParent(

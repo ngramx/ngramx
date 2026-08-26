@@ -16,6 +16,25 @@ docker:
       ready_command: "php artisan --version"
       ready_log: "is ready!"
 
+  # Optional: further browser-facing URLs served by this repo (a PWA dev
+  # server, an API vhost, supplier/customer sub-sites). app_url stays the
+  # primary. Each follows the same port offset, gets its own
+  # "<name>.<ticket>.localhost" origin in worktrees, and can keep env vars
+  # pointed at the live URLs. Placeholders: {url} {scheme} {host} {port}
+  # {origin} for the endpoint itself, {url.<name>} / {url.primary} for others.
+  # env:                          # seeded into .env against the primary URL
+  #   REVERB_HOST: "{host}"
+  #   REVERB_PORT: "{port}"
+  # endpoints:
+  #   api: "http://api.myapp.localhost"     # shorthand: url only
+  #   pwa:
+  #     url: "http://localhost:5173"
+  #     service: pwa                        # compose service (default: primary_service)
+  #     file: ".env"                        # env file to write (default: .env)
+  #     env:
+  #       VITE_API_BASE_URL: "{url.primary}"
+  #       PWA_PORT: "{port}"
+
 setup:
   pre_start:
     - command: "[ ! -f .env ] && cp .env.example .env || true"

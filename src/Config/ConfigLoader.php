@@ -8,6 +8,7 @@ use Ngramx\Config\Exception\ConfigException;
 use Ngramx\Config\Schema\AgentsConfig;
 use Ngramx\Config\Schema\CommandDefinition;
 use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\EndpointConfig;
 use Ngramx\Config\Schema\N8nConfig;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Schema\Postmaclone\BackupConfig;
@@ -546,7 +547,89 @@ class ConfigLoader
             verifyTimeout: isset($dockerConfig['verify_timeout'])
                 ? (int) $dockerConfig['verify_timeout']
                 : null,
+            endpoints: $this->buildEndpoints($dockerConfig['endpoints'] ?? null),
+            env: $this->buildEnvMap($dockerConfig['env'] ?? null, 'docker.env'),
         );
+    }
+
+    /**
+     * @return array<string, EndpointConfig>
+     */
+    private function buildEndpoints(mixed $raw): array
+    {
+        if ($raw === null) {
+            return [];
+        }
+        if (!is_array($raw)) {
+            throw new ConfigException('docker.endpoints must be a map of endpoint name => { url, service, env, file }');
+        }
+
+        $endpoints = [];
+        foreach ($raw as $name => $entry) {
+            if (!is_string($name) || preg_match('/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/', $name) !== 1) {
+                throw new ConfigException(sprintf(
+                    'docker.endpoints: "%s" is not a valid endpoint name (lowercase letters, digits and hyphens only — it becomes a hostname label)',
+                    (string) $name,
+                ));
+            }
+            if ($name === 'primary') {
+                throw new ConfigException('docker.endpoints: "primary" is reserved for docker.app_url');
+            }
+            // Shorthand: `api: "http://api.example.localhost"`.
+            if (is_string($entry)) {
+                $entry = ['url' => $entry];
+            }
+            if (!is_array($entry) || !isset($entry['url']) || !is_string($entry['url'])) {
+                throw new ConfigException("docker.endpoints.{$name} must have a url");
+            }
+            $parts = parse_url($entry['url']);
+            if (!is_array($parts) || !isset($parts['scheme'], $parts['host']) || !in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+                throw new ConfigException("docker.endpoints.{$name}.url must be an http(s) URL with a hostname");
+            }
+            $service = $entry['service'] ?? null;
+            if ($service !== null && (!is_string($service) || trim($service) === '')) {
+                throw new ConfigException("docker.endpoints.{$name}.service must be a compose service name");
+            }
+            $file = $entry['file'] ?? '.env';
+            if (!is_string($file) || trim($file) === '' || str_starts_with($file, '/') || str_contains($file, '..')) {
+                throw new ConfigException("docker.endpoints.{$name}.file must be a project-relative path");
+            }
+
+            $endpoints[$name] = new EndpointConfig(
+                name: $name,
+                url: $entry['url'],
+                service: $service,
+                env: $this->buildEnvMap($entry['env'] ?? null, "docker.endpoints.{$name}.env"),
+                file: $file,
+            );
+        }
+
+        return $endpoints;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function buildEnvMap(mixed $raw, string $path): array
+    {
+        if ($raw === null) {
+            return [];
+        }
+        if (!is_array($raw)) {
+            throw new ConfigException("{$path} must be a map of ENV_VAR => value");
+        }
+        $env = [];
+        foreach ($raw as $key => $value) {
+            if (!is_string($key) || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key) !== 1) {
+                throw new ConfigException(sprintf('%s: "%s" is not a valid environment variable name', $path, (string) $key));
+            }
+            if (!is_scalar($value)) {
+                throw new ConfigException("{$path}.{$key} must be a string");
+            }
+            $env[$key] = is_bool($value) ? ($value ? '1' : '0') : (string) $value;
+        }
+
+        return $env;
     }
 
     /**

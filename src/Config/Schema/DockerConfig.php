@@ -15,6 +15,12 @@ readonly class DockerConfig
      *                                           built-in default (~60s). Bump it for projects whose
      *                                           cold boot (composer install / cache warm) routinely
      *                                           outlasts the default and 502s during startup.
+     * @param array<string,EndpointConfig> $endpoints Additional browser-facing URLs served by
+     *                                           this repository, keyed by name. Empty for the
+     *                                           common single-URL project.
+     * @param array<string,string> $env           Env vars Ngramx keeps pointed at the primary
+     *                                           URL (placeholders as for endpoints), written
+     *                                           to `.env`.
      */
     public function __construct(
         public string $composeFile,
@@ -23,6 +29,8 @@ readonly class DockerConfig
         public array $waitFor = [],
         public string $sslPath = 'docker/nginx/ssl',
         public ?int $verifyTimeout = null,
+        public array $endpoints = [],
+        public array $env = [],
     ) {
     }
 }
