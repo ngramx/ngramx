@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.39.0](https://github.com/ngramx/ngramx/compare/v2.38.1...v2.39.0) (2026-08-26)
+
+
+### Features
+
+* **coder:** add `ngramx coder` to shell into the remote coding agent ([d72ce9a](https://github.com/ngramx/ngramx/commit/d72ce9a52c889f1f4239174cb1e47faad188ea5d))
+
 ## [2.38.1](https://github.com/ngramx/ngramx/compare/v2.38.0...v2.38.1) (2026-08-21)
 
 
