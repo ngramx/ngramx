@@ -13,7 +13,9 @@ use Ngramx\Docker\HealthChecker;
 use Ngramx\Docker\ServiceReadinessWaiter;
 use Ngramx\Executor\ContainerCommandExecutor;
 use Ngramx\Executor\ParallelContainerExecutor;
+use Ngramx\Executor\Result\ExecutionResult;
 use Ngramx\Executor\Result\ParallelCommandResult;
+use Ngramx\Executor\Retry\RetryPolicy;
 use Ngramx\Output\OutputFormatter;
 use Ngramx\Output\ParallelCommandPanel;
 use Symfony\Component\Process\Process;
@@ -27,41 +29,34 @@ class CommandOrchestrator
      */
     private const DEFAULT_READINESS_TIMEOUT = 300;
 
-    /**
-     * Total attempts for parallel sub-commands: first runs of a group race
-     * against each other (e.g. artisan before composer install has finished),
-     * so a failed sub-command is re-run up to twice before we call it a real
-     * failure. Only the failed sub-commands are re-run — successful ones have
-     * already completed.
-     */
-    private const MAX_PARALLEL_ATTEMPTS = 3;
-
-    /**
-     * Delay before the final retry, giving a still-settling dependency
-     * (e.g. an install finishing) a moment to complete.
-     */
-    private const RETRY_DELAY_SECONDS = 3;
-
     private readonly ServiceReadinessWaiter $readinessWaiter;
+
+    private readonly RetryPolicy $retryPolicy;
+
+    private readonly DockerCompose $dockerCompose;
+
+    /** @var \Closure(NgramxConfig, ?string): ContainerCommandExecutor */
+    private readonly \Closure $containerExecutorFactory;
 
     /** @var \Closure(NgramxConfig, ?string): ParallelContainerExecutor */
     private readonly \Closure $parallelExecutorFactory;
 
-    /** @var \Closure(int): void */
-    private readonly \Closure $retrySleep;
-
     /**
      * @param callable(NgramxConfig, ?string): ParallelContainerExecutor|null $parallelExecutorFactory Test seam for the parallel executor
      * @param callable(int): void|null $retrySleep Test seam for the inter-retry delay
+     * @param callable(NgramxConfig, ?string): ContainerCommandExecutor|null $containerExecutorFactory Test seam for the single/sequential executor
      */
     public function __construct(
         private readonly OutputFormatter $formatter,
         ?ServiceReadinessWaiter $readinessWaiter = null,
         ?callable $parallelExecutorFactory = null,
         ?callable $retrySleep = null,
+        ?callable $containerExecutorFactory = null,
+        ?DockerCompose $dockerCompose = null,
     ) {
+        $this->dockerCompose = $dockerCompose ?? new DockerCompose();
         $this->readinessWaiter = $readinessWaiter ?? new ServiceReadinessWaiter(
-            new DockerCompose(),
+            $this->dockerCompose,
             new HealthChecker(),
             $this->formatter,
             new ContainerExecutor(),
@@ -74,11 +69,15 @@ class CommandOrchestrator
                 $config->docker->primaryService,
                 $projectName,
             );
-        $this->retrySleep = $retrySleep !== null
-            ? $retrySleep(...)
-            : static function (int $seconds): void {
-                sleep($seconds);
-            };
+        $this->containerExecutorFactory = $containerExecutorFactory !== null
+            ? $containerExecutorFactory(...)
+            : static fn (NgramxConfig $config, ?string $projectName): ContainerCommandExecutor => new ContainerCommandExecutor(
+                new ContainerExecutor(),
+                $config->docker->composeFile,
+                $config->docker->primaryService,
+                $projectName,
+            );
+        $this->retryPolicy = new RetryPolicy($retrySleep);
     }
 
     /**
@@ -100,7 +99,7 @@ class CommandOrchestrator
         $this->ensurePrimaryServiceReady($config, $projectName);
 
         if ($cmd->isParallel()) {
-            return $this->runParallel($commandName, $cmd->commands, $cmd->timeout, $cmd->description, $config, $projectName);
+            return $this->runParallel($commandName, $cmd, $config, $projectName);
         }
 
         if ($cmd->isSequentialList()) {
@@ -203,25 +202,9 @@ class CommandOrchestrator
         $this->formatter->section("Running: $commandName");
         $this->formatter->command($cmd);
 
-        $containerExecutor = new ContainerCommandExecutor(
-            new ContainerExecutor(),
-            $config->docker->composeFile,
-            $config->docker->primaryService,
-            $projectName
-        );
+        $containerExecutor = ($this->containerExecutorFactory)($config, $projectName);
 
-        $outputCallback = function ($type, $buffer): void {
-            if ($type === Process::OUT || $type === Process::ERR) {
-                $lines = explode("\n", rtrim($buffer));
-                foreach ($lines as $line) {
-                    if (!empty(trim($line))) {
-                        $this->formatter->commandOutput($line);
-                    }
-                }
-            }
-        };
-
-        $result = $containerExecutor->execute($cmd, $outputCallback);
+        $result = $this->executeWithRetry($containerExecutor, $cmd, $config, $projectName);
 
         if (!$result->isSuccessful()) {
             if (str_contains($result->errorOutput, 'is not running') || str_contains($result->output, 'is not running')) {
@@ -252,12 +235,7 @@ class CommandOrchestrator
         $this->formatter->section("Running: $commandName");
         $this->formatter->info($cmd->description);
 
-        $containerExecutor = new ContainerCommandExecutor(
-            new ContainerExecutor(),
-            $config->docker->composeFile,
-            $config->docker->primaryService,
-            $projectName,
-        );
+        $containerExecutor = ($this->containerExecutorFactory)($config, $projectName);
 
         $total = count($cmd->commands);
 
@@ -271,24 +249,16 @@ class CommandOrchestrator
                 $command,
             ));
 
-            $outputCallback = function ($type, $buffer): void {
-                if ($type === Process::OUT || $type === Process::ERR) {
-                    $lines = explode("\n", rtrim($buffer));
-                    foreach ($lines as $line) {
-                        if (!empty(trim($line))) {
-                            $this->formatter->commandOutput($line);
-                        }
-                    }
-                }
-            };
-
             $stepCmd = new CommandDefinition(
                 command: $command,
                 description: '',
                 timeout: $cmd->timeout,
+                // Each step inherits the group's retry setting, so `retry:` on a
+                // sequential command applies to whichever step actually fails.
+                retry: $cmd->retry,
             );
 
-            $result = $containerExecutor->execute($stepCmd, $outputCallback);
+            $result = $this->executeWithRetry($containerExecutor, $stepCmd, $config, $projectName);
 
             if (!$result->isSuccessful()) {
                 if (str_contains($result->errorOutput, 'is not running') || str_contains($result->output, 'is not running')) {
@@ -303,21 +273,19 @@ class CommandOrchestrator
         return microtime(true) - $startTime;
     }
 
-    /**
-     * @param list<string> $commands
-     */
     private function runParallel(
         string $commandName,
-        array $commands,
-        int $timeout,
-        string $description,
+        CommandDefinition $cmd,
         NgramxConfig $config,
         ?string $projectName = null,
     ): float {
         $startTime = microtime(true);
 
+        $commands = $cmd->commands;
+        $timeout = $cmd->timeout;
+
         $this->formatter->section("Running: $commandName");
-        $this->formatter->info($description);
+        $this->formatter->info($cmd->description);
 
         $labels = self::deriveLabels($commands);
         /** @var list<array{label: string, command: string, timeout: int}> $items */
@@ -336,15 +304,25 @@ class CommandOrchestrator
 
         // First runs of a parallel group can race against each other (e.g. an
         // artisan command firing before composer install has finished), so
-        // failures are usually transient. Re-run only the failed sub-commands —
-        // the successful ones have already completed — up to two more times,
-        // pausing before the final attempt to let a settling dependency finish.
+        // every failure here is treated as potentially transient regardless of
+        // what it printed — a race shows up as whatever error the missing
+        // dependency happens to produce. Re-run only the failed sub-commands —
+        // the successful ones have already completed — pausing a little longer
+        // before each attempt to let a settling dependency finish.
+        $maxAttempts = $this->retryPolicy->attemptsFor($cmd);
         $failedIndexes = $this->failedIndexes($results);
+        $recreated = false;
 
-        for ($attempt = 2; $failedIndexes !== [] && $attempt <= self::MAX_PARALLEL_ATTEMPTS; $attempt++) {
-            if ($attempt === self::MAX_PARALLEL_ATTEMPTS) {
-                ($this->retrySleep)(self::RETRY_DELAY_SECONDS);
+        for ($attempt = 2; $failedIndexes !== [] && $attempt <= $maxAttempts; $attempt++) {
+            // A container that has gone away, or whose bind mount no longer
+            // resolves, fails every sub-command identically forever. Recreate
+            // it once — retrying inside it cannot help.
+            if (!$recreated && $this->needsRecreate($results, $failedIndexes)) {
+                $recreated = true;
+                $this->recreatePrimaryService($config, $projectName);
             }
+
+            $this->retryPolicy->pauseBeforeRetry($attempt - 1);
 
             $retryLabels = array_map(static fn (int $i) => $items[$i]['label'], $failedIndexes);
             $this->formatter->info(sprintf(
@@ -352,7 +330,7 @@ class CommandOrchestrator
                 count($failedIndexes),
                 count($failedIndexes) === 1 ? '' : 's',
                 $attempt,
-                self::MAX_PARALLEL_ATTEMPTS,
+                $maxAttempts,
                 implode(', ', $retryLabels),
             ));
 
@@ -373,6 +351,105 @@ class CommandOrchestrator
         }
 
         return microtime(true) - $startTime;
+    }
+
+    /**
+     * Run one command inside the container, re-running it while the failure
+     * looks like the environment rather than the command itself.
+     *
+     * A step can fail because it genuinely does not work (a failing test, a bad
+     * migration) or because it fired at an environment that was not ready yet —
+     * an entrypoint still installing dependencies, a database socket not
+     * listening, a bind mount replaced under a running container. Only the
+     * second kind is worth another attempt, so {@see RetryPolicy} classifies
+     * the failure and a real one is reported straight away instead of being
+     * run three times.
+     */
+    private function executeWithRetry(
+        ContainerCommandExecutor $executor,
+        CommandDefinition $cmd,
+        NgramxConfig $config,
+        ?string $projectName,
+    ): ExecutionResult {
+        $outputCallback = function ($type, $buffer): void {
+            if ($type === Process::OUT || $type === Process::ERR) {
+                $lines = explode("\n", rtrim($buffer));
+                foreach ($lines as $line) {
+                    if (!empty(trim($line))) {
+                        $this->formatter->commandOutput($line);
+                    }
+                }
+            }
+        };
+
+        $maxAttempts = $this->retryPolicy->attemptsFor($cmd);
+        $recreated = false;
+
+        for ($attempt = 1;; $attempt++) {
+            $result = $executor->execute($cmd, $outputCallback);
+
+            if ($result->isSuccessful() || $attempt >= $maxAttempts) {
+                return $result;
+            }
+
+            if (!$this->retryPolicy->shouldRetry($cmd, $result->exitCode, $result->output, $result->errorOutput)) {
+                return $result;
+            }
+
+            $this->formatter->info(sprintf(
+                'Attempt %d of %d failed with what looks like an environment problem — retrying.',
+                $attempt,
+                $maxAttempts,
+            ));
+
+            if (!$recreated && $this->retryPolicy->needsContainerRecreate($result->output, $result->errorOutput)) {
+                $recreated = true;
+                $this->recreatePrimaryService($config, $projectName);
+            }
+
+            $this->retryPolicy->pauseBeforeRetry($attempt);
+        }
+    }
+
+    /**
+     * @param array<int, ParallelCommandResult> $results
+     * @param list<int> $failedIndexes
+     */
+    private function needsRecreate(array $results, array $failedIndexes): bool
+    {
+        foreach ($failedIndexes as $index) {
+            if ($this->retryPolicy->needsContainerRecreate(...$results[$index]->outputLines)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Replace the primary service and wait for it to come back ready.
+     *
+     * This is the escape hatch for a container that cannot succeed no matter
+     * how often a command is retried inside it: it has exited, or it is holding
+     * a bind mount whose source directory was deleted and recreated (a worktree
+     * torn down and rebuilt while its stack was left running), which leaves
+     * every command with a working directory that resolves to nothing.
+     */
+    private function recreatePrimaryService(NgramxConfig $config, ?string $projectName): void
+    {
+        $service = $config->docker->primaryService;
+
+        $this->formatter->warning(
+            "The '$service' container is unusable (gone, or holding a mount that no longer resolves) — "
+            . 'recreating it before retrying.'
+        );
+
+        try {
+            $this->dockerCompose->recreateService($config->docker->composeFile, $service, $projectName);
+            $this->ensurePrimaryServiceReady($config, $projectName);
+        } catch (\Throwable $e) {
+            $this->formatter->warning('Could not recreate the container automatically: ' . $e->getMessage());
+        }
     }
 
     /**

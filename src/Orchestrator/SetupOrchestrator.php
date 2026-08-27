@@ -15,6 +15,7 @@ use Ngramx\Docker\NetworkAttachmentChecker;
 use Ngramx\Docker\ServiceReadinessWaiter;
 use Ngramx\Executor\ContainerCommandExecutor;
 use Ngramx\Executor\HostCommandExecutor;
+use Ngramx\Executor\Retry\RetryPolicy;
 use Ngramx\Host\EtcHostsHint;
 use Ngramx\Http\AppUrlProbe;
 use Ngramx\Http\LoopbackUrl;
@@ -39,6 +40,7 @@ class SetupOrchestrator
     private readonly ServiceReadinessWaiter $readinessWaiter;
     private readonly AppUrlProbe $appUrlProbe;
     private readonly NetworkAttachmentChecker $networkAttachmentChecker;
+    private readonly RetryPolicy $retryPolicy;
 
     public function __construct(
         private readonly DockerCompose $dockerCompose,
@@ -50,6 +52,7 @@ class SetupOrchestrator
         ?ServiceReadinessWaiter $readinessWaiter = null,
         ?AppUrlProbe $appUrlProbe = null,
         ?NetworkAttachmentChecker $networkAttachmentChecker = null,
+        ?RetryPolicy $retryPolicy = null,
         private readonly int $appUrlProbeAttempts = self::DEFAULT_APP_URL_PROBE_ATTEMPTS,
         private readonly int $appUrlProbeRetrySeconds = self::DEFAULT_APP_URL_PROBE_RETRY_SECONDS,
     ) {
@@ -62,6 +65,7 @@ class SetupOrchestrator
         $this->appUrlProbe = $appUrlProbe ?? new AppUrlProbe();
         $this->networkAttachmentChecker = $networkAttachmentChecker
             ?? new NetworkAttachmentChecker($this->dockerCompose);
+        $this->retryPolicy = $retryPolicy ?? new RetryPolicy();
     }
 
     /**
@@ -609,7 +613,30 @@ class SetupOrchestrator
             }
         };
 
-        $result = $executor->execute($cmd, $outputCallback);
+        // Initialize commands run seconds after the containers appear, which is
+        // exactly when the environment is least settled — a socket not yet
+        // listening, an entrypoint still installing. Re-run a failure that looks
+        // environmental rather than failing the whole `up`.
+        $maxAttempts = $this->retryPolicy->attemptsFor($cmd);
+
+        for ($attempt = 1;; $attempt++) {
+            $result = $executor->execute($cmd, $outputCallback);
+
+            if ($result->isSuccessful() || $attempt >= $maxAttempts) {
+                break;
+            }
+
+            if (!$this->retryPolicy->shouldRetry($cmd, $result->exitCode, $result->output, $result->errorOutput)) {
+                break;
+            }
+
+            $this->formatter->info(sprintf(
+                'Attempt %d of %d failed with what looks like an environment problem — retrying.',
+                $attempt,
+                $maxAttempts,
+            ));
+            $this->retryPolicy->pauseBeforeRetry($attempt);
+        }
 
         if (!$result->isSuccessful() && !$cmd->ignoreFailure) {
             $this->formatter->error("Command failed: {$cmd->command}");

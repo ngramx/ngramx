@@ -844,7 +844,58 @@ class ReviewCommandTest extends TestCase
         $exitCode = $tester->execute(['ticket' => 'GIG-123', '--worktree' => true]);
 
         $this->assertSame(0, $exitCode, $tester->getDisplay());
-        $this->assertStringContainsString('picks up the updated TLS certificate', $tester->getDisplay());
+        $this->assertStringContainsString('the TLS certificate changed', $tester->getDisplay());
+    }
+
+    public function test_worktree_review_recreates_a_running_env_when_the_worktree_was_rebuilt(): void
+    {
+        // The nastiest version of this: a previous run left the stack up, then
+        // the worktree directory was torn down and created again. The running
+        // containers still bind-mount the deleted directory, so every command
+        // inside them has a working directory that resolves to nothing —
+        // `fresh` dies on step 1 with an empty path in the error. Nothing short
+        // of replacing the containers fixes it, so the recreate must happen
+        // even though the certificate is untouched.
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn($this->tmpDir . '/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+
+        // No existing worktree: it gets created during this run...
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(false);
+        $this->gitRepositoryService->expects($this->any())
+            ->method('addWorktree')
+            ->willReturnCallback(function (string $repositoryPath, string $worktreePath): bool {
+                mkdir($worktreePath, 0755, true);
+                return true;
+            });
+
+        // ...while the containers from the previous run are still up.
+        $certSeeder = $this->createMock(WorktreeCertSeeder::class);
+        $certSeeder->expects($this->any())->method('seed')->willReturn(false);
+        $this->dockerCompose->expects($this->once())->method('forceRecreate');
+
+        $this->commandOrchestrator->expects($this->any())->method('run')->willReturn(1.0);
+
+        $urlResolver = $this->createMock(WorktreeUrlResolver::class);
+        $urlResolver->expects($this->any())->method('resolve')->willReturn('http://localhost:80');
+
+        $reconciler = $this->createMock(WorktreeOwnershipReconciler::class);
+        $reconciler->expects($this->any())
+            ->method('reconcile')
+            ->willReturn(OwnershipReconcileResult::skipped('unit test'));
+
+        $tester = new CommandTester($this->createCommand(
+            primer: $this->createMock(WorktreeDependencyPrimer::class),
+            urlResolver: $urlResolver,
+            reconciler: $reconciler,
+            certSeeder: $certSeeder,
+        ));
+        $exitCode = $tester->execute(['ticket' => 'GIG-123', '--worktree' => true]);
+
+        $this->assertSame(0, $exitCode, $tester->getDisplay());
+        $this->assertStringContainsString('the worktree directory was recreated', $tester->getDisplay());
     }
 
     public function test_worktree_review_does_not_recreate_when_the_cert_is_unchanged(): void

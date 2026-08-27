@@ -31,7 +31,8 @@ setup:
   initialize:
     - command: "composer install --no-interaction"
       description: "Install PHP dependencies"
-      retry: 2
+      retry: 2                      # Optional: omit to let ngramx retry only
+                                    # environmental failures (see README)
       timeout: 300
       
     - command: "php artisan migrate:fresh --seed --force"

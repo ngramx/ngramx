@@ -1077,8 +1077,40 @@ commands:       # Optional: Custom commands
 - `command` (required): The command to execute
 - `description` (required): Human-readable description
 - `timeout` (optional, default: 600): Timeout in seconds
-- `retry` (optional, default: 0): Number of retry attempts
+- `retry` (optional): Number of times to re-run the command after a failure.
+  **Leave it out and ngramx decides for you** — see [Automatic retries](#automatic-retries)
+  below. Set it to force retries on *any* failure, or to `0` to never retry.
 - `ignore_failure` (optional, default: false): Continue even if command fails
+
+### Automatic retries
+
+Commands fail for two very different reasons, and ngramx treats them
+differently rather than blindly re-running everything:
+
+- **The command is unhappy** — a failing test, a bad migration, a syntax error.
+  Reported immediately. Re-running it would only triple the wait before you see
+  the same failure.
+- **The environment was not ready** — the container had just been recreated, a
+  sibling step was still installing dependencies, the database socket was not
+  accepting connections yet, a bind mount had gone stale. Retried automatically
+  (twice by default, waiting 3s then 6s), because these almost always pass on
+  the next attempt.
+
+This applies to single commands, sequential lists (`parallel: false`),
+`setup.initialize` steps, and parallel groups. Parallel groups additionally
+retry *any* failure, because sub-commands racing each other surface as whatever
+error the not-yet-finished dependency happens to produce — and only the
+sub-commands that failed are re-run, never the ones that already succeeded.
+
+If the failure says the container itself is unusable — it has exited, or it is
+holding a bind mount whose source directory was deleted and recreated, which
+leaves every command with a working directory that resolves to nothing — ngramx
+recreates the primary service once, waits for it to be ready, and then retries.
+Retrying inside a container in that state can never succeed.
+
+Setting `retry:` explicitly overrides the classification: that command is
+retried that many times whatever the reason it failed, and `retry: 0` disables
+retries for it entirely.
 
 ### Readiness Probes (`wait_for`)
 
