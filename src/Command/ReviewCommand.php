@@ -550,9 +550,15 @@ class ReviewCommand extends Command
             // server only reads VITE_* at boot, so recreate any endpoint
             // service whose env moved. The primary service is covered by the
             // reset step below.
+            //
+            // The recreate must run against the WORKTREE's compose file: the
+            // parent's is the same YAML, but `docker compose` also picks up the
+            // generated override sitting next to it — the parent stack's
+            // container names — and would try to recreate the wrong container.
+            $worktreeConfig = $this->configLoader->load($worktreePath . '/ngramx.yml');
             $changedEnvFiles = $this->seedEndpointEnv($repositoryPath, $worktreePath, $config->docker, $worktreeUrls, $formatter);
             if ($changedEnvFiles !== []) {
-                $this->recreateEndpointServices($config->docker, $changedEnvFiles, $namespace, $formatter);
+                $this->recreateEndpointServices($worktreeConfig->docker, $changedEnvFiles, $namespace, $formatter);
             }
 
             // Record the decision in the lock file. The hostname half of it was
@@ -564,8 +570,6 @@ class ReviewCommand extends Command
             // The reset/install step is the first thing that reads vendor and
             // node_modules, so the priming copies must have landed by now.
             $this->dependencyPrimer->await($formatter);
-
-            $worktreeConfig = $this->configLoader->load($worktreePath . '/ngramx.yml');
 
             $resetResult = $this->runReset(
                 $input,

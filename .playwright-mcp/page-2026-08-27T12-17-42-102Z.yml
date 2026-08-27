@@ -1,0 +1,14 @@
+- generic [ref=e12]:
+  - img "Earl Kendrick" [ref=e13]
+  - generic [ref=e19]: Account Access
+  - heading "Check your email" [level=1] [ref=e20]
+  - paragraph [ref=e21]:
+    - text: We sent a sign-in link to
+    - strong [ref=e22]: rob@gigabyte.software
+    - text: . Click the link in your email to log in instantly.
+  - generic [ref=e24]:
+    - paragraph [ref=e29]: Waiting for you to click the link…
+    - paragraph [ref=e30]: The link expires in 10 minutes.
+  - button "Didn’t receive it? Resend" [ref=e31] [cursor=pointer]
+  - button "Or enter the code manually" [ref=e33] [cursor=pointer]
+  - button "← Use a different email" [ref=e37] [cursor=pointer]
