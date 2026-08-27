@@ -513,6 +513,13 @@ class ReviewCommand extends Command
             // canonical host — projects like hydra serve several vhosts from one
             // container, so each name must land on exactly one of them.
             foreach (EndpointUrls::canonical($config->docker)->all() as $endpointName => $canonicalUrl) {
+                // A canonical host of "localhost" (or a raw IP) means the service
+                // answers any Host header already — a Vite dev server, say — so
+                // there is no vhost to alias and nothing to warn about.
+                $canonicalHost = strtolower((string) (parse_url($canonicalUrl, PHP_URL_HOST) ?: ''));
+                if ($canonicalHost === 'localhost' || filter_var($canonicalHost, FILTER_VALIDATE_IP) !== false) {
+                    continue;
+                }
                 $this->vhostAliaser->alias(
                     $config->docker->composeFile,
                     $endpointName === EndpointUrls::PRIMARY
