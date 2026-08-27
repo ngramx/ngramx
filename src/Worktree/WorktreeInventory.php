@@ -28,16 +28,19 @@ class WorktreeInventory
     private readonly GitRepositoryService $gitRepositoryService;
     private readonly EnvironmentUrl $environmentUrl;
     private readonly WorktreeUrlResolver $worktreeUrlResolver;
+    private readonly AgentRunReader $agentRunReader;
 
     public function __construct(
         ?DockerCompose $dockerCompose = null,
         ?GitRepositoryService $gitRepositoryService = null,
         ?EnvironmentUrl $environmentUrl = null,
         ?WorktreeUrlResolver $worktreeUrlResolver = null,
+        ?AgentRunReader $agentRunReader = null,
     ) {
         $this->dockerCompose = $dockerCompose ?? new DockerCompose();
         $this->gitRepositoryService = $gitRepositoryService ?? new GitRepositoryService();
         $this->environmentUrl = $environmentUrl ?? new EnvironmentUrl();
+        $this->agentRunReader = $agentRunReader ?? new AgentRunReader();
         // One baseline attempt: an environment we have already confirmed is
         // running either answers immediately or is not host-agnostic.
         $this->worktreeUrlResolver = $worktreeUrlResolver ?? new WorktreeUrlResolver(baselineAttempts: 1);
@@ -166,6 +169,8 @@ class WorktreeInventory
                 : null,
             namespace: $namespace,
             isCurrent: $isCurrent,
+            portOffset: $lockData?->portOffset,
+            agent: $this->agentRunReader->read($repositoryPath),
         );
     }
 
@@ -211,6 +216,11 @@ class WorktreeInventory
                 url: $running ? $this->worktreeUrl($config, $composeFile, $folder, $lockData) : null,
                 namespace: $namespace,
                 isCurrent: $currentWorktree !== null && $currentWorktree === $folder,
+                portOffset: $lockData?->portOffset,
+                // Read regardless of whether the stack is up: a finished run in
+                // a stopped environment is exactly what someone scanning the
+                // overview for "what happened here?" is looking for.
+                agent: $this->agentRunReader->read($worktreePath),
             );
         }
 

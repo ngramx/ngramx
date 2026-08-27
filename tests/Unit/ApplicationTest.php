@@ -12,6 +12,20 @@ use Symfony\Component\Console\Output\BufferedOutput;
 
 class ApplicationTest extends TestCase
 {
+    /**
+     * Valid, but with no `clear` or `fresh` command — which is what triggers
+     * the recommended-command warning banners. Most real projects are in this
+     * state, which is why those banners reaching stdout mattered.
+     */
+    private const CONFIG_WITHOUT_RECOMMENDED_COMMANDS = <<<YAML
+        version: '1.0'
+        docker:
+          compose_file: "docker-compose.yml"
+          primary_service: "app"
+          app_url: "http://localhost:80"
+        YAML;
+
+
     public function test_n8n_import_command_is_registered(): void
     {
         $app = new Application();
@@ -93,6 +107,73 @@ class ApplicationTest extends TestCase
                 'A malformed ngramx.yml must be surfaced via getConfigLoadErrors(), not silently swallowed.'
             );
             $this->assertStringContainsString('ngramx.yml', $errors[0]);
+        } finally {
+            chdir($originalCwd);
+            @unlink($tmp . '/ngramx.yml');
+            @rmdir($tmp);
+        }
+    }
+
+    /**
+     * The config warning banners are written to stdout, so on any project
+     * missing a recommended command they would prepend two lines of prose to
+     * output a caller is about to hand to a JSON parser.
+     *
+     * Caught only by running the real CLI: unit tests of the command mock the
+     * config loader, so the banners never appear there.
+     */
+    public function test_json_output_is_not_polluted_by_config_warnings(): void
+    {
+        $originalCwd = getcwd();
+        $this->assertIsString($originalCwd);
+
+        $tmp = sys_get_temp_dir() . '/ngramx-app-test-' . bin2hex(random_bytes(6));
+        mkdir($tmp, 0o755, true);
+
+        try {
+            file_put_contents($tmp . '/ngramx.yml', self::CONFIG_WITHOUT_RECOMMENDED_COMMANDS);
+            chdir($tmp);
+
+            $app = new Application();
+            $app->setAutoExit(false);
+
+            $output = new BufferedOutput();
+            $app->run(new ArrayInput(['command' => 'status', '--json' => true, '--no-cloud' => true]), $output);
+
+            $display = $output->fetch();
+            $this->assertJson(
+                $display,
+                'stdout must be nothing but JSON when --json is given; got: ' . substr($display, 0, 300)
+            );
+        } finally {
+            chdir($originalCwd);
+            @unlink($tmp . '/ngramx.yml');
+            @rmdir($tmp);
+        }
+    }
+
+    /**
+     * The same warnings are still worth showing when a human is reading.
+     */
+    public function test_config_warnings_are_shown_without_json(): void
+    {
+        $originalCwd = getcwd();
+        $this->assertIsString($originalCwd);
+
+        $tmp = sys_get_temp_dir() . '/ngramx-app-test-' . bin2hex(random_bytes(6));
+        mkdir($tmp, 0o755, true);
+
+        try {
+            file_put_contents($tmp . '/ngramx.yml', self::CONFIG_WITHOUT_RECOMMENDED_COMMANDS);
+            chdir($tmp);
+
+            $app = new Application();
+            $app->setAutoExit(false);
+
+            $output = new BufferedOutput();
+            $app->run(new ArrayInput(['command' => 'status', '--no-cloud' => true]), $output);
+
+            $this->assertStringContainsString('Recommended command', $output->fetch());
         } finally {
             chdir($originalCwd);
             @unlink($tmp . '/ngramx.yml');

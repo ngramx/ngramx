@@ -347,10 +347,9 @@ class Application extends BaseApplication
             $this->synchronizeAgentsMdInProject();
         }
 
-        if (
-            $this->configLoadErrors !== []
-            && !in_array($command->getName(), self::SKIP_WARNINGS_FOR, true)
-        ) {
+        $quiet = $this->suppressesChrome($command, $input);
+
+        if ($this->configLoadErrors !== [] && !$quiet) {
             $formatter = new OutputFormatter($output);
             foreach ($this->configLoadErrors as $error) {
                 $formatter->warning("  ⚠ $error");
@@ -359,7 +358,7 @@ class Application extends BaseApplication
             $output->writeln('');
         }
 
-        if ($this->configWarnings !== [] && !in_array($command->getName(), self::SKIP_WARNINGS_FOR, true)) {
+        if ($this->configWarnings !== [] && !$quiet) {
             $formatter = new OutputFormatter($output);
             foreach ($this->configWarnings as $warning) {
                 $formatter->warning("  ⚠ $warning");
@@ -368,6 +367,26 @@ class Application extends BaseApplication
         }
 
         return parent::doRunCommand($command, $input, $output);
+    }
+
+    /**
+     * Whether to withhold the warning banners that normally precede a command.
+     *
+     * Beyond the per-command opt-out list, `--json` suppresses them: these
+     * banners are written to stdout, so a single missing recommended command in
+     * `ngramx.yml` would prepend two lines of prose to what a caller is about to
+     * hand to a JSON parser. The advice is worth having, but not at the cost of
+     * making machine-readable output unparseable on most real projects.
+     */
+    private function suppressesChrome(Command $command, InputInterface $input): bool
+    {
+        if (in_array($command->getName(), self::SKIP_WARNINGS_FOR, true)) {
+            return true;
+        }
+
+        // Checked against the raw parameters: the command's own definition has
+        // not necessarily been bound yet at this point.
+        return $input->hasParameterOption('--json', true);
     }
 
     private function synchronizeAgentsMdInProject(): void
