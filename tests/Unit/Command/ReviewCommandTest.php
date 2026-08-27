@@ -13,6 +13,7 @@ use Ngramx\Config\Schema\DockerConfig;
 use Ngramx\Config\Schema\N8nConfig;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Schema\SetupConfig;
+use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Git\GitRepositoryService;
 use Ngramx\Laravel\LaravelService;
@@ -36,6 +37,9 @@ class ReviewCommandTest extends TestCase
     private CommandOrchestrator $commandOrchestrator;
     private string $tmpDir;
 
+    /** @var list<bool> */
+    private array $serviceRunningQueue = [];
+
     protected function setUp(): void
     {
         $this->configLoader = $this->createMock(ConfigLoader::class);
@@ -48,7 +52,14 @@ class ReviewCommandTest extends TestCase
         $this->tmpDir = sys_get_temp_dir() . '/ngramx-review-test-' . uniqid();
         mkdir($this->tmpDir, 0755, true);
 
-        $this->dockerCompose->expects($this->any())->method('isServiceRunning')->willReturn(true);
+        // Answers in order from $serviceRunningQueue when a test seeds it,
+        // otherwise "running" — which is what almost every test wants.
+        $this->serviceRunningQueue = [];
+        $this->dockerCompose->expects($this->any())
+            ->method('isServiceRunning')
+            ->willReturnCallback(function (): bool {
+                return array_shift($this->serviceRunningQueue) ?? true;
+            });
         $this->lockFile->expects($this->any())->method('exists')->willReturn(false);
         $this->gitRepositoryService->expects($this->any())->method('fetchFromOrigin')->willReturn(true);
         $this->gitRepositoryService->expects($this->any())->method('findBranchesContaining')->willReturn(['GIG-123-feature']);
@@ -898,6 +909,140 @@ class ReviewCommandTest extends TestCase
         $this->assertStringContainsString('the worktree directory was recreated', $tester->getDisplay());
     }
 
+    /**
+     * The override file carries the namespaced container names, the port offset
+     * and (with --no-host-mapping) the removal of every published port. `up`
+     * writes it, it is gitignored, and it is regenerated per run — so a worktree
+     * directory that was just rebuilt has none. Skipping startup and going
+     * straight to a compose command in that state silently uses the *base*
+     * spec, which is how a recreate ends up binding a host port that another
+     * stack on the machine already holds.
+     */
+    public function test_worktree_review_regenerates_the_compose_override_before_touching_a_running_env(): void
+    {
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn($this->tmpDir . '/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(false);
+        $this->gitRepositoryService->expects($this->any())
+            ->method('addWorktree')
+            ->willReturnCallback(function (string $repositoryPath, string $worktreePath): bool {
+                mkdir($worktreePath, 0755, true);
+                return true;
+            });
+
+        $repoName = WorktreeIdentity::sanitizeSegment(basename($this->tmpDir));
+        $folderName = WorktreeIdentity::folderName('gig-123', $repoName);
+        $namespace = WorktreeIdentity::namespaceFor($folderName);
+
+        // The override must be regenerated for this stack's namespace, and with
+        // host mapping suppressed as the invocation asked, *before* the recreate.
+        $calls = [];
+        $overrideGenerator = $this->createMock(ComposeOverrideGenerator::class);
+        $overrideGenerator->expects($this->once())
+            ->method('generate')
+            ->willReturnCallback(function (
+                string $composeFile,
+                int $portOffset,
+                ?string $namespacePrefix,
+                bool $noHostMapping,
+                array $portMap
+            ) use (&$calls): void {
+                $calls[] = ['generate', $namespacePrefix, $noHostMapping];
+            });
+
+        $this->dockerCompose->expects($this->once())
+            ->method('forceRecreate')
+            ->willReturnCallback(function () use (&$calls): void {
+                $calls[] = ['forceRecreate'];
+            });
+
+        $certSeeder = $this->createMock(WorktreeCertSeeder::class);
+        $certSeeder->expects($this->any())->method('seed')->willReturn(false);
+        $this->commandOrchestrator->expects($this->any())->method('run')->willReturn(1.0);
+
+        $urlResolver = $this->createMock(WorktreeUrlResolver::class);
+        $urlResolver->expects($this->any())->method('resolve')->willReturn('http://localhost:80');
+
+        $reconciler = $this->createMock(WorktreeOwnershipReconciler::class);
+        $reconciler->expects($this->any())
+            ->method('reconcile')
+            ->willReturn(OwnershipReconcileResult::skipped('unit test'));
+
+        $tester = new CommandTester($this->createCommand(
+            primer: $this->createMock(WorktreeDependencyPrimer::class),
+            urlResolver: $urlResolver,
+            reconciler: $reconciler,
+            certSeeder: $certSeeder,
+            overrideGenerator: $overrideGenerator,
+        ));
+        $exitCode = $tester->execute([
+            'ticket' => 'GIG-123',
+            '--worktree' => true,
+            '--no-host-mapping' => true,
+        ]);
+
+        $this->assertSame(0, $exitCode, $tester->getDisplay());
+        $this->assertSame(
+            [['generate', $namespace, true], ['forceRecreate']],
+            $calls,
+            'The override has to exist before any compose command runs, or the recreate uses base ports'
+        );
+    }
+
+    /**
+     * The readiness gate runs *before* the reset, and a `ready_command` that
+     * only tests for a pid file cannot distinguish a live server from a stale
+     * one. So a container that dies during or just after `fresh` used to sail
+     * through: "✓ Worktree ready", an app URL, exit 0. Whoever opened that URL
+     * next was debugging an application bug that was really a setup failure.
+     */
+    public function test_worktree_review_fails_when_the_app_died_during_the_reset(): void
+    {
+        $repoName = WorktreeIdentity::sanitizeSegment(basename($this->tmpDir));
+        $folderName = WorktreeIdentity::folderName('gig-123', $repoName);
+        mkdir($this->tmpDir . '/.ngramx/worktrees/' . $folderName, 0755, true);
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn($this->tmpDir . '/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(true);
+
+        // Up for the startup check, gone by the time the reset finishes.
+        $this->serviceRunningQueue = [true, false];
+
+        $this->dockerCompose->expects($this->any())
+            ->method('getLatestLogLines')
+            ->willReturn(['Starting Apache...', 'httpd (pid 30) already running']);
+
+        $certSeeder = $this->createMock(WorktreeCertSeeder::class);
+        $certSeeder->expects($this->any())->method('seed')->willReturn(false);
+        $this->commandOrchestrator->expects($this->any())->method('run')->willReturn(1.0);
+
+        $urlResolver = $this->createMock(WorktreeUrlResolver::class);
+        $urlResolver->expects($this->any())->method('resolve')->willReturn('http://localhost:80');
+
+        $tester = new CommandTester($this->createCommand(
+            primer: $this->createMock(WorktreeDependencyPrimer::class),
+            urlResolver: $urlResolver,
+            reconciler: $this->createMock(WorktreeOwnershipReconciler::class),
+            certSeeder: $certSeeder,
+            overrideGenerator: $this->createMock(ComposeOverrideGenerator::class),
+        ));
+        $exitCode = $tester->execute(['ticket' => 'GIG-123', '--worktree' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(1, $exitCode, $display);
+        $this->assertStringContainsString("'app' container is not running after the reset", $display);
+        $this->assertStringContainsString('httpd (pid 30) already running', $display, 'the reason must be visible, not just the verdict');
+        $this->assertStringNotContainsString('Worktree ready', $display);
+    }
+
     public function test_worktree_review_does_not_recreate_when_the_cert_is_unchanged(): void
     {
         $repoName = WorktreeIdentity::sanitizeSegment(basename($this->tmpDir));
@@ -1090,6 +1235,7 @@ class ReviewCommandTest extends TestCase
         ?WorktreeUrlResolver $urlResolver = null,
         ?WorktreeOwnershipReconciler $reconciler = null,
         ?WorktreeCertSeeder $certSeeder = null,
+        ?ComposeOverrideGenerator $overrideGenerator = null,
     ): ReviewCommand {
         return new ReviewCommand(
             $this->configLoader,
@@ -1105,6 +1251,7 @@ class ReviewCommandTest extends TestCase
             hooksConfigLoader: new \Ngramx\Config\HooksConfigLoader(
                 homeDirectory: sys_get_temp_dir() . '/ngramx-test-home-empty',
             ),
+            overrideGenerator: $overrideGenerator,
         );
     }
 
