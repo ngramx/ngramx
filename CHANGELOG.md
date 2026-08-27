@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.41.0](https://github.com/ngramx/ngramx/compare/v2.40.0...v2.41.0) (2026-08-27)
+
+
+### Features
+
+* **commands:** make `fresh` reliable by classifying failures and retrying ([#9](https://github.com/ngramx/ngramx/issues/9)) ([31058c4](https://github.com/ngramx/ngramx/commit/31058c482afc73587e2f96c593edfdb8a795d0e3))
+
 # [2.40.0](https://github.com/ngramx/ngramx/compare/v2.39.1...v2.40.0) (2026-08-27)
 
 
