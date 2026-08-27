@@ -342,7 +342,14 @@ class ReviewCommand extends Command
         // (see the post-start resolver below).
         $worktreeUrl = UrlPortOffset::apply($config->docker->appUrl, $portOffset);
 
-        if ($this->gitRepositoryService->worktreeExists($repositoryPath, $worktreePath)) {
+        // Whether the worktree directory exists from a previous run or is being
+        // created now. A directory created now, under containers that are still
+        // up from the last run, means their bind mounts point at the old
+        // (deleted) directory — every command inside them then runs with a
+        // working directory that resolves to nothing. See the recreate below.
+        $worktreeWasCreated = !$this->gitRepositoryService->worktreeExists($repositoryPath, $worktreePath);
+
+        if (!$worktreeWasCreated) {
             $formatter->info("Reusing existing worktree: $worktreePath");
         } elseif ($createNewBranch) {
             $formatter->info("Creating new branch $selectedBranch with worktree at .ngramx/worktrees/$folderName");
@@ -429,19 +436,37 @@ class ReviewCommand extends Command
             if ($alreadyRunning) {
                 $formatter->info('Worktree environment is already running — skipping startup.');
 
-                // The proxy read the old cert at startup; recreate the containers
-                // so it serves the one that now covers the worktree hostname.
-                // Recreate rather than restart: a restart reuses the mount spec
-                // captured at container creation, which fails on Docker Desktop +
-                // WSL2 when the worktree's bind-mount proxy id has gone stale
-                // (directory deleted and recreated, or Docker Desktop restarted).
-                if ($certChanged) {
-                    $formatter->info('Recreating services so the proxy picks up the updated TLS certificate...');
+                // Two reasons to replace the running containers rather than use
+                // them as they are, both about a mount spec captured when the
+                // container was created:
+                //
+                //  - The worktree directory was created in *this* run while the
+                //    containers were left up by the last one, so their bind
+                //    mounts still point at the directory that was deleted. Every
+                //    command inside them then runs with a working directory that
+                //    resolves to nothing — `fresh` fails on its first step with
+                //    errors like "could not find a composer.json file in" and an
+                //    empty path, and no amount of retrying helps.
+                //  - The proxy read the old TLS cert at startup and needs to
+                //    serve the one that now covers the worktree hostname.
+                //
+                // Recreate rather than restart: a restart reuses the stale mount
+                // spec, which also fails on Docker Desktop + WSL2 once the
+                // bind-mount proxy id has gone stale.
+                $recreateReason = match (true) {
+                    $worktreeWasCreated => 'the worktree directory was recreated, so the running containers are '
+                        . 'holding mounts that no longer resolve',
+                    $certChanged => 'the TLS certificate changed and the proxy must serve the new one',
+                    default => null,
+                };
+
+                if ($recreateReason !== null) {
+                    $formatter->info("Recreating services: $recreateReason...");
                     try {
                         $this->dockerCompose->forceRecreate($config->docker->composeFile, $namespace);
                     } catch (Exception $e) {
                         $formatter->warning('Could not recreate services automatically: ' . $e->getMessage());
-                        $formatter->info('Recreate them manually (docker compose up -d --force-recreate) so HTTPS uses the new certificate.');
+                        $formatter->info('Recreate them manually (docker compose up -d --force-recreate) before running commands in this environment.');
                     }
                 }
             } else {

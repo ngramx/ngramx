@@ -179,6 +179,7 @@ class Application extends BaseApplication
                 $outputFormatter,
                 $containerExecutor,
             ),
+            dockerCompose: $dockerCompose,
         );
 
         // Create Git and Laravel services

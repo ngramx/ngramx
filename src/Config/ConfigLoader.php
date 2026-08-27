@@ -713,7 +713,7 @@ class ConfigLoader
             command: $displayCommand,
             description: $command['description'],
             timeout: $command['timeout'] ?? 600,
-            retry: $command['retry'] ?? 0,
+            retry: $command['retry'] ?? null,
             ignoreFailure: $command['ignore_failure'] ?? false,
             commands: $commands,
             parallel: $parallel,

@@ -17,6 +17,7 @@ use Ngramx\Docker\HealthChecker;
 use Ngramx\Docker\NetworkAttachmentChecker;
 use Ngramx\Docker\NetworkAttachmentIssue;
 use Ngramx\Executor\HostCommandExecutor;
+use Ngramx\Executor\Retry\RetryPolicy;
 use Ngramx\Http\AppUrlProbe;
 use Ngramx\Http\ProbeResult;
 use Ngramx\Orchestrator\SetupOrchestrator;
@@ -608,6 +609,10 @@ class SetupOrchestratorTest extends TestCase
             readinessWaiter: null,
             appUrlProbe: $appUrlProbe ?? $this->disabledProbe(),
             networkAttachmentChecker: $checker ?? $this->cleanChecker(),
+            // No real sleeps: a test that exercises an initialize-command
+            // failure would otherwise pay the retry backoff for real.
+            retryPolicy: new RetryPolicy(static function (int $seconds): void {
+            }),
             // Tests default to 1 attempt with no retry sleep so failure-path
             // tests don't sit blocked on the 60s production retry budget.
             appUrlProbeAttempts: $appUrlProbeAttempts,
