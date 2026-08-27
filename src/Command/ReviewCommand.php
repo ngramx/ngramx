@@ -13,6 +13,7 @@ use Ngramx\Config\LockFileData;
 use Ngramx\Config\Schema\HookEvent;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Validator\SecretsValidator;
+use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Docker\ImageReuser;
 use Ngramx\Docker\NamespaceResolver;
@@ -64,6 +65,7 @@ class ReviewCommand extends Command
     protected readonly WorktreeInventory $inventory;
     private readonly HooksConfigLoader $hooksConfigLoader;
     private readonly HookRunner $hookRunner;
+    private readonly ComposeOverrideGenerator $overrideGenerator;
 
     public function __construct(
         protected readonly ConfigLoader $configLoader,
@@ -85,6 +87,7 @@ class ReviewCommand extends Command
         ?WorktreeInventory $inventory = null,
         ?HooksConfigLoader $hooksConfigLoader = null,
         ?HookRunner $hookRunner = null,
+        ?ComposeOverrideGenerator $overrideGenerator = null,
     ) {
         parent::__construct();
         $this->portOffsetManager = $portOffsetManager ?? new PortOffsetManager();
@@ -100,6 +103,7 @@ class ReviewCommand extends Command
         $this->inventory = $inventory ?? new WorktreeInventory($dockerCompose, $gitRepositoryService);
         $this->hooksConfigLoader = $hooksConfigLoader ?? new HooksConfigLoader();
         $this->hookRunner = $hookRunner ?? new HookRunner();
+        $this->overrideGenerator = $overrideGenerator ?? new ComposeOverrideGenerator();
     }
 
     protected function configure(): void
@@ -436,6 +440,42 @@ class ReviewCommand extends Command
             if ($alreadyRunning) {
                 $formatter->info('Worktree environment is already running — skipping startup.');
 
+                // `up` is what normally writes the ngramx compose override —
+                // namespaced container names, the port offset, and the port
+                // stripping that --no-host-mapping relies on. We just skipped
+                // `up`, and that file is gitignored and regenerated per run, so
+                // on a worktree directory that was rebuilt it is simply absent.
+                // Every compose command below would then silently fall back to
+                // the *base* spec: base container names and base host ports.
+                // That is how a recreate ends up trying to bind a port another
+                // stack on this machine already holds, and why the app never
+                // comes back.
+                //
+                // The live stack's lock file is the source of truth for the
+                // ports it was started with, so the regenerated override
+                // describes the containers that are actually running rather
+                // than whatever this invocation happened to resolve.
+                $runningLock = $worktreeLock->read();
+                try {
+                    $this->overrideGenerator->generate(
+                        $config->docker->composeFile,
+                        $runningLock->portOffset ?? $portOffset,
+                        $namespace,
+                        $noHostMapping || ($runningLock->noHostMapping ?? false),
+                        $runningLock->portMap ?? [],
+                    );
+                } catch (Exception $e) {
+                    // Non-fatal on its own: say plainly what the consequence is,
+                    // because the symptom downstream (a host port already in use,
+                    // or a container that never comes back) points nowhere near
+                    // here.
+                    $formatter->warning('Could not regenerate the compose override: ' . $e->getMessage());
+                    $formatter->info(
+                        'Compose commands will use the base compose file, so container names and host '
+                        . 'ports may collide with other stacks on this machine.'
+                    );
+                }
+
                 // Two reasons to replace the running containers rather than use
                 // them as they are, both about a mount spec captured when the
                 // container was created:
@@ -576,6 +616,39 @@ class ReviewCommand extends Command
             );
             if ($resetResult !== Command::SUCCESS) {
                 return $resetResult;
+            }
+
+            // `fresh` can finish and the app still be dead moments later. The
+            // readiness gate ran *before* the reset, and a `ready_command` that
+            // only tests for a pid file cannot tell a live server from a stale
+            // one — so nothing so far proves the primary service survived. A URL
+            // printed for an exited container is worse than an error: whoever
+            // (or whatever) opens it next debugs an application bug that is
+            // really a setup failure.
+            if (!$this->dockerCompose->isServiceRunning(
+                $worktreeConfig->docker->composeFile,
+                $worktreeConfig->docker->primaryService,
+                $namespace
+            )) {
+                $service = $worktreeConfig->docker->primaryService;
+                $formatter->error(
+                    "The '$service' container is not running after the reset — the environment is not usable."
+                );
+
+                $logLines = $this->dockerCompose->getLatestLogLines(
+                    $worktreeConfig->docker->composeFile,
+                    $service,
+                    15,
+                    $namespace
+                );
+                if ($logLines !== []) {
+                    $formatter->info("Last lines from '$service':");
+                    foreach ($logLines as $line) {
+                        $formatter->commandOutput($line);
+                    }
+                }
+
+                return Command::FAILURE;
             }
 
             $this->reconcileWorktreeOwnership($worktreePath, $formatter);
