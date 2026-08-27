@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.41.1](https://github.com/ngramx/ngramx/compare/v2.41.0...v2.41.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **docker:** stop a stalled probe from killing a healthy environment ([#10](https://github.com/ngramx/ngramx/issues/10)) ([cb67aa2](https://github.com/ngramx/ngramx/commit/cb67aa22782df3ca9a4abb1fdb669368abd94a72))
+
 # [2.41.0](https://github.com/ngramx/ngramx/compare/v2.40.0...v2.41.0) (2026-08-27)
 
 
