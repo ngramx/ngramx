@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.41.2](https://github.com/ngramx/ngramx/compare/v2.41.1...v2.41.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **worktree:** regenerate the compose override before touching a running env ([#11](https://github.com/ngramx/ngramx/issues/11)) ([2607708](https://github.com/ngramx/ngramx/commit/2607708c560ef4bc82161c7ab6eadd452cd02136))
+
 ## [2.41.1](https://github.com/ngramx/ngramx/compare/v2.41.0...v2.41.1) (2026-08-27)
 
 
