@@ -146,6 +146,13 @@ class ServiceReadinessWaiter
                 $state = $this->healthChecker->getContainerState($composeFile, $service, $namespace);
                 $restarts = $this->healthChecker->getRestartCount($composeFile, $service, $namespace);
 
+                // If the baseline probe failed when the wait began, adopt the
+                // first count we do get. Without this, one unanswered probe at
+                // start-up would disable crash detection for the whole wait.
+                if ($baselineRestarts[$service] === null) {
+                    $baselineRestarts[$service] = $restarts;
+                }
+
                 // Fail fast: a waited-for container that is crash-looping will
                 // never become ready, so abort with its logs instead of
                 // burning the entire timeout budget.
@@ -266,6 +273,26 @@ class ServiceReadinessWaiter
         while (true) {
             $state = $this->healthChecker->getContainerState($composeFile, $service, $namespace);
 
+            // A probe that could not answer says nothing about the container —
+            // it is a busy daemon, not a missing service. Poll again inside the
+            // same budget rather than declaring the environment broken.
+            if ($state === HealthChecker::STATE_UNAVAILABLE) {
+                if ((microtime(true) - $start) >= $effectiveTimeout) {
+                    throw new ServiceNotHealthyException(
+                        $this->buildFailureMessage(
+                            $composeFile,
+                            $service,
+                            $namespace,
+                            "could not be inspected within {$effectiveTimeout}s — the Docker daemon is not answering"
+                        )
+                    );
+                }
+
+                sleep($interval);
+                $interval = min(self::MAX_POLL_SECONDS, $interval * 2);
+                continue;
+            }
+
             if ($state === 'unknown') {
                 if (!$sawContainer) {
                     throw new ServiceNotHealthyException(
@@ -286,6 +313,10 @@ class ServiceReadinessWaiter
             $sawContainer = true;
 
             $restarts = $this->healthChecker->getRestartCount($composeFile, $service, $namespace);
+            if ($baselineRestarts === null) {
+                $baselineRestarts = $restarts;
+            }
+
             $crash = $this->crashReason($state, $restarts, $baselineRestarts);
             if ($crash !== null) {
                 throw new ServiceNotHealthyException(
@@ -385,10 +416,17 @@ class ServiceReadinessWaiter
      * that has climbed above the baseline captured when the wait began. Returns
      * a human-readable reason, or null when healthy enough to keep waiting.
      */
-    private function crashReason(string $state, int $restarts, int $baselineRestarts): ?string
+    private function crashReason(string $state, ?int $restarts, ?int $baselineRestarts): ?string
     {
         if (in_array($state, self::CRASH_STATES, true)) {
             return $state;
+        }
+
+        // Either count unreadable: a probe failed, and comparing against a
+        // number we never obtained would invent a crash loop out of a busy
+        // daemon. The next poll asks again.
+        if ($restarts === null || $baselineRestarts === null) {
+            return null;
         }
 
         if ($restarts > $baselineRestarts) {
