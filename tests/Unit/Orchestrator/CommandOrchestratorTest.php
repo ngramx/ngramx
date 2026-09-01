@@ -317,6 +317,84 @@ class CommandOrchestratorTest extends TestCase
         $this->assertStringContainsString('recreating it before retrying', $output->fetch());
     }
 
+    /**
+     * GIG-2861: the host OOM-killed mysql, so `hydra db-reset` failed with
+     * `Unknown MySQL server host 'mysql'` — a missing container reported as a
+     * name-resolution error. The app container was healthy throughout, so the
+     * recreate path above never fired, and three retries reported the same
+     * failure three times. The dead dependency has to be started instead.
+     */
+    public function test_sequential_run_starts_a_dependency_the_host_killed(): void
+    {
+        $attempts = [];
+        $executor = $this->fakeContainerExecutor($attempts, [
+            [
+                'successful' => false,
+                'output' => "ERROR 2005 (HY000): Unknown MySQL server host 'mysql' (-3)\n"
+                    . 'SQLSTATE[HY000] [2002] php_network_getaddresses: getaddrinfo failed',
+            ],
+            ['successful' => true],
+            ['successful' => true],
+        ]);
+
+        $dockerCompose = $this->createMock(DockerCompose::class);
+        $dockerCompose->method('stoppedServices')
+            ->willReturn(['mysql' => 137]);
+        // The dead service is started, not the primary one recreated.
+        $dockerCompose->expects($this->once())
+            ->method('startService')
+            ->with('docker-compose.yml', 'mysql', null);
+        $dockerCompose->expects($this->never())
+            ->method('recreateService');
+
+        $sleeps = [];
+        $output = new BufferedOutput();
+        $orchestrator = $this->createOrchestratorWithContainerExecutor(
+            $executor,
+            $output,
+            $sleeps,
+            $dockerCompose,
+        );
+
+        $orchestrator->run('fresh', $this->sequentialConfig(), null);
+
+        $text = $output->fetch();
+        // Exit 137 has to be named as memory pressure, or the next person reads
+        // Doctrine stack traces instead of running `free -m`.
+        $this->assertStringContainsString('exit 137', $text);
+        $this->assertStringContainsString('out-of-memory', $text);
+        $this->assertStringContainsString('free -m', $text);
+    }
+
+    public function test_sequential_run_does_not_touch_containers_for_an_ordinary_failure(): void
+    {
+        $attempts = [];
+        $executor = $this->fakeContainerExecutor($attempts, [
+            ['successful' => false, 'errorOutput' => 'connection refused'],
+            ['successful' => true],
+            ['successful' => true],
+        ]);
+
+        // A database still accepting no connections is transient: it is retried,
+        // but nothing is restarted, because the boot it is doing is the thing
+        // that would be thrown away.
+        $dockerCompose = $this->createMock(DockerCompose::class);
+        $dockerCompose->expects($this->never())->method('startService');
+        $dockerCompose->expects($this->never())->method('recreateService');
+
+        $sleeps = [];
+        $orchestrator = $this->createOrchestratorWithContainerExecutor(
+            $executor,
+            new BufferedOutput(),
+            $sleeps,
+            $dockerCompose,
+        );
+
+        $orchestrator->run('fresh', $this->sequentialConfig(), null);
+
+        $this->assertNotSame([], $sleeps, 'it should still have been retried');
+    }
+
     public function test_sequential_run_honours_retry_zero(): void
     {
         $attempts = [];
