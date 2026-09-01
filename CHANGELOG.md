@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.41.3](https://github.com/ngramx/ngramx/compare/v2.41.2...v2.41.3) (2026-09-01)
+
+
+### Bug Fixes
+
+* **commands:** start a dependency the host killed instead of retrying into it ([#12](https://github.com/ngramx/ngramx/issues/12)) ([c0e9680](https://github.com/ngramx/ngramx/commit/c0e96807ab2127174fc6c238d545a933f0001558))
+
 ## [2.41.2](https://github.com/ngramx/ngramx/compare/v2.41.1...v2.41.2) (2026-08-27)
 
 
