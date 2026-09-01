@@ -216,6 +216,59 @@ final class RetryPolicy
     }
 
     /**
+     * True when the failure points at a *dependency* of the primary service
+     * being unreachable — the database or cache the command needs, rather than
+     * the container the command runs in.
+     *
+     * This is a different repair from {@see needsContainerRecreate}. There the
+     * container executing the command is broken; here that container is
+     * perfectly healthy and something it talks to has gone away. Recreating the
+     * primary service would not help, and retrying is worse than useless:
+     *
+     *     ERROR 2005 (HY000): Unknown MySQL server host 'mysql' (-3)
+     *     SQLSTATE[HY000] [2002] php_network_getaddresses: getaddrinfo failed
+     *
+     * reads like a database or DNS fault but means the mysql container no
+     * longer exists, so Docker's embedded DNS has nothing to resolve. On the
+     * shared agent host that happens because the kernel's OOM killer takes
+     * mysql — the largest process in the stack — and, absent a restart policy,
+     * it stays dead. Three retries then produce three identical failures.
+     *
+     * Matching is deliberately narrow: only "I cannot reach a host" signatures,
+     * not general connection errors that a service still warming up would also
+     * produce. A wrong positive costs one restart of an already-stopped
+     * service, so the bias is acceptable, but a *connection refused* against a
+     * booting database is genuinely transient and better left to the retry.
+     */
+    public function needsDependencyRestart(string ...$outputs): bool
+    {
+        $haystack = strtolower(implode("\n", $outputs));
+
+        foreach (
+            [
+                // mysql client: -3 is EAI_NONAME, the name does not exist.
+                'unknown mysql server host',
+                'unknown server host',
+                'unknown host',
+                // glibc / PHP resolver, reached through PDO or the CLI.
+                'temporary failure in name resolution',
+                'name or service not known',
+                'could not resolve host',
+                'php_network_getaddresses',
+                // PDO's "cannot connect" state, which mysql reports for a
+                // hostname it could not resolve as well as for a refused port.
+                'sqlstate[hy000] [2002]',
+            ] as $pattern
+        ) {
+            if (str_contains($haystack, $pattern)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Pause before the given retry ($retryNumber is 1 for the first retry).
      */
     public function pauseBeforeRetry(int $retryNumber): void

@@ -140,6 +140,64 @@ class RetryPolicyTest extends TestCase
         );
     }
 
+    /**
+     * The GIG-2861 failure, verbatim from the run that could not create a dev
+     * environment: mysql had been OOM-killed, so its hostname stopped
+     * resolving, and three retries of `hydra db-reset` reported the same thing
+     * three times. A retry cannot restart a dead container — the dependency has
+     * to be identified as dead and started.
+     */
+    public function test_an_unreachable_dependency_asks_for_a_dependency_restart(): void
+    {
+        $policy = new RetryPolicy();
+
+        $this->assertTrue(
+            $policy->needsDependencyRestart("ERROR 2005 (HY000): Unknown MySQL server host 'mysql' (-3)")
+        );
+        $this->assertTrue(
+            $policy->needsDependencyRestart(
+                'SQLSTATE[HY000] [2002] php_network_getaddresses: getaddrinfo failed: '
+                . 'Temporary failure in name resolution'
+            )
+        );
+        $this->assertTrue(
+            $policy->needsDependencyRestart('could not resolve host: redis')
+        );
+    }
+
+    public function test_a_dependency_that_is_merely_booting_is_left_to_the_retry(): void
+    {
+        $policy = new RetryPolicy();
+
+        // Connection refused means something answered the address and declined
+        // the port: the container exists and is still warming up, which another
+        // attempt genuinely does fix.
+        $this->assertFalse(
+            $policy->needsDependencyRestart('SQLSTATE[08006] [7] connection refused'),
+            'A booting database is transient; restarting it would throw away the boot it was doing'
+        );
+        $this->assertFalse(
+            $policy->needsDependencyRestart('1 test failed, 3 assertions'),
+            'A genuine command failure must not trigger container surgery'
+        );
+    }
+
+    public function test_a_dead_dependency_and_a_dead_own_container_are_different_repairs(): void
+    {
+        $policy = new RetryPolicy();
+
+        $unknownHost = "ERROR 2005 (HY000): Unknown MySQL server host 'mysql' (-3)";
+        $ownContainerGone = 'service "app" is not running';
+
+        // Recreating the app container would not bring mysql back...
+        $this->assertFalse($policy->needsContainerRecreate($unknownHost));
+        $this->assertTrue($policy->needsDependencyRestart($unknownHost));
+
+        // ...and starting stopped dependencies would not fix a dead app.
+        $this->assertTrue($policy->needsContainerRecreate($ownContainerGone));
+        $this->assertFalse($policy->needsDependencyRestart($ownContainerGone));
+    }
+
     public function test_the_backoff_grows_with_each_retry(): void
     {
         $sleeps = [];

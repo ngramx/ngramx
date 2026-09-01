@@ -384,6 +384,7 @@ class CommandOrchestrator
 
         $maxAttempts = $this->retryPolicy->attemptsFor($cmd);
         $recreated = false;
+        $dependenciesRestarted = false;
 
         for ($attempt = 1;; $attempt++) {
             $result = $executor->execute($cmd, $outputCallback);
@@ -407,7 +408,108 @@ class CommandOrchestrator
                 $this->recreatePrimaryService($config, $projectName);
             }
 
+            // A dead *dependency* is not something another attempt can fix. The
+            // command's own container is fine; the database it needs has gone.
+            // Bring it back before spending the next attempt, or all three
+            // attempts report the same missing host.
+            if (!$dependenciesRestarted
+                && $this->retryPolicy->needsDependencyRestart($result->output, $result->errorOutput)
+            ) {
+                $dependenciesRestarted = true;
+                $this->restartStoppedDependencies($config, $projectName);
+            }
+
             $this->retryPolicy->pauseBeforeRetry($attempt);
+        }
+    }
+
+    /**
+     * Start any service in this stack whose container has exited, then wait for
+     * the primary service to be ready again.
+     *
+     * The case this exists for: the host runs out of memory, the kernel's OOM
+     * killer picks the biggest process in the stack (mysql, every time), and
+     * because the compose file declares no restart policy the container stays
+     * dead. The app container survives, so commands keep running — and keep
+     * failing with `Unknown MySQL server host 'mysql'`, which sounds like a
+     * database or DNS fault and is really a container that is not there.
+     *
+     * An exit code of 137 is called out by name. It is a SIGKILL, and on a dev
+     * host that essentially always means memory: restarting the service will
+     * get this run moving again, but the host is over-subscribed and will do it
+     * again. Saying so here is the difference between someone reading Doctrine
+     * stack traces and someone running `free -m`.
+     */
+    private function restartStoppedDependencies(NgramxConfig $config, ?string $projectName): void
+    {
+        $composeFile = $config->docker->composeFile;
+        $primary = $config->docker->primaryService;
+
+        $stopped = $this->dockerCompose->stoppedServices($composeFile, $projectName);
+
+        // The primary service has its own repair path above, which recreates
+        // rather than restarts it; leave it to that.
+        unset($stopped[$primary]);
+
+        if ($stopped === []) {
+            return;
+        }
+
+        foreach ($stopped as $service => $exitCode) {
+            if ($exitCode === 137) {
+                $this->formatter->warning(
+                    "The '$service' container was killed by the host (exit 137 — SIGKILL, "
+                    . 'almost always the out-of-memory killer), which is why its hostname no longer '
+                    . 'resolves. Starting it again, but the host is short of memory: check `free -m` '
+                    . 'and how many dev environments are running.'
+                );
+            } else {
+                $this->formatter->warning(
+                    "The '$service' container has exited"
+                    . ($exitCode !== null ? " (exit $exitCode)" : '')
+                    . ' — starting it again before retrying.'
+                );
+            }
+
+            try {
+                $this->dockerCompose->startService($composeFile, (string) $service, $projectName);
+            } catch (\Throwable $e) {
+                $this->formatter->warning("Could not start '$service': " . $e->getMessage());
+            }
+        }
+
+        // Restarting a database is only half the repair: the next attempt has to
+        // wait for it to accept connections, which the project's `wait_for`
+        // entries describe.
+        try {
+            $this->waitForRestartedServices($config, $projectName, array_keys($stopped));
+        } catch (\Throwable $e) {
+            $this->formatter->warning('Restarted services did not report ready: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Wait for each restarted service that the project describes a readiness
+     * probe for.
+     *
+     * Services with no `wait_for` entry are skipped rather than guessed at: a
+     * generic "is the container up?" poll would return true while a database
+     * was still importing, which is the race `wait_for` exists to close.
+     *
+     * @param list<array-key> $services
+     */
+    private function waitForRestartedServices(NgramxConfig $config, ?string $projectName, array $services): void
+    {
+        foreach ($config->docker->waitFor as $waitConfig) {
+            if (!in_array($waitConfig->service, $services, true)) {
+                continue;
+            }
+
+            $this->readinessWaiter->waitForReady(
+                $config->docker->composeFile,
+                $waitConfig,
+                $projectName,
+            );
         }
     }
 
