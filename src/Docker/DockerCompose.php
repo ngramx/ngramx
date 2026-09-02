@@ -605,4 +605,70 @@ class DockerCompose
 
         return ($services[$service]['State'] ?? null) === 'running';
     }
+
+    /**
+     * Services whose container exists but is not running, mapped to its exit
+     * code.
+     *
+     * {@see ps} deliberately omits stopped containers, which is right for "is
+     * this usable?" questions but hides the case this answers: a *dependency*
+     * that died while the primary service stayed up. On the shared agent host
+     * the kernel's OOM killer takes mysql (the largest process in the stack)
+     * and leaves the app running, so every subsequent command inside the app
+     * fails with `Unknown MySQL server host 'mysql'` — a missing container
+     * reported as a name-resolution error. Retrying cannot fix that; the
+     * service has to be started again.
+     *
+     * An exit code of 137 is SIGKILL, which on a dev host essentially always
+     * means the machine ran out of memory. Callers surface that distinctly,
+     * because it is the difference between "flaky, retried it" and "the host
+     * is too small for the number of environments running on it".
+     *
+     * @return array<string, int|null> service name => exit code, if known
+     */
+    public function stoppedServices(string $composeFile, ?string $projectName = null): array
+    {
+        $command = array_merge(['docker-compose'], ComposeFiles::fileArgs($composeFile));
+
+        if ($projectName !== null) {
+            $command[] = '-p';
+            $command[] = $projectName;
+        }
+
+        $command[] = 'ps';
+        // Without --all, compose lists only running containers, which is
+        // exactly the set we are not interested in here.
+        $command[] = '--all';
+        $command[] = '--format';
+        $command[] = 'json';
+
+        $process = new Process($command);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            return [];
+        }
+
+        $output = trim($process->getOutput());
+        if ($output === '') {
+            return [];
+        }
+
+        $stopped = [];
+        foreach (explode("\n", $output) as $line) {
+            $data = json_decode($line, true);
+            if (!is_array($data) || !isset($data['Service'])) {
+                continue;
+            }
+
+            // "restarting" is excluded on purpose: compose is already dealing
+            // with it, and starting it again would fight the restart policy.
+            if (in_array($data['State'] ?? null, ['exited', 'dead'], true)) {
+                $exitCode = $data['ExitCode'] ?? null;
+                $stopped[$data['Service']] = is_int($exitCode) ? $exitCode : null;
+            }
+        }
+
+        return $stopped;
+    }
 }

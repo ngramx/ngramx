@@ -345,6 +345,59 @@ class ServiceReadinessWaiterTest extends TestCase
         );
     }
 
+    public function test_an_unanswered_probe_does_not_abort_a_healthy_wait(): void
+    {
+        // The GIG-2999 shape: the daemon stalls for a poll or two while the
+        // stack is coming up, then answers normally. Previously the probe threw
+        // and took the whole environment with it.
+        $this->healthChecker->method('getContainerState')->willReturnOnConsecutiveCalls(
+            HealthChecker::STATE_UNAVAILABLE,
+            HealthChecker::STATE_UNAVAILABLE,
+            'running',
+        );
+        $this->healthChecker->method('getRestartCount')->willReturn(null, null, 0);
+        $this->containerExecutor->method('succeeds')->willReturn(true);
+
+        $this->waiter()->waitForReady(
+            'docker-compose.yml',
+            new ServiceWaitConfig(service: 'mysql', timeout: 30, readyCommand: 'mysqladmin ping'),
+        );
+
+        $this->assertTrue(true);
+    }
+
+    public function test_a_daemon_that_never_answers_still_times_out(): void
+    {
+        $this->healthChecker->method('getContainerState')
+            ->willReturn(HealthChecker::STATE_UNAVAILABLE);
+        $this->healthChecker->method('getRestartCount')->willReturn(null);
+        $this->dockerCompose->method('getLatestLogLines')->willReturn([]);
+
+        $this->expectException(ServiceNotHealthyException::class);
+        $this->expectExceptionMessageMatches('/could not be inspected.*daemon is not answering/s');
+
+        $this->waiter()->waitForReady(
+            'docker-compose.yml',
+            new ServiceWaitConfig(service: 'mysql', timeout: 1),
+        );
+    }
+
+    public function test_an_unreadable_restart_count_is_not_a_crash_loop(): void
+    {
+        // null is "we could not tell", not "zero restarts". Treating it as zero
+        // would fabricate a climb the moment the real count arrived.
+        $this->healthChecker->method('getContainerState')->willReturn('running');
+        $this->healthChecker->method('getRestartCount')->willReturn(null, 4, 4);
+        $this->containerExecutor->method('succeeds')->willReturn(true);
+
+        $this->waiter()->waitForReady(
+            'docker-compose.yml',
+            new ServiceWaitConfig(service: 'app', timeout: 5, readyCommand: 'true'),
+        );
+
+        $this->assertTrue(true);
+    }
+
     public function test_wait_for_ready_returns_when_command_probe_passes(): void
     {
         $this->healthChecker->method('getContainerState')->willReturn('running');

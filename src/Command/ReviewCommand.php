@@ -15,6 +15,7 @@ use Ngramx\Config\Schema\DockerConfig;
 use Ngramx\Config\Schema\HookEvent;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Validator\SecretsValidator;
+use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Docker\ImageReuser;
 use Ngramx\Docker\NamespaceResolver;
@@ -67,6 +68,7 @@ class ReviewCommand extends Command
     protected readonly WorktreeInventory $inventory;
     private readonly HooksConfigLoader $hooksConfigLoader;
     private readonly HookRunner $hookRunner;
+    private readonly ComposeOverrideGenerator $overrideGenerator;
 
     public function __construct(
         protected readonly ConfigLoader $configLoader,
@@ -88,6 +90,7 @@ class ReviewCommand extends Command
         ?WorktreeInventory $inventory = null,
         ?HooksConfigLoader $hooksConfigLoader = null,
         ?HookRunner $hookRunner = null,
+        ?ComposeOverrideGenerator $overrideGenerator = null,
     ) {
         parent::__construct();
         $this->portOffsetManager = $portOffsetManager ?? new PortOffsetManager();
@@ -103,6 +106,7 @@ class ReviewCommand extends Command
         $this->inventory = $inventory ?? new WorktreeInventory($dockerCompose, $gitRepositoryService);
         $this->hooksConfigLoader = $hooksConfigLoader ?? new HooksConfigLoader();
         $this->hookRunner = $hookRunner ?? new HookRunner();
+        $this->overrideGenerator = $overrideGenerator ?? new ComposeOverrideGenerator();
     }
 
     protected function configure(): void
@@ -343,7 +347,14 @@ class ReviewCommand extends Command
         $worktreeUrls = EndpointUrls::shifted($config->docker, $portOffset);
         $worktreeUrl = $worktreeUrls->primary;
 
-        if ($this->gitRepositoryService->worktreeExists($repositoryPath, $worktreePath)) {
+        // Whether the worktree directory exists from a previous run or is being
+        // created now. A directory created now, under containers that are still
+        // up from the last run, means their bind mounts point at the old
+        // (deleted) directory — every command inside them then runs with a
+        // working directory that resolves to nothing. See the recreate below.
+        $worktreeWasCreated = !$this->gitRepositoryService->worktreeExists($repositoryPath, $worktreePath);
+
+        if (!$worktreeWasCreated) {
             $formatter->info("Reusing existing worktree: $worktreePath");
         } elseif ($createNewBranch) {
             $formatter->info("Creating new branch $selectedBranch with worktree at .ngramx/worktrees/$folderName");
@@ -436,19 +447,73 @@ class ReviewCommand extends Command
             if ($alreadyRunning) {
                 $formatter->info('Worktree environment is already running — skipping startup.');
 
-                // The proxy read the old cert at startup; recreate the containers
-                // so it serves the one that now covers the worktree hostname.
-                // Recreate rather than restart: a restart reuses the mount spec
-                // captured at container creation, which fails on Docker Desktop +
-                // WSL2 when the worktree's bind-mount proxy id has gone stale
-                // (directory deleted and recreated, or Docker Desktop restarted).
-                if ($certChanged) {
-                    $formatter->info('Recreating services so the proxy picks up the updated TLS certificate...');
+                // `up` is what normally writes the ngramx compose override —
+                // namespaced container names, the port offset, and the port
+                // stripping that --no-host-mapping relies on. We just skipped
+                // `up`, and that file is gitignored and regenerated per run, so
+                // on a worktree directory that was rebuilt it is simply absent.
+                // Every compose command below would then silently fall back to
+                // the *base* spec: base container names and base host ports.
+                // That is how a recreate ends up trying to bind a port another
+                // stack on this machine already holds, and why the app never
+                // comes back.
+                //
+                // The live stack's lock file is the source of truth for the
+                // ports it was started with, so the regenerated override
+                // describes the containers that are actually running rather
+                // than whatever this invocation happened to resolve.
+                $runningLock = $worktreeLock->read();
+                try {
+                    $this->overrideGenerator->generate(
+                        $config->docker->composeFile,
+                        $runningLock->portOffset ?? $portOffset,
+                        $namespace,
+                        $noHostMapping || ($runningLock->noHostMapping ?? false),
+                        $runningLock->portMap ?? [],
+                    );
+                } catch (Exception $e) {
+                    // Non-fatal on its own: say plainly what the consequence is,
+                    // because the symptom downstream (a host port already in use,
+                    // or a container that never comes back) points nowhere near
+                    // here.
+                    $formatter->warning('Could not regenerate the compose override: ' . $e->getMessage());
+                    $formatter->info(
+                        'Compose commands will use the base compose file, so container names and host '
+                        . 'ports may collide with other stacks on this machine.'
+                    );
+                }
+
+                // Two reasons to replace the running containers rather than use
+                // them as they are, both about a mount spec captured when the
+                // container was created:
+                //
+                //  - The worktree directory was created in *this* run while the
+                //    containers were left up by the last one, so their bind
+                //    mounts still point at the directory that was deleted. Every
+                //    command inside them then runs with a working directory that
+                //    resolves to nothing — `fresh` fails on its first step with
+                //    errors like "could not find a composer.json file in" and an
+                //    empty path, and no amount of retrying helps.
+                //  - The proxy read the old TLS cert at startup and needs to
+                //    serve the one that now covers the worktree hostname.
+                //
+                // Recreate rather than restart: a restart reuses the stale mount
+                // spec, which also fails on Docker Desktop + WSL2 once the
+                // bind-mount proxy id has gone stale.
+                $recreateReason = match (true) {
+                    $worktreeWasCreated => 'the worktree directory was recreated, so the running containers are '
+                        . 'holding mounts that no longer resolve',
+                    $certChanged => 'the TLS certificate changed and the proxy must serve the new one',
+                    default => null,
+                };
+
+                if ($recreateReason !== null) {
+                    $formatter->info("Recreating services: $recreateReason...");
                     try {
                         $this->dockerCompose->forceRecreate($config->docker->composeFile, $namespace);
                     } catch (Exception $e) {
                         $formatter->warning('Could not recreate services automatically: ' . $e->getMessage());
-                        $formatter->info('Recreate them manually (docker compose up -d --force-recreate) so HTTPS uses the new certificate.');
+                        $formatter->info('Recreate them manually (docker compose up -d --force-recreate) before running commands in this environment.');
                     }
                 }
             } else {
@@ -588,6 +653,39 @@ class ReviewCommand extends Command
             );
             if ($resetResult !== Command::SUCCESS) {
                 return $resetResult;
+            }
+
+            // `fresh` can finish and the app still be dead moments later. The
+            // readiness gate ran *before* the reset, and a `ready_command` that
+            // only tests for a pid file cannot tell a live server from a stale
+            // one — so nothing so far proves the primary service survived. A URL
+            // printed for an exited container is worse than an error: whoever
+            // (or whatever) opens it next debugs an application bug that is
+            // really a setup failure.
+            if (!$this->dockerCompose->isServiceRunning(
+                $worktreeConfig->docker->composeFile,
+                $worktreeConfig->docker->primaryService,
+                $namespace
+            )) {
+                $service = $worktreeConfig->docker->primaryService;
+                $formatter->error(
+                    "The '$service' container is not running after the reset — the environment is not usable."
+                );
+
+                $logLines = $this->dockerCompose->getLatestLogLines(
+                    $worktreeConfig->docker->composeFile,
+                    $service,
+                    15,
+                    $namespace
+                );
+                if ($logLines !== []) {
+                    $formatter->info("Last lines from '$service':");
+                    foreach ($logLines as $line) {
+                        $formatter->commandOutput($line);
+                    }
+                }
+
+                return Command::FAILURE;
             }
 
             $this->reconcileWorktreeOwnership($worktreePath, $formatter);

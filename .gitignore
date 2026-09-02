@@ -10,6 +10,7 @@
 
 # Ngramx CLI
 /.ngramx.lock
+/.ngramx-agent.json
 /.ngramx/postmaclone.lock
 /.ngramx/postmaclone.env.bak
 /.ngramx/cache/

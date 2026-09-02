@@ -68,6 +68,28 @@ class GitRepositoryService
     }
 
     /**
+     * The origin remote's URL, or null when there is no origin.
+     *
+     * Used to identify the repository to services that hold a copy of it under
+     * a different path — the URL is the only name a local checkout and a remote
+     * clone reliably share.
+     */
+    public function getRemoteUrl(string $repositoryPath, string $remote = 'origin'): ?string
+    {
+        $process = new Process(['git', 'remote', 'get-url', $remote], $repositoryPath);
+        $process->setTimeout(10);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            return null;
+        }
+
+        $url = trim($process->getOutput());
+
+        return $url !== '' ? $url : null;
+    }
+
+    /**
      * Whether the branch is an integration line (main/staging/production, etc.)
      * rather than a feature branch.
      */
