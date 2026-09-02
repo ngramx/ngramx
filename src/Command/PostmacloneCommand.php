@@ -6,7 +6,6 @@ namespace Ngramx\Command;
 
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\Schema\NgramxConfig;
-use Ngramx\Config\Schema\Postmaclone\BackupConfig;
 use Ngramx\Output\OutputFormatter;
 use Ngramx\Postmaclone\Backup\S3Credentials;
 use Ngramx\Postmaclone\Exception\PostmacloneException;

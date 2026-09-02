@@ -26,6 +26,7 @@ Nightly factory produce publishes anonymized artifacts to `weathered-brook-anony
 - Per-dataset `latest.json` still echoes `shared_password_rotated_at`; legacy value used once if central state is empty.
 - Legacy full `url` op:// refs still supported for backward compatibility.
 - Scratch/anon wipe drops only `public` objects owned by the connected role (not `DROP SCHEMA public`). Dump sanitizer strips CREATE/DROP/ALTER SCHEMA so restore does not require schema ownership.
+- Local EK produce succeeded (artifact + shared anon refresh). Factory workflow and config pushed to factory `main`.
 
 ## Ops still required (human)
 

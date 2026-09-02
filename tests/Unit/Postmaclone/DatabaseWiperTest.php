@@ -16,7 +16,7 @@ final class DatabaseWiperTest extends TestCase
         self::assertStringNotContainsString('DROP SCHEMA', $sql);
         self::assertStringNotContainsString('CREATE SCHEMA', $sql);
         self::assertStringContainsString('DROP TABLE IF EXISTS', $sql);
-        self::assertStringContainsString("c.relowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)", $sql);
+        self::assertStringContainsString('c.relowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)', $sql);
         self::assertStringContainsString("n.nspname = 'public'", $sql);
     }
 }

@@ -1,16 +1,16 @@
 {
-  "title": "COR-297: Schedule Nightly Postmaclone Factory Produce For Anonymized Artifacts",
-  "description": "Points ngramx factory docs at the dedicated postmaclone-factory repo. First produce dataset is Earl Kendrick; Hydra is not in the shared Spaces all/ folder yet.",
-  "pr_url": "https://github.com/ngramx/ngramx/pull/4",
-  "linear_url": "https://linear.app/gigabyte/issue/COR-297/schedule-nightly-postmaclone-factory-produce-for-anonymized-artifacts",
+  "title": "COR-297: Nightly Produce And Refresh Shared Hosted Anonymized Databases",
+  "description": "Adds factory produce for remote DO scratch databases, publishes anonymized artifacts, refreshes the shared hosted anon DB, and wipes only objects owned by the connected role.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/COR-297/nightly-produce-and-refresh-shared-hosted-anonymized-databases",
   "test_urls": [
     {
-      "label": "ngramx docs PR",
-      "url": "https://github.com/ngramx/ngramx/pull/4"
+      "label": "Factory produce workflow",
+      "url": "https://github.com/ngramx/postmaclone-factory/actions/workflows/postmaclone-produce.yml"
     },
     {
-      "label": "Factory PR",
-      "url": "https://github.com/ngramx/postmaclone-factory/pull/1"
+      "label": "Factory postmaclone.yml",
+      "url": "https://github.com/ngramx/postmaclone-factory/blob/main/postmaclone.yml"
     }
   ],
   "test_plan": [
@@ -36,10 +36,20 @@
     },
     {
       "description": "Factory produce --all only includes Earl Kendrick until a Hydra dump exists in Spaces",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Confirm factory postmaclone.yml has earl-kendrick and no hydra dataset",
         "Confirm the newest database-backups/all/<date>/ listing has earl_kendrick_prod.sql.gz and no hydra_* object"
+      ]
+    },
+    {
+      "description": "Local produce against DO scratch and shared anon for Earl Kendrick",
+      "status": "active",
+      "steps": [
+        "From postmaclone-factory with PATH including postgresql-client-17 and OP_SERVICE_ACCOUNT_TOKEN set: php ../ngramx/bin/ngramx postmaclone produce --dataset earl-kendrick --config postmaclone.yml",
+        "Confirm the command publishes earl_kendrick_anon.sql.gz and latest.json to weathered-brook-anonymized-backups/earl-kendrick/",
+        "Connect as postmaclone_anon to earl_kendrick_core_prod_anon and confirm users.name/email are Faker values (example.com), not production",
+        "Connect as postmaclone_scratch to earl_kendrick_core_prod_scratch and confirm public has 0 tables owned by that role"
       ]
     }
   ]
