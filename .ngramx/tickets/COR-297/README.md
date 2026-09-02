@@ -27,6 +27,7 @@ Nightly factory produce publishes anonymized artifacts to `weathered-brook-anony
 - Legacy full `url` op:// refs still supported for backward compatibility.
 - Scratch/anon wipe drops only `public` objects owned by the connected role (not `DROP SCHEMA public`). Dump sanitizer strips CREATE/DROP/ALTER SCHEMA so restore does not require schema ownership.
 - Local EK produce succeeded (artifact + shared anon refresh). Factory workflow and config pushed to factory `main`.
+- Fixed PHPStan level 8 errors on produce/shared-rotation types so CI can pass.
 
 ## Ops still required (human)
 

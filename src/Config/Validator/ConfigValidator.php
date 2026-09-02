@@ -512,7 +512,7 @@ class ConfigValidator
         if (isset($shared['max_age_hours']) && (!is_int($shared['max_age_hours']) || $shared['max_age_hours'] <= 0)) {
             throw new ConfigException("{$prefix}.max_age_hours must be a positive integer");
         }
-        if (isset($shared['password_rotation_days'])
+        if (array_key_exists('password_rotation_days', $shared)
             && $shared['password_rotation_days'] !== null
             && (!is_int($shared['password_rotation_days']) || $shared['password_rotation_days'] < 0)) {
             throw new ConfigException("{$prefix}.password_rotation_days must be a non-negative integer or null");

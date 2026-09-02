@@ -76,10 +76,7 @@ final class RemoteDbConnectionResolver
         );
 
         if ($engine === PostmacloneConfig::ENGINE_POSTGRES) {
-            $sslmode = $this->resolveSslMode($credentials);
-            if ($sslmode !== null) {
-                $url .= '?sslmode=' . rawurlencode($sslmode);
-            }
+            $url .= '?sslmode=' . rawurlencode($this->resolveSslMode($credentials));
         }
 
         return $url;
@@ -111,7 +108,7 @@ final class RemoteDbConnectionResolver
         return $engine === PostmacloneConfig::ENGINE_POSTGRES ? 5432 : 3306;
     }
 
-    private function resolveSslMode(DbCredentialsConfig $credentials): ?string
+    private function resolveSslMode(DbCredentialsConfig $credentials): string
     {
         if ($credentials->connectionOptions === null || $credentials->connectionOptions === '') {
             return 'require';

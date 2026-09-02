@@ -6,7 +6,6 @@ namespace Ngramx\Postmaclone;
 
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
 use Ngramx\Config\Schema\Postmaclone\SharedDbConfig;
-use Ngramx\Postmaclone\Backup\OpSecretReader;
 use Ngramx\Postmaclone\Backup\OpSecretWriter;
 use Ngramx\Postmaclone\Connection\ConnectionFactory;
 use Ngramx\Postmaclone\Connection\DatabaseConnectionUrl;
@@ -24,7 +23,6 @@ final class SharedDbPasswordRotator
     public const DEFAULT_ROTATION_DAYS = 7;
 
     public function __construct(
-        private readonly OpSecretReader $opReader = new OpSecretReader(),
         private readonly OpSecretWriter $opWriter = new OpSecretWriter(),
         private readonly SecurePasswordGenerator $passwords = new SecurePasswordGenerator(),
         private readonly PsqlRunner $psql = new PsqlRunner(),

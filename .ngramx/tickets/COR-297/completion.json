@@ -44,12 +44,20 @@
     },
     {
       "description": "Local produce against DO scratch and shared anon for Earl Kendrick",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "From postmaclone-factory with PATH including postgresql-client-17 and OP_SERVICE_ACCOUNT_TOKEN set: php ../ngramx/bin/ngramx postmaclone produce --dataset earl-kendrick --config postmaclone.yml",
         "Confirm the command publishes earl_kendrick_anon.sql.gz and latest.json to weathered-brook-anonymized-backups/earl-kendrick/",
         "Connect as postmaclone_anon to earl_kendrick_core_prod_anon and confirm users.name/email are Faker values (example.com), not production",
         "Connect as postmaclone_scratch to earl_kendrick_core_prod_scratch and confirm public has 0 tables owned by that role"
+      ]
+    },
+    {
+      "description": "PHPStan level 8 is clean after produce type fixes",
+      "status": "active",
+      "steps": [
+        "Confirm GitHub Actions PHP 8.2 and PHP 8.3 jobs on this PR pass composer phpstan",
+        "Spot-check produce still returns shared_refreshed and password_rotated without null coalescing"
       ]
     }
   ]

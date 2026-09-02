@@ -132,20 +132,24 @@ class PostmacloneConfigValidationTest extends TestCase
         $factory = $loader->loadFactory($path);
         $shared = $factory->datasets['demo']->shared;
         $this->assertNotNull($shared);
-        $this->assertSame('demo_anon', $shared->connection?->database);
+        $this->assertNotNull($shared->connection);
+        $this->assertSame('demo_anon', $shared->connection->database);
+        $this->assertNotNull($shared->connection->credentials);
         $this->assertSame(
             'op://Vault/postmaclone-anon-psql/server',
-            $shared->connection?->credentials?->host
+            $shared->connection->credentials->host
         );
         $this->assertSame(
             'op://Vault/postmaclone-anon-psql/username',
-            $shared->connection?->credentials?->username
+            $shared->connection->credentials->username
         );
         $remote = $factory->datasets['demo']->target->remote;
-        $this->assertSame('demo_scratch', $remote?->database);
+        $this->assertNotNull($remote);
+        $this->assertSame('demo_scratch', $remote->database);
+        $this->assertNotNull($remote->credentials);
         $this->assertSame(
             'op://Vault/postmaclone-scratch-psql/server',
-            $remote?->credentials?->host
+            $remote->credentials->host
         );
     }
 

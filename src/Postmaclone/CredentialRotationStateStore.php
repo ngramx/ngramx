@@ -68,9 +68,6 @@ final class CredentialRotationStateStore
     public function recordRotatedAt(string $credentialKey, string $rotatedAt): void
     {
         $state = $this->readState();
-        if (!isset($state['credentials']) || !is_array($state['credentials'])) {
-            $state['credentials'] = [];
-        }
         $state['credentials'][$credentialKey] = $rotatedAt;
 
         ($this->uploader ?? new S3ObjectUploader($this->locator, $this->credentials))

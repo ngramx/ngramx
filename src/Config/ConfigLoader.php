@@ -271,6 +271,7 @@ class ConfigLoader
 
     /**
      * @param array<string, mixed> $dataset
+     * @param array<string, EngineConnectionsConfig> $engines
      */
     private function buildFactoryDataset(
         string $name,

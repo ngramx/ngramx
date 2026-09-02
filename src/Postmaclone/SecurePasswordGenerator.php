@@ -13,6 +13,9 @@ final class SecurePasswordGenerator
 
     public function generate(int $length = 32): string
     {
+        if ($length < 1) {
+            throw new \InvalidArgumentException('Password length must be at least 1');
+        }
         $max = strlen(self::ALPHABET) - 1;
         $bytes = random_bytes($length);
         $password = '';
