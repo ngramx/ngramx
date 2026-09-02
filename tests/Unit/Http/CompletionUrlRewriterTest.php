@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ngramx\Tests\Unit\Http;
 
 use Ngramx\Http\CompletionUrlRewriter;
+use Ngramx\Http\EndpointUrls;
 use PHPUnit\Framework\TestCase;
 
 class CompletionUrlRewriterTest extends TestCase
@@ -96,6 +97,57 @@ class CompletionUrlRewriterTest extends TestCase
         $this->assertSame(
             'https://app.localhost/v/developers',
             CompletionUrlRewriter::rewrite('https://app.localhost/v/developers', 'not a url'),
+        );
+    }
+
+    private function canonical(): EndpointUrls
+    {
+        return new EndpointUrls('http://earl-kendrick.localhost', [
+            'pwa' => 'http://localhost:5173',
+            'preview' => 'http://localhost:4173',
+            'api' => 'http://api.earl-kendrick.localhost',
+        ]);
+    }
+
+    private function live(): EndpointUrls
+    {
+        return new EndpointUrls('http://gig-1-ek.localhost:280', [
+            'pwa' => 'http://pwa.gig-1-ek.localhost:5373',
+            'preview' => 'http://preview.gig-1-ek.localhost:4373',
+            'api' => 'http://api.gig-1-ek.localhost:280',
+        ]);
+    }
+
+    public function test_endpoint_rewrite_follows_matching_endpoint_not_primary(): void
+    {
+        $this->assertSame(
+            'http://pwa.gig-1-ek.localhost:5373/surveys/1?x=1',
+            CompletionUrlRewriter::rewriteEndpoints('http://localhost:5173/surveys/1?x=1', $this->canonical(), $this->live()),
+        );
+    }
+
+    public function test_endpoint_rewrite_distinguishes_same_host_by_port(): void
+    {
+        $this->assertSame(
+            'http://preview.gig-1-ek.localhost:4373/',
+            CompletionUrlRewriter::rewriteEndpoints('http://localhost:4173/', $this->canonical(), $this->live()),
+        );
+    }
+
+    public function test_endpoint_rewrite_matches_by_host_when_port_differs(): void
+    {
+        // A link written against the API host on some other port still means the API.
+        $this->assertSame(
+            'http://api.gig-1-ek.localhost:280/v1/jobs',
+            CompletionUrlRewriter::rewriteEndpoints('http://api.earl-kendrick.localhost:9999/v1/jobs', $this->canonical(), $this->live()),
+        );
+    }
+
+    public function test_endpoint_rewrite_falls_back_to_primary_for_unknown_hosts(): void
+    {
+        $this->assertSame(
+            'http://gig-1-ek.localhost:280/admin',
+            CompletionUrlRewriter::rewriteEndpoints('https://app.localhost/admin', $this->canonical(), $this->live()),
         );
     }
 }

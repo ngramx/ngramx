@@ -13,6 +13,24 @@ use PHPUnit\Framework\TestCase;
 
 class WorktreeUrlResolverTest extends TestCase
 {
+    public function test_it_prefixes_named_endpoints_onto_the_worktree_host(): void
+    {
+        $resolver = $this->resolverReturning(static fn (string $host): int => 200);
+
+        $url = $resolver->resolve('http://localhost:5173', 'gig-178-repo', 200, 'pwa');
+
+        $this->assertSame('http://pwa.gig-178-repo.localhost:5373', $url);
+    }
+
+    public function test_named_endpoint_falls_back_to_its_own_host_when_host_routed(): void
+    {
+        $resolver = $this->resolverReturning(static fn (string $host): int => $host === 'api.myapp.test' ? 200 : 404);
+
+        $url = $resolver->resolve('http://api.myapp.test', 'gig-178-repo', 8000, 'api');
+
+        $this->assertSame('http://api.myapp.test:8080', $url);
+    }
+
     public function test_it_uses_subdomain_when_app_is_host_agnostic(): void
     {
         // Same status regardless of the Host header -> the app ignores Host.

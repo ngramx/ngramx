@@ -9,9 +9,11 @@ use Ngramx\Config\Exception\ConfigException;
 use Ngramx\Config\LockFile;
 use Ngramx\Config\LockFileData;
 use Ngramx\Docker\PortOffsetManager;
+use Ngramx\Http\EndpointUrls;
 use Ngramx\Worktree\WorktreeUrlResolver;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Yaml\Yaml;
 
@@ -37,7 +39,10 @@ class ShowUrlCommand extends Command
         $this
             ->setName('show-url')
             ->setAliases(['url'])
-            ->setDescription('Display the URL for the development environment');
+            ->setDescription('Display the URL for the development environment')
+            ->addOption('all', 'a', InputOption::VALUE_NONE, 'List every endpoint (docker.app_url plus docker.endpoints.*) as "name<TAB>url" lines')
+            ->addOption('endpoint', 'e', InputOption::VALUE_REQUIRED, 'Print the URL of one named endpoint from docker.endpoints (or "primary")')
+            ->addOption('json', null, InputOption::VALUE_NONE, 'Print all endpoints as a JSON object of name => url');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -58,13 +63,27 @@ class ShowUrlCommand extends Command
                 $portOffset = $lockData->portOffset ?? 0;
             }
 
+            $endpointOption = $input->getOption('endpoint');
+            $wantsEndpoints = (bool) $input->getOption('all') || (bool) $input->getOption('json') || is_string($endpointOption);
+
             // A running environment records the URL it was advertised on. That
             // is the authoritative answer — notably for worktrees, where the
             // hostname was decided by probing the live app — so prefer it over
             // anything we can re-derive from config.
-            if ($lockData !== null && $lockData->url !== null && $lockData->url !== '') {
+            if ($lockData !== null && $lockData->url !== null && $lockData->url !== '' && !$wantsEndpoints) {
                 $output->writeln($lockData->url);
                 return Command::SUCCESS;
+            }
+
+            if ($wantsEndpoints) {
+                // Endpoints follow the same offset/remap as the primary; a lock
+                // file's recorded URLs (worktree hostnames) win where present.
+                $shifted = EndpointUrls::shifted($config->docker, $portOffset, $lockData->portMap ?? []);
+                $urls = $lockData !== null
+                    ? EndpointUrls::fromRecorded($lockData->url, $lockData->urls, $shifted)
+                    : $shifted;
+
+                return $this->printEndpoints($input, $output, $urls, is_string($endpointOption) ? $endpointOption : null);
             }
 
             // When noHostMapping is enabled with a namespace, build internal Docker network URL
@@ -102,6 +121,31 @@ class ShowUrlCommand extends Command
             $output->writeln("<error>Error: {$e->getMessage()}</error>");
             return Command::FAILURE;
         }
+    }
+
+    private function printEndpoints(InputInterface $input, OutputInterface $output, EndpointUrls $urls, ?string $endpoint): int
+    {
+        if ($endpoint !== null) {
+            $url = $urls->get($endpoint);
+            if ($url === null) {
+                $known = implode(', ', array_keys($urls->all()));
+                $output->writeln("<error>Unknown endpoint \"{$endpoint}\". Known endpoints: {$known}</error>");
+                return Command::FAILURE;
+            }
+            $output->writeln($url);
+            return Command::SUCCESS;
+        }
+
+        if ((bool) $input->getOption('json')) {
+            $output->writeln((string) json_encode($urls->all(), JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+            return Command::SUCCESS;
+        }
+
+        foreach ($urls->all() as $name => $url) {
+            $output->writeln($name . "\t" . $url);
+        }
+
+        return Command::SUCCESS;
     }
 
     /**

@@ -6,6 +6,7 @@ namespace Ngramx\Command;
 
 use Ngramx\Caddy\CaddyService;
 use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\EnvFileSeeder;
 use Ngramx\Config\Exception\ConfigException;
 use Ngramx\Config\HooksConfigLoader;
 use Ngramx\Config\LockFile;
@@ -20,7 +21,7 @@ use Ngramx\Docker\PortOffsetManager;
 use Ngramx\Herd\HerdService;
 use Ngramx\Hooks\HookRunner;
 use Ngramx\Host\EtcHostsHint;
-use Ngramx\Http\UrlPortOffset;
+use Ngramx\Http\EndpointUrls;
 use Ngramx\Orchestrator\SetupOrchestrator;
 use Ngramx\Output\OutputFormatter;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
@@ -172,6 +173,13 @@ class UpCommand extends Command
                 $this->overrideGenerator->generate($config->docker->composeFile, $portOffset, $namespace, $noHostMapping, $portMap);
             }
 
+            // Point `docker.env` / `docker.endpoints.*.env` at the URLs this
+            // stack will listen on before compose reads .env — it interpolates
+            // `${VAR}` at start, and a Vite dev server bakes VITE_* in at boot.
+            // (`review --worktree` re-seeds afterwards if the probe upgrades a
+            // hostname to the "<folder>.localhost" family.)
+            $this->seedEndpointEnv($projectRoot, $config->docker, EndpointUrls::shifted($config->docker, $portOffset, $portMap), $formatter);
+
             // Free host ports 80/443 when requested (Herd uses nginx; Caddy is a separate common listener)
             $herdStopped = false;
             $caddyStopped = false;
@@ -274,19 +282,19 @@ class UpCommand extends Command
                 $this->runPostmacloneAfterUp($formatter, $config, $projectRoot);
             }
 
-            $appUrl = UrlPortOffset::applyMap(
-                UrlPortOffset::apply($config->docker->appUrl, $portOffset),
-                $portMap,
-            );
-            $resolvedProjectRoot = realpath($projectRoot) ?: $projectRoot;
+            $urls = EndpointUrls::shifted($config->docker, $portOffset, $portMap);
+            $hookContext = [
+                'path' => $resolvedProjectRoot = realpath($projectRoot) ?: $projectRoot,
+                'project_path' => $resolvedProjectRoot,
+                'url' => $urls->primary,
+                'repository_path' => $resolvedProjectRoot,
+            ];
+            foreach ($urls->all() as $name => $url) {
+                $hookContext['url.' . $name] = $url;
+            }
             $hooksOk = $this->runConfiguredHooks(
                 $resolvedProjectRoot,
-                [
-                    'path' => $resolvedProjectRoot,
-                    'project_path' => $resolvedProjectRoot,
-                    'url' => $appUrl,
-                    'repository_path' => $resolvedProjectRoot,
-                ],
+                $hookContext,
                 $resolvedProjectRoot,
                 $formatter,
             );
@@ -568,25 +576,58 @@ class UpCommand extends Command
 
         // Display URL with port offset if applicable
         if (isset($config->docker->appUrl) && !empty($config->docker->appUrl)) {
-            // UrlPortOffset handles both explicit (`:443`) and implicit
-            // (https://host) ports; the old inline regex only matched the
-            // explicit form, so URLs that relied on the scheme default were
-            // silently shown un-shifted.
-            $url = UrlPortOffset::applyMap(
-                UrlPortOffset::apply($config->docker->appUrl, $portOffset),
-                $portMap,
-            );
+            // EndpointUrls (via UrlPortOffset) handles both explicit (`:443`)
+            // and implicit (https://host) ports; the old inline regex only
+            // matched the explicit form, so URLs that relied on the scheme
+            // default were silently shown un-shifted.
+            $urls = EndpointUrls::shifted($config->docker, $portOffset, $portMap);
 
-            $output->writeln(sprintf('<fg=green>→</> Access at: <fg=cyan>%s</>', $url));
+            $output->writeln(sprintf('<fg=green>→</> Access at: <fg=cyan>%s</>', $urls->primary));
+            // Additional endpoints (PWA, API, supplier site…) each get a line so
+            // the developer can see every origin this stack serves.
+            $width = max(array_map('strlen', array_keys($urls->endpoints)) ?: [0]);
+            foreach ($urls->endpoints as $name => $url) {
+                $output->writeln(sprintf('<fg=green>→</> %s: <fg=cyan>%s</>', str_pad($name, $width), $url));
+            }
             $output->writeln('');
 
-            $hostsLine = EtcHostsHint::suggestedHostsLine($url);
-            if ($hostsLine !== null) {
-                $formatter->warning('This hostname does not resolve on your machine yet (normal for made-up dev domains).');
-                $formatter->info('Add this line to /etc/hosts so your browser can open the URL:');
-                $formatter->info('  '.$hostsLine);
+            $hostsLines = [];
+            foreach ($urls->all() as $url) {
+                $line = EtcHostsHint::suggestedHostsLine($url);
+                if ($line !== null) {
+                    $hostsLines[$line] = true;
+                }
+            }
+            if ($hostsLines !== []) {
+                $formatter->warning(count($hostsLines) === 1
+                    ? 'This hostname does not resolve on your machine yet (normal for made-up dev domains).'
+                    : 'These hostnames do not resolve on your machine yet (normal for made-up dev domains).');
+                $formatter->info('Add to /etc/hosts so your browser can open the URL(s):');
+                foreach (array_keys($hostsLines) as $line) {
+                    $formatter->info('  '.$line);
+                }
                 $output->writeln('');
             }
+        }
+    }
+
+    /**
+     * Write `docker.env` / `docker.endpoints.*.env` into the project's env
+     * file(s), expanded against $urls. Only the listed keys are touched.
+     */
+    private function seedEndpointEnv(
+        string $projectRoot,
+        \Ngramx\Config\Schema\DockerConfig $docker,
+        EndpointUrls $urls,
+        OutputFormatter $formatter,
+    ): void {
+        $files = $urls->envFiles($docker);
+        if ($files === []) {
+            return;
+        }
+
+        foreach ((new EnvFileSeeder())->seed($projectRoot, $files) as $file) {
+            $formatter->info(sprintf('Set %s in %s', implode(', ', array_keys($files[$file])), $file));
         }
     }
 

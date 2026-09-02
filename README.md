@@ -502,6 +502,15 @@ The URL follows the environment that is actually running:
   worktree's** URL (its own `<ticket>.localhost` hostname where the app answers
   to one, plus its offset port) rather than the shared canonical host.
 
+Projects that serve more than one URL (see [Multiple endpoints](#multiple-endpoints-endpoints))
+can list them all:
+
+```bash
+ngramx show-url --all           # name<TAB>url per line, primary first
+ngramx show-url --endpoint pwa  # one named endpoint
+ngramx show-url --json          # {"primary": "...", "pwa": "..."}
+```
+
 ### `ngramx shell`
 
 Open an interactive bash shell inside the primary service container:
@@ -1153,6 +1162,56 @@ immediately, dumps the last ~50 log lines from that container, and exits
 non-zero — instead of hanging or firing exec commands at a dead container.
 
 The legacy `wait_for: [{ service, timeout }]` shape continues to work unchanged.
+
+### Multiple endpoints (`endpoints`)
+
+Some repositories serve more than one browser-facing URL: a Laravel app plus a
+PWA on a Vite dev server, or an apache container with `www`, `api`, `supplier`
+and `customer` vhosts. `docker.app_url` stays the **primary** URL; declare the
+rest under `docker.endpoints`:
+
+```yaml
+docker:
+  app_url: "http://earl-kendrick.localhost"
+  # Env vars kept pointed at the primary URL. Placeholders: {url} {scheme}
+  # {host} {port} {origin}, and {url.<name>} etc. for any endpoint
+  # ({url.primary} is app_url). {port} is always numeric.
+  env:
+    REVERB_HOST: "{host}"
+    REVERB_PORT: "{port}"
+  endpoints:
+    api: "http://api.earl-kendrick.localhost"      # shorthand: url only
+    pwa:
+      url: "http://localhost:5173"
+      service: pwa                                  # compose service serving it (default: primary_service)
+      file: ".env"                                  # env file to write into (default: .env)
+      env:
+        VITE_API_BASE_URL: "{url.primary}"
+        EK_PWA_PORT: "{port}"
+```
+
+What Ngramx does with them:
+
+- **Ports** — every endpoint follows the same port offset / per-port remap as
+  the primary, so a parallel stack's PWA on `5173` is reported (and reachable)
+  on `5373`.
+- **Worktrees** — each endpoint gets its own origin, `<name>.<ticket>.localhost`
+  (the primary keeps `<ticket>.localhost`). Host-routed apps get a vhost alias
+  added on the vhost serving that endpoint's canonical host; https endpoints
+  are added to the worktree's mkcert certificate.
+- **Env seeding** — `docker.env` and each endpoint's `env` are written into the
+  named env file before the stack starts (compose interpolates `${VAR}` from
+  `.env`; Vite bakes `VITE_*` in at boot) and again after the worktree
+  hostnames are decided. Only the listed keys are touched. A missing file is
+  copied from the parent checkout or the neighbouring `.example`. Endpoint
+  services whose env changed post-start are recreated so they pick it up.
+- **Output** — `up` lists every endpoint; `show-url --all|--endpoint|--json`
+  prints them; hooks receive `{url.<name>}` placeholders; completion.json
+  `test_urls` are rewritten onto the endpoint they were written against
+  (a `:5173` PWA link follows the PWA into the worktree, not the Laravel app).
+
+Endpoint names are DNS labels (lowercase letters, digits, hyphens); `primary`
+is reserved.
 
 ### Agent instructions and skills (`agents`)
 

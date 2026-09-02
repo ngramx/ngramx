@@ -24,3 +24,6 @@ yarn-error.log*
 .env
 .env.postmaclone
 .n8n/
+
+# Playwright MCP scratch output
+.playwright-mcp/

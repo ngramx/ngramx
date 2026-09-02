@@ -256,4 +256,30 @@ class LockFileTest extends TestCase
         $this->assertNotNull($readData);
         $this->assertNull($readData->url);
     }
+
+    public function test_it_round_trips_endpoint_urls(): void
+    {
+        $this->lockFile->write(new LockFileData(
+            namespace: null,
+            portOffset: 200,
+            startedAt: '2025-11-08T10:30:00+00:00',
+            url: 'http://gig-1-ek.localhost:280',
+            urls: ['pwa' => 'http://pwa.gig-1-ek.localhost:5373'],
+        ));
+
+        $readData = $this->lockFile->read();
+
+        $this->assertNotNull($readData);
+        $this->assertSame('http://gig-1-ek.localhost:280', $readData->url);
+        $this->assertSame(['pwa' => 'http://pwa.gig-1-ek.localhost:5373'], $readData->urls);
+    }
+
+    public function test_it_omits_urls_key_and_reads_empty_when_none_recorded(): void
+    {
+        $this->lockFile->write(new LockFileData(namespace: null, portOffset: null, startedAt: '2025-11-08T10:30:00+00:00'));
+
+        $json = json_decode((string) file_get_contents($this->tempDir . '/.ngramx.lock'), true);
+        $this->assertNull($json['urls']);
+        $this->assertSame([], $this->lockFile->read()?->urls);
+    }
 }
