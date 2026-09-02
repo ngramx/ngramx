@@ -82,6 +82,16 @@ class WorktreeUrlResolver
         $real = $this->probe->probeWithHost($probeUrl, $realHost, attempts: max(1, $this->baselineAttempts));
         $sub = $this->probe->probeWithHost($probeUrl, $subHost, attempts: 1);
 
+        // A matching status only means "host-agnostic" when the baseline shows
+        // the app actually served the request. If its own host already answers
+        // 4xx -- hydra's API vhost 404s on "/" -- then an equal status proves
+        // nothing: an unrouted hostname 404s too, for an entirely different
+        // reason. Upgrading on that evidence advertises a dead origin, so treat
+        // a client-error baseline as "cannot tell" and keep the app's own host.
+        if ($real->statusCode === null || $real->statusCode >= 400) {
+            return $fallback;
+        }
+
         if ($sub->statusCode !== null && $sub->statusCode === $real->statusCode) {
             return $this->withHost($fallback, $subHost);
         }

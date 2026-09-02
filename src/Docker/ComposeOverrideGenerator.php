@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ngramx\Docker;
 
 use Ngramx\Worktree\WorktreeGitMount;
+use Ngramx\Worktree\WorktreeSiblingMounts;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -43,12 +44,14 @@ class ComposeOverrideGenerator
 YAML;
 
     private readonly WorktreeGitMount $gitMount;
+    private readonly WorktreeSiblingMounts $siblingMounts;
 
     private readonly BuildFingerprint $fingerprint;
 
     public function __construct(?WorktreeGitMount $gitMount = null, ?BuildFingerprint $fingerprint = null)
     {
         $this->gitMount = $gitMount ?? new WorktreeGitMount();
+        $this->siblingMounts = new WorktreeSiblingMounts();
         $this->fingerprint = $fingerprint ?? new BuildFingerprint();
     }
 
@@ -67,7 +70,20 @@ YAML;
         // pointer references, so git resolves inside containers instead of
         // crash-looping a `set -e` entrypoint. Detection only reads git
         // metadata next to the compose file.
-        $gitCommonDir = $this->gitMount->resolve($this->projectDir($composeFile));
+        // Resolve from the repository root, not the compose file's directory: a
+        // project that keeps its compose file in a subdirectory (hydra:
+        // docker/docker-compose.yml) has no .git next to it, so resolving from
+        // there silently reported "not a worktree" and skipped both the git
+        // mount and the sibling-mount rewrite below.
+        $composeDir = $this->projectDir($composeFile);
+        $projectRoot = $this->projectRoot($composeDir);
+        $gitCommonDir = $this->gitMount->resolve($projectRoot);
+
+        // The same compose file's directory as seen from the base checkout,
+        // used to re-resolve bind mounts that point outside the repository.
+        $baseComposeDir = $gitCommonDir === null
+            ? null
+            : dirname($gitCommonDir) . substr($composeDir, strlen($projectRoot));
 
         // Services built from source always get a build fingerprint, so the
         // override is worth writing even when nothing else applies. The helper
@@ -140,9 +156,24 @@ YAML;
             // services (the app plus any worker/reverb that builds from source
             // and runs the project entrypoint). Compose merges volumes by mount
             // target and environment by key, so existing config is preserved.
+            $volumeOverrides = [];
             if ($gitCommonDir !== null && $this->buildsFromSource($service)) {
-                $serviceOverride['volumes'] = [$gitCommonDir . ':' . $gitCommonDir];
+                $volumeOverrides[] = $gitCommonDir . ':' . $gitCommonDir;
                 $serviceOverride['environment'] = $this->gitSafeDirectoryEnv();
+            }
+
+            // Re-point bind mounts that escape the repository (sibling repos)
+            // at the base checkout; from a worktree they would otherwise
+            // resolve to a non-existent path that Docker creates empty.
+            if ($baseComposeDir !== null) {
+                $volumeOverrides = array_merge(
+                    $volumeOverrides,
+                    $this->siblingMounts->rewrite($service, $composeDir, $projectRoot, $baseComposeDir),
+                );
+            }
+
+            if ($volumeOverrides !== []) {
+                $serviceOverride['volumes'] = $volumeOverrides;
             }
 
             // Bake the Dockerfile fingerprint into images we build, so a later
@@ -169,6 +200,29 @@ YAML;
      * the `.git` pointer file we inspect). Falls back to the raw dirname when
      * the path cannot be realpath-resolved (e.g. it does not exist yet).
      */
+    /**
+     * Walk up from the compose file's directory to the checkout that contains
+     * it, identified by a `.git` entry. Falls back to the starting directory
+     * when there is none, preserving the previous behaviour.
+     */
+    private function projectRoot(string $composeDir): string
+    {
+        $dir = rtrim($composeDir, '/');
+
+        while ($dir !== '' && $dir !== '/') {
+            if (file_exists($dir . '/.git')) {
+                return $dir;
+            }
+            $parent = dirname($dir);
+            if ($parent === $dir) {
+                break;
+            }
+            $dir = $parent;
+        }
+
+        return $composeDir;
+    }
+
     private function projectDir(string $composeFile): string
     {
         $real = realpath($composeFile);
