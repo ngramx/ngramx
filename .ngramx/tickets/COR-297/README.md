@@ -29,6 +29,7 @@ Nightly factory produce publishes anonymized artifacts to `weathered-brook-anony
 - Local EK produce succeeded (artifact + shared anon refresh). Factory workflow and config pushed to factory `main`.
 - Fixed PHPStan level 8 errors on produce/shared-rotation types so CI can pass.
 - Bugbot PR #15: install pdo_pgsql/pdo_mysql in produce GHA; decompress shared artifact before wiping anon; wipe owned functions/types/domains; write 1Password before ALTER ROLE and revert on failure; MySQL wipe via MysqlRunner; stream gzip decompression; preserve URL query (sslmode) on rotation.
+- Second Bugbot pass: fail closed on corrupt gzip (delete partial); DROP PROCEDURE/AGGREGATE by prokind; drop standalone composite types via pg_class.relkind = 'c'.
 
 ## Ops still required (human)
 

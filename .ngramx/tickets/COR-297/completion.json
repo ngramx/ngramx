@@ -62,13 +62,22 @@
     },
     {
       "description": "Bugbot fixes: PDO extensions, wipe/restore order, rotation, SSL query",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Confirm the produce workflow template and generated YAML include pdo_pgsql and pdo_mysql",
         "Confirm SharedDbRefresher decompresses the artifact before wiping the shared DB",
         "Confirm postgres wipe SQL drops owned functions, types, and domains as well as tables",
         "Confirm password rotation writes 1Password first and reverts that write if ALTER ROLE fails",
         "Confirm DatabaseConnectionUrl withPassword keeps ?sslmode=require"
+      ]
+    },
+    {
+      "description": "Second Bugbot pass: gzip fail-closed, procedures, composite types",
+      "status": "active",
+      "steps": [
+        "Confirm DumpDecompressor throws and deletes the partial file when gzip is truncated",
+        "Confirm postgres wipe SQL uses DROP PROCEDURE / DROP AGGREGATE from prokind, not DROP FUNCTION for every routine",
+        "Confirm composite types are selected via typtype c and pg_class.relkind c, not typrelid = 0"
       ]
     }
   ]

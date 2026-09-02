@@ -91,23 +91,32 @@ BEGIN
   END LOOP;
 
   FOR r IN
-    SELECT n.nspname, p.proname, pg_get_function_identity_arguments(p.oid) AS args
+    SELECT n.nspname, p.proname, p.prokind, pg_get_function_identity_arguments(p.oid) AS args
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
       AND p.proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
   LOOP
-    EXECUTE format('DROP FUNCTION IF EXISTS %I.%I(%s) CASCADE', r.nspname, r.proname, r.args);
+    IF r.prokind = 'p' THEN
+      EXECUTE format('DROP PROCEDURE IF EXISTS %I.%I(%s) CASCADE', r.nspname, r.proname, r.args);
+    ELSIF r.prokind = 'a' THEN
+      EXECUTE format('DROP AGGREGATE IF EXISTS %I.%I(%s) CASCADE', r.nspname, r.proname, r.args);
+    ELSE
+      EXECUTE format('DROP FUNCTION IF EXISTS %I.%I(%s) CASCADE', r.nspname, r.proname, r.args);
+    END IF;
   END LOOP;
 
   FOR r IN
     SELECT n.nspname, t.typname
     FROM pg_type t
     JOIN pg_namespace n ON n.oid = t.typnamespace
+    LEFT JOIN pg_class c ON c.oid = t.typrelid
     WHERE n.nspname = 'public'
       AND t.typowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
-      AND t.typtype IN ('e', 'c')
-      AND t.typrelid = 0
+      AND (
+        t.typtype = 'e'
+        OR (t.typtype = 'c' AND c.relkind = 'c')
+      )
   LOOP
     EXECUTE format('DROP TYPE IF EXISTS %I.%I CASCADE', r.nspname, r.typname);
   END LOOP;

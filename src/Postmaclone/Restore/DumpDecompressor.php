@@ -32,19 +32,30 @@ final class DumpDecompressor
             throw new PostmacloneException("Failed to write decompressed dump: {$out}");
         }
 
+        $ok = false;
         try {
-            while (!gzeof($in)) {
+            while (true) {
                 $chunk = gzread($in, 1024 * 1024);
                 if ($chunk === false) {
+                    throw new PostmacloneException("Failed to decompress gzip dump: {$path}");
+                }
+                if ($chunk === '') {
                     break;
                 }
                 if (fwrite($dest, $chunk) === false) {
                     throw new PostmacloneException("Failed to write decompressed dump: {$out}");
                 }
             }
+            if (!gzeof($in)) {
+                throw new PostmacloneException("Failed to decompress gzip dump: {$path}");
+            }
+            $ok = true;
         } finally {
             gzclose($in);
             fclose($dest);
+            if (!$ok && is_file($out)) {
+                @unlink($out);
+            }
         }
 
         return $out;
