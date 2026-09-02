@@ -1,7 +1,0 @@
-- generic [ref=f1e4]:
-  - img "Earl Kendrick" [ref=f1e5]
-  - heading "Sign in" [level=1] [ref=f1e6]
-  - paragraph [ref=f1e7]: Enter your email to receive a sign-in link.
-  - generic [ref=f1e8]:
-    - textbox "you@example.com" [active] [ref=f1e9]
-    - button "Send Code" [disabled] [ref=f1e10]
