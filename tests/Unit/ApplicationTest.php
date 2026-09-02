@@ -47,6 +47,7 @@ class ApplicationTest extends TestCase
         $app = new Application();
 
         $this->assertTrue($app->has('init-github-actions'));
+        $this->assertTrue($app->has('init-postmaclone-workflow'));
     }
 
     /**

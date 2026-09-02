@@ -170,6 +170,10 @@ class ConfigValidator
             }
         }
 
+        if (isset($postmaclone['engines'])) {
+            $this->validateEngineConnections($postmaclone['engines']);
+        }
+
         if (isset($postmaclone['backup'])) {
             $this->validatePostmacloneBackup($postmaclone['backup'], 'postmaclone.backup');
         }
@@ -178,8 +182,13 @@ class ConfigValidator
             $this->validatePostmaclonePrebuilt($postmaclone['prebuilt']);
         }
 
+        if (isset($postmaclone['shared'])) {
+            $this->validatePostmacloneShared($postmaclone['shared'], 'postmaclone.shared', credentialsOptional: true);
+            $this->validateConsumerSharedEngineFallback($postmaclone);
+        }
+
         if (isset($postmaclone['target'])) {
-            $this->validatePostmacloneTarget($postmaclone['target']);
+            $this->validatePostmacloneTarget($postmaclone['target'], 'postmaclone.target', credentialsOptional: true);
         }
 
         $hasPrebuilt = isset($postmaclone['prebuilt'])
@@ -188,10 +197,25 @@ class ConfigValidator
             && is_string($postmaclone['prebuilt']['path'])
             && $postmaclone['prebuilt']['path'] !== '';
 
+        $hasShared = isset($postmaclone['shared'])
+            && is_array($postmaclone['shared'])
+            && (
+                (isset($postmaclone['shared']['url']) && is_string($postmaclone['shared']['url']) && $postmaclone['shared']['url'] !== '')
+                || (
+                    isset($postmaclone['shared']['database'])
+                    && is_string($postmaclone['shared']['database'])
+                    && $postmaclone['shared']['database'] !== ''
+                    && (
+                        $this->connectionHasInlineHost($postmaclone['shared'])
+                        || $this->hasEngineRoleCredentials($postmaclone, 'anon')
+                    )
+                )
+            );
+
         $hasTables = isset($postmaclone['tables']) && is_array($postmaclone['tables']) && $postmaclone['tables'] !== [];
-        if (!$hasTables && !$hasPrebuilt) {
+        if (!$hasTables && !$hasPrebuilt && !$hasShared) {
             throw new ConfigException(
-                'postmaclone requires either prebuilt (consumer) or tables (anonymize rules / full pipeline)'
+                'postmaclone requires prebuilt (artifact consumer), shared (hosted DB), or tables (anonymize rules / full pipeline)'
             );
         }
 
@@ -210,6 +234,10 @@ class ConfigValidator
     {
         if (!isset($config['datasets']) || !is_array($config['datasets']) || $config['datasets'] === []) {
             throw new ConfigException('Factory postmaclone.yml requires a non-empty datasets map');
+        }
+
+        if (isset($config['engines'])) {
+            $this->validateEngineConnections($config['engines']);
         }
 
         foreach ($config['datasets'] as $name => $dataset) {
@@ -249,9 +277,124 @@ class ConfigValidator
                 }
             }
             if (isset($dataset['target'])) {
-                $this->validatePostmacloneTarget($dataset['target'], "datasets.{$name}.target");
+                $this->validatePostmacloneTarget($dataset['target'], "datasets.{$name}.target", credentialsOptional: true);
+                $this->validateDatasetRemoteEngineFallback($config, $name, $dataset);
+            }
+            if (isset($dataset['shared'])) {
+                $this->validatePostmacloneShared($dataset['shared'], "datasets.{$name}.shared", credentialsOptional: true);
+                $this->validateDatasetSharedEngineFallback($config, $name, $dataset);
             }
         }
+    }
+
+    /**
+     * @param mixed $engines
+     * @throws ConfigException
+     */
+    private function validateEngineConnections(mixed $engines): void
+    {
+        if (!is_array($engines)) {
+            throw new ConfigException('engines must be an array');
+        }
+
+        foreach ($engines as $engine => $roles) {
+            if (!is_string($engine) || !in_array($engine, ['postgres', 'mysql', 'mariadb'], true)) {
+                throw new ConfigException('engines keys must be postgres, mysql, or mariadb');
+            }
+            if (!is_array($roles)) {
+                throw new ConfigException("engines.{$engine} must be an array");
+            }
+
+            foreach (['scratch', 'anon'] as $role) {
+                if (!isset($roles[$role])) {
+                    continue;
+                }
+                if (!is_array($roles[$role])) {
+                    throw new ConfigException("engines.{$engine}.{$role} must be an array");
+                }
+                if (!isset($roles[$role]['credentials']) || !is_array($roles[$role]['credentials'])) {
+                    throw new ConfigException("engines.{$engine}.{$role}.credentials is required");
+                }
+                $this->validateDbCredentials(
+                    $roles[$role]['credentials'],
+                    "engines.{$engine}.{$role}.credentials",
+                    requireHost: true,
+                );
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @param array<string, mixed> $dataset
+     * @throws ConfigException
+     */
+    private function validateDatasetRemoteEngineFallback(array $config, string $name, array $dataset): void
+    {
+        $remote = is_array($dataset['target']['remote'] ?? null) ? $dataset['target']['remote'] : null;
+        if ($remote === null || isset($remote['url'])) {
+            return;
+        }
+
+        if ($this->connectionHasInlineHost($remote)) {
+            return;
+        }
+
+        if (!isset($remote['database']) || !is_string($remote['database']) || $remote['database'] === '') {
+            return;
+        }
+
+        $engine = isset($dataset['engine']) && is_string($dataset['engine']) ? $dataset['engine'] : 'postgres';
+        $engines = is_array($config['engines'] ?? null) ? $config['engines'] : [];
+        if (!isset($engines[$engine]['scratch']['credentials'])) {
+            throw new ConfigException(
+                "datasets.{$name}.target.remote requires credentials or engines.{$engine}.scratch.credentials"
+            );
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @param array<string, mixed> $dataset
+     * @throws ConfigException
+     */
+    private function validateDatasetSharedEngineFallback(array $config, string $name, array $dataset): void
+    {
+        $shared = is_array($dataset['shared'] ?? null) ? $dataset['shared'] : null;
+        if ($shared === null || isset($shared['url'])) {
+            return;
+        }
+
+        if ($this->connectionHasInlineHost($shared)) {
+            return;
+        }
+
+        if (!isset($shared['database']) || !is_string($shared['database']) || $shared['database'] === '') {
+            return;
+        }
+
+        $engine = isset($dataset['engine']) && is_string($dataset['engine']) ? $dataset['engine'] : 'postgres';
+        $engines = is_array($config['engines'] ?? null) ? $config['engines'] : [];
+        if (!isset($engines[$engine]['anon']['credentials'])) {
+            throw new ConfigException(
+                "datasets.{$name}.shared requires credentials or engines.{$engine}.anon.credentials"
+            );
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $connection
+     */
+    private function connectionHasInlineHost(array $connection): bool
+    {
+        if (isset($connection['host']) && is_string($connection['host']) && $connection['host'] !== '') {
+            return true;
+        }
+
+        $credentials = is_array($connection['credentials'] ?? null) ? $connection['credentials'] : [];
+
+        return (isset($credentials['server']) && is_string($credentials['server']) && $credentials['server'] !== '')
+            || (isset($credentials['host']) && is_string($credentials['host']) && $credentials['host'] !== '');
     }
 
     /**
@@ -315,6 +458,147 @@ class ConfigValidator
                 if (isset($rule['where']) && (!is_string($rule['where']) || $rule['where'] === '')) {
                     throw new ConfigException("{$prefix}.{$tableName}.{$columnName}.where must be a non-empty string");
                 }
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $postmaclone
+     * @throws ConfigException
+     */
+    private function validateConsumerSharedEngineFallback(array $postmaclone): void
+    {
+        $shared = is_array($postmaclone['shared'] ?? null) ? $postmaclone['shared'] : null;
+        if ($shared === null || isset($shared['url']) || $this->connectionHasInlineHost($shared)) {
+            return;
+        }
+
+        if (!isset($shared['database']) || !is_string($shared['database']) || $shared['database'] === '') {
+            return;
+        }
+
+        if ($this->hasEngineRoleCredentials($postmaclone, 'anon')) {
+            return;
+        }
+
+        $engine = isset($postmaclone['engine']) && is_string($postmaclone['engine']) ? $postmaclone['engine'] : 'postgres';
+        throw new ConfigException(
+            "postmaclone.shared requires credentials or engines.{$engine}.anon.credentials"
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $postmaclone
+     */
+    private function hasEngineRoleCredentials(array $postmaclone, string $role): bool
+    {
+        $engine = isset($postmaclone['engine']) && is_string($postmaclone['engine']) ? $postmaclone['engine'] : 'postgres';
+        $engines = is_array($postmaclone['engines'] ?? null) ? $postmaclone['engines'] : [];
+
+        return isset($engines[$engine][$role]['credentials'])
+            && is_array($engines[$engine][$role]['credentials']);
+    }
+
+    /**
+     * @param mixed $shared
+     * @throws ConfigException
+     */
+    private function validatePostmacloneShared(mixed $shared, string $prefix, bool $credentialsOptional = false): void
+    {
+        if (!is_array($shared)) {
+            throw new ConfigException("{$prefix} must be an array");
+        }
+        $this->validateDbConnection($shared, $prefix, $credentialsOptional);
+        if (isset($shared['max_age_hours']) && (!is_int($shared['max_age_hours']) || $shared['max_age_hours'] <= 0)) {
+            throw new ConfigException("{$prefix}.max_age_hours must be a positive integer");
+        }
+        if (isset($shared['password_rotation_days'])
+            && $shared['password_rotation_days'] !== null
+            && (!is_int($shared['password_rotation_days']) || $shared['password_rotation_days'] < 0)) {
+            throw new ConfigException("{$prefix}.password_rotation_days must be a non-negative integer or null");
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $connection
+     * @throws ConfigException
+     */
+    private function validateDbConnection(array $connection, string $prefix, bool $credentialsOptional = false): void
+    {
+        $hasUrl = isset($connection['url']) && is_string($connection['url']) && $connection['url'] !== '';
+        $hasHost = isset($connection['host']) && is_string($connection['host']) && $connection['host'] !== '';
+        $hasDatabase = isset($connection['database']) && is_string($connection['database']) && $connection['database'] !== '';
+        $hasCredentials = isset($connection['credentials']) && is_array($connection['credentials']);
+        $hasCredentialHost = $hasCredentials && (
+            (isset($connection['credentials']['server']) && is_string($connection['credentials']['server']) && $connection['credentials']['server'] !== '')
+            || (isset($connection['credentials']['host']) && is_string($connection['credentials']['host']) && $connection['credentials']['host'] !== '')
+        );
+
+        if ($hasUrl) {
+            return;
+        }
+
+        if (!$hasDatabase) {
+            throw new ConfigException(
+                "{$prefix} requires either url, or database + credentials with server/host + username/password op:// refs"
+            );
+        }
+
+        if (!$credentialsOptional && (!$hasCredentials || (!$hasHost && !$hasCredentialHost))) {
+            throw new ConfigException(
+                "{$prefix} requires either url, or database + credentials with server/host + username/password op:// refs"
+            );
+        }
+
+        if ($hasCredentials) {
+            if (isset($connection['port']) && (!is_int($connection['port']) || $connection['port'] <= 0)) {
+                throw new ConfigException("{$prefix}.port must be a positive integer");
+            }
+
+            $this->validateDbCredentials($connection['credentials'], "{$prefix}.credentials");
+        }
+    }
+
+    /**
+     * @param mixed $credentials
+     * @throws ConfigException
+     */
+    private function validateDbCredentials(mixed $credentials, string $prefix, bool $requireHost = false): void
+    {
+        if (!is_array($credentials)) {
+            throw new ConfigException("{$prefix} must be an array");
+        }
+        foreach (['username', 'password'] as $field) {
+            if (!isset($credentials[$field]) || !is_string($credentials[$field]) || $credentials[$field] === '') {
+                throw new ConfigException("{$prefix}.{$field} is required");
+            }
+            if (!str_starts_with($credentials[$field], 'op://')) {
+                throw new ConfigException(
+                    "{$prefix}.{$field} must be a 1Password reference (op://vault/item/field). "
+                    . 'Do not put plaintext database passwords in YAML.'
+                );
+            }
+        }
+
+        foreach (['server', 'host', 'port', 'connection_options', 'connection options'] as $field) {
+            if (!isset($credentials[$field])) {
+                continue;
+            }
+            if (!is_string($credentials[$field]) || $credentials[$field] === '') {
+                throw new ConfigException("{$prefix}.{$field} must be a non-empty string");
+            }
+            if (!str_starts_with($credentials[$field], 'op://')) {
+                throw new ConfigException(
+                    "{$prefix}.{$field} must be a 1Password reference (op://vault/item/field)"
+                );
+            }
+        }
+
+        if ($requireHost) {
+            $hasHost = (isset($credentials['server']) && is_string($credentials['server']) && $credentials['server'] !== '')
+                || (isset($credentials['host']) && is_string($credentials['host']) && $credentials['host'] !== '');
+            if (!$hasHost) {
+                throw new ConfigException("{$prefix} requires server or host op:// reference");
             }
         }
     }
@@ -476,7 +760,7 @@ class ConfigValidator
      * @param mixed $target
      * @throws ConfigException
      */
-    private function validatePostmacloneTarget(mixed $target, string $prefix = 'postmaclone.target'): void
+    private function validatePostmacloneTarget(mixed $target, string $prefix = 'postmaclone.target', bool $credentialsOptional = false): void
     {
         if (!is_array($target)) {
             throw new ConfigException("{$prefix} must be an array");
@@ -520,8 +804,12 @@ class ConfigValidator
         }
 
         if (isset($target['remote']) && is_array($target['remote'])) {
-            if (isset($target['remote']['url']) && (!is_string($target['remote']['url']) || $target['remote']['url'] === '')) {
-                throw new ConfigException("{$prefix}.remote.url must be a non-empty string");
+            $provider = $target['provider'] ?? null;
+            if ($provider === 'remote'
+                || isset($target['remote']['url'])
+                || isset($target['remote']['host'])
+                || isset($target['remote']['database'])) {
+                $this->validateDbConnection($target['remote'], "{$prefix}.remote", $credentialsOptional);
             }
         }
     }

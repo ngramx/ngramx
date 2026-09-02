@@ -15,6 +15,7 @@ use Ngramx\Command\DownCommand;
 use Ngramx\Command\DynamicCommand;
 use Ngramx\Command\InitCommand;
 use Ngramx\Command\InitGithubActionsCommand;
+use Ngramx\Command\InitPostmacloneWorkflowCommand;
 use Ngramx\Command\LogsCommand;
 use Ngramx\Command\N8n\ExportCommand;
 use Ngramx\Command\N8n\ImportCommand;
@@ -191,6 +192,7 @@ class Application extends BaseApplication
         $this->add(new InitCommand());
         $this->add(new CodabyteLoginCommand(new SshRunner(), ServerTargetResolver::fromEnvironment()));
         $this->add(new InitGithubActionsCommand());
+        $this->add(new InitPostmacloneWorkflowCommand());
         $this->add(new SyncAgentsCommand());
         $this->add(new UpCommand(
             $configLoader,

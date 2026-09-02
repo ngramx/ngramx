@@ -8,10 +8,12 @@ readonly class FactoryConfig
 {
     /**
      * @param array<string, FactoryDatasetConfig> $datasets keyed by dataset name
+     * @param array<string, EngineConnectionsConfig> $engines keyed by engine name
      */
     public function __construct(
         public string $version = '1',
         public array $datasets = [],
+        public array $engines = [],
         public string $locale = PostmacloneConfig::DEFAULT_LOCALE,
         public ?int $seed = 42,
     ) {

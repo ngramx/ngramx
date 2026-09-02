@@ -1,18 +1,44 @@
 # Factory config for nightly anonymized artifact production.
-# Lives in the dedicated factory repo (not an app):
+# Lives in the dedicated factory repo (not an app checkout):
 #   https://github.com/ngramx/postmaclone-factory
 # Discover as postmaclone.yml / .yaml.
 #
 #   ngramx postmaclone produce --all
 #   ngramx postmaclone produce --dataset earl-kendrick
-#   ngramx postmaclone produce --config ./configs/factory.postmaclone.yml --all
+#   ngramx init-postmaclone-workflow --dataset earl-kendrick
 #
-# Run the job in the same DigitalOcean region as Spaces + scratch Postgres.
-# Use a separate anonymized bucket and write-only credentials for publish.
+# GitHub Actions runners have ~14GB disk — too small to restore multi‑GB dumps locally.
+# Use target.provider: remote so restore + anonymize run on a DO Managed Database scratch DB.
+# After publish, shared.* refreshes the long-lived hosted copy developers connect to.
+#
+# Connection details (server, port, username, password, SSL) live once per engine under
+# engines.* — datasets only name their scratch/anon databases.
 
 version: "1"
 locale: en_GB
 seed: 42
+
+engines:
+  postgres:
+    scratch:
+      credentials:
+        server: "op://Tech Team Vault/postmaclone-scratch-psql/server"
+        port: "op://Tech Team Vault/postmaclone-scratch-psql/port"
+        username: "op://Tech Team Vault/postmaclone-scratch-psql/username"
+        password: "op://Tech Team Vault/postmaclone-scratch-psql/password"
+        connection_options: "op://Tech Team Vault/postmaclone-scratch-psql/connection options"
+    anon:
+      credentials:
+        server: "op://Tech Team Vault/postmaclone-anon-psql/server"
+        port: "op://Tech Team Vault/postmaclone-anon-psql/port"
+        username: "op://Tech Team Vault/postmaclone-anon-psql/username"
+        password: "op://Tech Team Vault/postmaclone-anon-psql/password"
+        connection_options: "op://Tech Team Vault/postmaclone-anon-psql/connection options"
+  # mysql:
+  #   scratch:
+  #     credentials: { ... postmaclone-scratch-mysql ... }
+  #   anon:
+  #     credentials: { ... postmaclone-anon-mysql ... }
 
 datasets:
   earl-kendrick:
@@ -38,9 +64,12 @@ datasets:
     # include_tables: [users, orders, order_items]
     # exclude_tables: [audit_log, sessions, job_batches]
     target:
-      provider: docker            # or remote (POSTMACLONE_REMOTE_URL / target.remote.url)
-      docker:
-        image: postgres:16-alpine
+      provider: remote
+      remote:
+        database: earl_kendrick_core_prod_scratch
+    shared:
+      database: earl_kendrick_core_prod_anon
+      password_rotation_days: 7   # default; set 0 to disable
     tables:
       users:
         email: uniqueSafeEmail

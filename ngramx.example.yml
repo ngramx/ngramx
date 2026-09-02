@@ -131,7 +131,7 @@ commands:
 #   # Prefer a nightly factory prebuilt for multi‑GB DBs (restore-only; no local anonymize).
 #   # Factory produce writes latest.json next to the artifact — omit file to follow the manifest.
 #   # Escape hatch: ngramx postmaclone --from-prod
-#   # prebuilt:
+#   prebuilt:
 #   #   source: s3
 #   #   path: "spaces://weathered-brook-anonymized-backups/earl-kendrick/"
 #   #   file: "earl_kendrick_anon.sql.gz"
@@ -142,12 +142,27 @@ commands:
 #   #     key: "op://Tech Team Vault/ngramx-anon-backup-read/username"
 #   #     secret: "op://Tech Team Vault/ngramx-anon-backup-read/password"
 #
+#   # Primary: connect to the nightly refreshed hosted DB (COR-274 wires this into dev envs).
+#   # shared:
+#   #   host: "private-db-postgresql-xxxxx-do-user-xxxxx-0.db.ondigitalocean.com"
+#   #   port: 25060
+#   #   database: earl_kendrick_core_prod_anon
+#   #   credentials:
+#   #     username: "op://Tech Team Vault/postmaclone-anon/username"
+#   #     password: "op://Tech Team Vault/postmaclone-anon/password"
+#   #   max_age_hours: 36
+#
 #   target:
 #     provider: auto              # neon | docker | remote | auto (Postgres: Neon if NEON_API_KEY is set, else Docker)
 #     ttl_hours: 4                # safety-net expiry; tear down with `postmaclone down`
-#     # Large prebuilts: restore into a fresh in-region DO/Neon URL (not a shared staging DB)
+#     # Large prebuilts: restore into a fresh in-region DO/Neon database (not a shared staging DB)
 #     # remote:
-#     #   url: "op://Tech Team Vault/postmaclone-remote/database_url"
+#     #   host: "private-db-postgresql-xxxxx-do-user-xxxxx-0.db.ondigitalocean.com"
+#     #   port: 25060
+#     #   database: earl_kendrick_core_prod_scratch
+#     #   credentials:
+#     #     username: "op://Tech Team Vault/postmaclone-scratch/username"
+#     #     password: "op://Tech Team Vault/postmaclone-scratch/password"
 #     # remote_threshold_bytes: 2147483648
 #   tables:                       # optional when only using prebuilt
 #     users:

@@ -1,0 +1,40 @@
+version: "1"
+locale: en_GB
+seed: 42
+engines:
+  postgres:
+    scratch:
+      credentials:
+        server: "op://Vault/postmaclone-scratch-psql/server"
+        port: "op://Vault/postmaclone-scratch-psql/port"
+        username: "op://Vault/postmaclone-scratch-psql/username"
+        password: "op://Vault/postmaclone-scratch-psql/password"
+    anon:
+      credentials:
+        server: "op://Vault/postmaclone-anon-psql/server"
+        port: "op://Vault/postmaclone-anon-psql/port"
+        username: "op://Vault/postmaclone-anon-psql/username"
+        password: "op://Vault/postmaclone-anon-psql/password"
+datasets:
+  demo:
+    engine: postgres
+    backup:
+      source: local
+      path: "./demo.sql"
+    publish:
+      path: "spaces://anon-bucket/demo/"
+      file: "demo_anon.sql.gz"
+      region: lon1
+      endpoint: "https://lon1.digitaloceanspaces.com"
+      credentials:
+        key: "op://Vault/anon-write/username"
+        secret: "op://Vault/anon-write/credential"
+    target:
+      provider: remote
+      remote:
+        database: demo_scratch
+    shared:
+      database: demo_anon
+    tables:
+      users:
+        email: uniqueSafeEmail

@@ -416,6 +416,12 @@ class PostmacloneCommand extends Command
                     "Published {$result['dataset']} → {$result['artifact_key']} "
                     . "({$result['size']} bytes, sha256 {$result['sha256']})"
                 );
+                if ($result['shared_refreshed'] ?? false) {
+                    $formatter->success("Refreshed shared hosted database for {$name}");
+                }
+                if ($result['password_rotated'] ?? false) {
+                    $formatter->success('Rotated shared database credential (1Password updated)');
+                }
             } catch (PostmacloneException $e) {
                 $formatter->error("Dataset {$name}: {$e->getMessage()}");
                 $failed = true;

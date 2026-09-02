@@ -19,6 +19,7 @@ readonly class FactoryDatasetConfig
         public BackupConfig $backup = new BackupConfig(),
         public PublishConfig $publish = new PublishConfig(),
         public TargetConfig $target = new TargetConfig(provider: TargetConfig::PROVIDER_DOCKER),
+        public ?SharedDbConfig $shared = null,
         public array $tables = [],
         public ?array $includeTables = null,
         public ?array $excludeTables = null,

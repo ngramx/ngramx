@@ -55,4 +55,23 @@ SQL);
         self::assertStringNotContainsString('earl_kendrick_prod', $body);
         self::assertStringContainsString('OWNER TO CURRENT_USER', $body);
     }
+
+    public function testStripsSchemaAdminStatements(): void
+    {
+        $path = $this->dir . '/schema.sql';
+        file_put_contents($path, <<<'SQL'
+DROP SCHEMA public;
+CREATE SCHEMA public;
+ALTER SCHEMA public OWNER TO doadmin;
+ALTER TABLE public.users OWNER TO earl_kendrick_prod;
+SQL);
+
+        $out = (new PlainSqlDumpSanitizer())->forPsql($path);
+        $body = file_get_contents($out);
+        self::assertIsString($body);
+        self::assertStringNotContainsString('DROP SCHEMA', $body);
+        self::assertStringNotContainsString('CREATE SCHEMA', $body);
+        self::assertStringNotContainsString('ALTER SCHEMA', $body);
+        self::assertStringContainsString('OWNER TO CURRENT_USER', $body);
+    }
 }
