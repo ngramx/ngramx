@@ -1,7 +1,7 @@
 {
   "title": "COR-297: Nightly Produce And Refresh Shared Hosted Anonymized Databases",
   "description": "Adds factory produce for remote DO scratch databases, publishes anonymized artifacts, refreshes the shared hosted anon DB, and wipes only objects owned by the connected role.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/15",
   "linear_url": "https://linear.app/gigabyte/issue/COR-297/nightly-produce-and-refresh-shared-hosted-anonymized-databases",
   "test_urls": [
     {
