@@ -1,16 +1,16 @@
 {
-  "title": "COR-297: Schedule Nightly Postmaclone Factory Produce For Anonymized Artifacts",
-  "description": "Points ngramx factory docs at the dedicated postmaclone-factory repo. First produce dataset is Earl Kendrick; Hydra is not in the shared Spaces all/ folder yet.",
-  "pr_url": "https://github.com/ngramx/ngramx/pull/4",
-  "linear_url": "https://linear.app/gigabyte/issue/COR-297/schedule-nightly-postmaclone-factory-produce-for-anonymized-artifacts",
+  "title": "COR-297: Nightly Produce And Refresh Shared Hosted Anonymized Databases",
+  "description": "Adds factory produce for remote DO scratch databases, publishes anonymized artifacts, refreshes the shared hosted anon DB, and wipes only objects owned by the connected role.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/15",
+  "linear_url": "https://linear.app/gigabyte/issue/COR-297/nightly-produce-and-refresh-shared-hosted-anonymized-databases",
   "test_urls": [
     {
-      "label": "ngramx docs PR",
-      "url": "https://github.com/ngramx/ngramx/pull/4"
+      "label": "Factory produce workflow",
+      "url": "https://github.com/ngramx/postmaclone-factory/actions/workflows/postmaclone-produce.yml"
     },
     {
-      "label": "Factory PR",
-      "url": "https://github.com/ngramx/postmaclone-factory/pull/1"
+      "label": "Factory postmaclone.yml",
+      "url": "https://github.com/ngramx/postmaclone-factory/blob/main/postmaclone.yml"
     }
   ],
   "test_plan": [
@@ -36,10 +36,48 @@
     },
     {
       "description": "Factory produce --all only includes Earl Kendrick until a Hydra dump exists in Spaces",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Confirm factory postmaclone.yml has earl-kendrick and no hydra dataset",
         "Confirm the newest database-backups/all/<date>/ listing has earl_kendrick_prod.sql.gz and no hydra_* object"
+      ]
+    },
+    {
+      "description": "Local produce against DO scratch and shared anon for Earl Kendrick",
+      "status": "stale",
+      "steps": [
+        "From postmaclone-factory with PATH including postgresql-client-17 and OP_SERVICE_ACCOUNT_TOKEN set: php ../ngramx/bin/ngramx postmaclone produce --dataset earl-kendrick --config postmaclone.yml",
+        "Confirm the command publishes earl_kendrick_anon.sql.gz and latest.json to weathered-brook-anonymized-backups/earl-kendrick/",
+        "Connect as postmaclone_anon to earl_kendrick_core_prod_anon and confirm users.name/email are Faker values (example.com), not production",
+        "Connect as postmaclone_scratch to earl_kendrick_core_prod_scratch and confirm public has 0 tables owned by that role"
+      ]
+    },
+    {
+      "description": "PHPStan level 8 is clean after produce type fixes",
+      "status": "stale",
+      "steps": [
+        "Confirm GitHub Actions PHP 8.2 and PHP 8.3 jobs on this PR pass composer phpstan",
+        "Spot-check produce still returns shared_refreshed and password_rotated without null coalescing"
+      ]
+    },
+    {
+      "description": "Bugbot fixes: PDO extensions, wipe/restore order, rotation, SSL query",
+      "status": "stale",
+      "steps": [
+        "Confirm the produce workflow template and generated YAML include pdo_pgsql and pdo_mysql",
+        "Confirm SharedDbRefresher decompresses the artifact before wiping the shared DB",
+        "Confirm postgres wipe SQL drops owned functions, types, and domains as well as tables",
+        "Confirm password rotation writes 1Password first and reverts that write if ALTER ROLE fails",
+        "Confirm DatabaseConnectionUrl withPassword keeps ?sslmode=require"
+      ]
+    },
+    {
+      "description": "Second Bugbot pass: gzip fail-closed, procedures, composite types",
+      "status": "active",
+      "steps": [
+        "Confirm DumpDecompressor throws and deletes the partial file when gzip is truncated",
+        "Confirm postgres wipe SQL uses DROP PROCEDURE / DROP AGGREGATE from prokind, not DROP FUNCTION for every routine",
+        "Confirm composite types are selected via typtype c and pg_class.relkind c, not typrelid = 0"
       ]
     }
   ]

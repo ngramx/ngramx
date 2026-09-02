@@ -24,6 +24,7 @@ use Ngramx\Postmaclone\Backup\S3Credentials;
 use Ngramx\Postmaclone\Backup\S3ObjectLocator;
 use Ngramx\Postmaclone\Connection\ConnectionFactory;
 use Ngramx\Postmaclone\Connection\PdoDriverGuard;
+use Ngramx\Postmaclone\Connection\RemoteDbConnectionResolver;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\Restore\MysqlRestorer;
 use Ngramx\Postmaclone\Restore\PostgresRestorer;
@@ -602,7 +603,8 @@ class PostmacloneService
         $provider = $pm->target->provider;
         if ($provider === TargetConfig::PROVIDER_AUTO) {
             $threshold = $pm->target->remoteThresholdBytes ?? TargetConfig::DEFAULT_REMOTE_THRESHOLD_BYTES;
-            $hasRemote = ($pm->target->remoteUrl !== null && $pm->target->remoteUrl !== '')
+            $hasRemote = ($pm->target->remote?->isConfigured() ?? false)
+                || ($pm->target->remoteUrl !== null && $pm->target->remoteUrl !== '')
                 || (is_string(getenv('POSTMACLONE_REMOTE_URL')) && getenv('POSTMACLONE_REMOTE_URL') !== '');
             if ($hasRemote && $artifactSizeBytes !== null && $artifactSizeBytes >= $threshold) {
                 $provider = TargetConfig::PROVIDER_REMOTE;
@@ -614,7 +616,13 @@ class PostmacloneService
         }
 
         if ($provider === TargetConfig::PROVIDER_REMOTE) {
-            return new RemoteDbTarget($pm->target->remoteUrl);
+            $url = (new RemoteDbConnectionResolver())->resolve(
+                $pm->target->remote,
+                $engine,
+                $pm->target->remoteUrl,
+            );
+
+            return new RemoteDbTarget($url);
         }
 
         if ($provider === TargetConfig::PROVIDER_NEON) {
@@ -633,7 +641,7 @@ class PostmacloneService
     private function targetFromLock(PostmacloneLockData $lock, NgramxConfig $config, PostmacloneConfig $pm, string $projectRoot): EphemeralTargetInterface
     {
         if ($lock->provider === 'remote') {
-            return new RemoteDbTarget($pm->target->remoteUrl);
+            return new RemoteDbTarget($lock->databaseUrl);
         }
 
         if ($lock->provider === 'neon') {

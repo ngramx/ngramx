@@ -6,7 +6,6 @@ namespace Ngramx\Command;
 
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\Schema\NgramxConfig;
-use Ngramx\Config\Schema\Postmaclone\BackupConfig;
 use Ngramx\Output\OutputFormatter;
 use Ngramx\Postmaclone\Backup\S3Credentials;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
@@ -416,6 +415,12 @@ class PostmacloneCommand extends Command
                     "Published {$result['dataset']} → {$result['artifact_key']} "
                     . "({$result['size']} bytes, sha256 {$result['sha256']})"
                 );
+                if ($result['shared_refreshed']) {
+                    $formatter->success("Refreshed shared hosted database for {$name}");
+                }
+                if ($result['password_rotated']) {
+                    $formatter->success('Rotated shared database credential (1Password updated)');
+                }
             } catch (PostmacloneException $e) {
                 $formatter->error("Dataset {$name}: {$e->getMessage()}");
                 $failed = true;

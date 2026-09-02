@@ -6,6 +6,7 @@ namespace Ngramx\Postmaclone\Target;
 
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\PostmacloneLockData;
+use Ngramx\Postmaclone\Restore\DatabaseWiper;
 
 /**
  * Restore into an existing in-region Postgres/MySQL URL (DO Managed / Neon / droplet).
@@ -67,8 +68,22 @@ class RemoteDbTarget implements EphemeralTargetInterface
 
     public function destroy(PostmacloneLockData $lock): void
     {
-        // Remote DBs are externally provisioned; wipe is best-effort DROP SCHEMA / no-op.
-        // Operators recreate empty DBs per session in the factory/cloud side.
+        try {
+            (new DatabaseWiper())->wipe($lock->engine, new EphemeralTarget(
+                provider: $lock->provider,
+                engine: $lock->engine,
+                host: $lock->host,
+                port: $lock->port,
+                database: $lock->database,
+                username: $lock->username,
+                password: $lock->password,
+                databaseUrl: $lock->databaseUrl,
+                expiresAt: $lock->expiresAt,
+                meta: $lock->providerMeta,
+            ));
+        } catch (\Throwable) {
+            // best-effort scratch cleanup
+        }
     }
 
     private function resolveUrl(): string

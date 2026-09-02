@@ -87,6 +87,7 @@ final class PlainSqlDumpSanitizer
         return $this->isRestrictMetaCommand($trimmed)
             || $this->isConnectMetaCommand($trimmed)
             || $this->isDatabaseAdminStatement($trimmed)
+            || $this->isSchemaAdminStatement($trimmed)
             || $this->isPrivilegeStatement($trimmed)
             || $this->isDefaultPrivilegesStatement($trimmed)
             || $this->isRoleStatement($trimmed)
@@ -107,6 +108,11 @@ final class PlainSqlDumpSanitizer
     public function isDatabaseAdminStatement(string $line): bool
     {
         return (bool) preg_match('/^\s*(CREATE|DROP|ALTER)\s+DATABASE\b/i', rtrim($line, "\r\n"));
+    }
+
+    public function isSchemaAdminStatement(string $line): bool
+    {
+        return (bool) preg_match('/^\s*(CREATE|DROP|ALTER)\s+SCHEMA\b/i', rtrim($line, "\r\n"));
     }
 
     public function isPrivilegeStatement(string $line): bool

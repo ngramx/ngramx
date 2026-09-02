@@ -14,11 +14,15 @@ use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Schema\Postmaclone\BackupConfig;
 use Ngramx\Config\Schema\Postmaclone\BackupCredentialsConfig;
 use Ngramx\Config\Schema\Postmaclone\ColumnRule;
+use Ngramx\Config\Schema\Postmaclone\DbConnectionConfig;
+use Ngramx\Config\Schema\Postmaclone\DbCredentialsConfig;
+use Ngramx\Config\Schema\Postmaclone\EngineConnectionsConfig;
 use Ngramx\Config\Schema\Postmaclone\FactoryConfig;
 use Ngramx\Config\Schema\Postmaclone\FactoryDatasetConfig;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
 use Ngramx\Config\Schema\Postmaclone\PrebuiltConfig;
 use Ngramx\Config\Schema\Postmaclone\PublishConfig;
+use Ngramx\Config\Schema\Postmaclone\SharedDbConfig;
 use Ngramx\Config\Schema\Postmaclone\TableRule;
 use Ngramx\Config\Schema\Postmaclone\TargetConfig;
 use Ngramx\Config\Schema\SecretsConfig;
@@ -247,18 +251,20 @@ class ConfigLoader
             ? $config['locale']
             : PostmacloneConfig::DEFAULT_LOCALE;
         $seed = array_key_exists('seed', $config) ? (is_int($config['seed']) ? $config['seed'] : null) : 42;
+        $engines = $this->buildEngineConnections(is_array($config['engines'] ?? null) ? $config['engines'] : []);
         $datasets = [];
         $raw = is_array($config['datasets'] ?? null) ? $config['datasets'] : [];
         foreach ($raw as $name => $dataset) {
             if (!is_string($name) || !is_array($dataset)) {
                 continue;
             }
-            $datasets[$name] = $this->buildFactoryDataset($name, $dataset, $locale, $seed);
+            $datasets[$name] = $this->buildFactoryDataset($name, $dataset, $locale, $seed, $engines);
         }
 
         return new FactoryConfig(
             version: isset($config['version']) ? (string) $config['version'] : '1',
             datasets: $datasets,
+            engines: $engines,
             locale: $locale,
             seed: $seed,
         );
@@ -266,20 +272,27 @@ class ConfigLoader
 
     /**
      * @param array<string, mixed> $dataset
+     * @param array<string, EngineConnectionsConfig> $engines
      */
     private function buildFactoryDataset(
         string $name,
         array $dataset,
         string $defaultLocale,
         ?int $defaultSeed,
+        array $engines,
     ): FactoryDatasetConfig {
         $backupRaw = is_array($dataset['backup'] ?? null) ? $dataset['backup'] : [];
         $publishRaw = is_array($dataset['publish'] ?? null) ? $dataset['publish'] : [];
         $targetRaw = is_array($dataset['target'] ?? null) ? $dataset['target'] : [];
+        $sharedRaw = is_array($dataset['shared'] ?? null) ? $dataset['shared'] : null;
+        $engine = isset($dataset['engine']) && is_string($dataset['engine'])
+            ? $dataset['engine']
+            : PostmacloneConfig::ENGINE_POSTGRES;
+        $engineConnections = $engines[$engine] ?? null;
 
         return new FactoryDatasetConfig(
             name: $name,
-            engine: isset($dataset['engine']) && is_string($dataset['engine']) ? $dataset['engine'] : null,
+            engine: $engine,
             locale: isset($dataset['locale']) && is_string($dataset['locale']) ? $dataset['locale'] : $defaultLocale,
             seed: array_key_exists('seed', $dataset)
                 ? (is_int($dataset['seed']) ? $dataset['seed'] : null)
@@ -293,7 +306,12 @@ class ConfigLoader
                 file: isset($publishRaw['file']) && is_string($publishRaw['file']) ? $publishRaw['file'] : null,
                 credentials: $this->loadBackupCredentials($publishRaw['credentials'] ?? null),
             ),
-            target: $this->buildTargetConfig($targetRaw, TargetConfig::PROVIDER_DOCKER),
+            target: $this->buildTargetConfig(
+                $targetRaw,
+                TargetConfig::PROVIDER_DOCKER,
+                $engineConnections?->scratch,
+            ),
+            shared: $this->buildSharedDbConfig($sharedRaw, $engineConnections?->anon),
             tables: $this->buildTables(is_array($dataset['tables'] ?? null) ? $dataset['tables'] : []),
             includeTables: $this->loadStringList($dataset['include_tables'] ?? null),
             excludeTables: $this->loadStringList($dataset['exclude_tables'] ?? null),
@@ -311,6 +329,12 @@ class ConfigLoader
         $backupRaw = is_array($config['backup'] ?? null) ? $config['backup'] : [];
         $prebuiltRaw = is_array($config['prebuilt'] ?? null) ? $config['prebuilt'] : null;
         $targetRaw = is_array($config['target'] ?? null) ? $config['target'] : [];
+        $sharedRaw = is_array($config['shared'] ?? null) ? $config['shared'] : null;
+        $engines = $this->buildEngineConnections(is_array($config['engines'] ?? null) ? $config['engines'] : []);
+        $engine = isset($config['engine']) && is_string($config['engine'])
+            ? $config['engine']
+            : PostmacloneConfig::ENGINE_POSTGRES;
+        $engineConnections = $engines[$engine] ?? null;
 
         $denyHosts = [];
         if (isset($config['deny_hosts']) && is_array($config['deny_hosts'])) {
@@ -345,13 +369,47 @@ class ConfigLoader
             seed: array_key_exists('seed', $config) ? (is_int($config['seed']) ? $config['seed'] : null) : 42,
             backup: $this->buildBackupConfig($backupRaw),
             prebuilt: $prebuilt,
-            target: $this->buildTargetConfig($targetRaw, TargetConfig::PROVIDER_AUTO),
+            shared: $this->buildSharedDbConfig($sharedRaw, $engineConnections?->anon),
+            target: $this->buildTargetConfig($targetRaw, TargetConfig::PROVIDER_AUTO, $engineConnections?->scratch),
             tables: $this->buildTables(is_array($config['tables'] ?? null) ? $config['tables'] : []),
             testPassword: isset($config['test_password']) && is_string($config['test_password'])
                 ? $config['test_password']
                 : PostmacloneConfig::DEFAULT_TEST_PASSWORD,
             denyHosts: $denyHosts,
+            engines: $engines,
         );
+    }
+
+    /**
+     * @param array<string, mixed> $raw
+     * @return array<string, EngineConnectionsConfig>
+     */
+    private function buildEngineConnections(array $raw): array
+    {
+        $engines = [];
+        foreach ($raw as $engineName => $roles) {
+            if (!is_string($engineName) || !is_array($roles)) {
+                continue;
+            }
+
+            $scratch = null;
+            if (isset($roles['scratch']) && is_array($roles['scratch'])) {
+                $scratch = $this->loadDbCredentials($roles['scratch']['credentials'] ?? null);
+            }
+
+            $anon = null;
+            if (isset($roles['anon']) && is_array($roles['anon'])) {
+                $anon = $this->loadDbCredentials($roles['anon']['credentials'] ?? null);
+            }
+
+            if ($scratch === null && $anon === null) {
+                continue;
+            }
+
+            $engines[$engineName] = new EngineConnectionsConfig(scratch: $scratch, anon: $anon);
+        }
+
+        return $engines;
     }
 
     /**
@@ -372,13 +430,133 @@ class ConfigLoader
     }
 
     /**
+     * @param array<string, mixed>|null $sharedRaw
+     */
+    private function buildSharedDbConfig(?array $sharedRaw, ?DbCredentialsConfig $defaultCredentials = null): ?SharedDbConfig
+    {
+        if ($sharedRaw === null) {
+            return null;
+        }
+
+        return new SharedDbConfig(
+            connection: $this->buildDbConnectionConfig($sharedRaw, $defaultCredentials),
+            maxAgeHours: isset($sharedRaw['max_age_hours']) && is_int($sharedRaw['max_age_hours'])
+                ? $sharedRaw['max_age_hours']
+                : null,
+            passwordRotationDays: $this->loadPasswordRotationDays($sharedRaw),
+        );
+    }
+
+    /**
+     * @param array<string, mixed>|null $raw
+     */
+    private function buildDbConnectionConfig(?array $raw, ?DbCredentialsConfig $defaultCredentials = null): ?DbConnectionConfig
+    {
+        if ($raw === null && $defaultCredentials === null) {
+            return null;
+        }
+
+        $raw ??= [];
+
+        if (isset($raw['url']) && is_string($raw['url']) && $raw['url'] !== '') {
+            return new DbConnectionConfig(url: $raw['url']);
+        }
+
+        $credentials = $this->loadDbCredentials($raw['credentials'] ?? null) ?? $defaultCredentials;
+        $host = isset($raw['host']) && is_string($raw['host']) ? $raw['host'] : null;
+        $database = isset($raw['database']) && is_string($raw['database']) ? $raw['database'] : null;
+        if ($host === null && $database === null && $credentials === null) {
+            return null;
+        }
+
+        return new DbConnectionConfig(
+            host: $host,
+            port: isset($raw['port']) && is_int($raw['port']) ? $raw['port'] : null,
+            database: $database,
+            credentials: $credentials,
+        );
+    }
+
+    /**
+     * @param mixed $credentials
+     */
+    private function loadDbCredentials(mixed $credentials): ?DbCredentialsConfig
+    {
+        if (!is_array($credentials)) {
+            return null;
+        }
+        if (!isset($credentials['username'], $credentials['password'])
+            || !is_string($credentials['username'])
+            || !is_string($credentials['password'])) {
+            return null;
+        }
+
+        return new DbCredentialsConfig(
+            username: $credentials['username'],
+            password: $credentials['password'],
+            host: $this->loadCredentialHost($credentials),
+            port: isset($credentials['port']) && is_string($credentials['port']) ? $credentials['port'] : null,
+            connectionOptions: $this->loadCredentialConnectionOptions($credentials),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $credentials
+     */
+    private function loadCredentialHost(array $credentials): ?string
+    {
+        if (isset($credentials['server']) && is_string($credentials['server']) && $credentials['server'] !== '') {
+            return $credentials['server'];
+        }
+        if (isset($credentials['host']) && is_string($credentials['host']) && $credentials['host'] !== '') {
+            return $credentials['host'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $credentials
+     */
+    private function loadCredentialConnectionOptions(array $credentials): ?string
+    {
+        foreach (['connection_options', 'connection options'] as $key) {
+            if (isset($credentials[$key]) && is_string($credentials[$key]) && $credentials[$key] !== '') {
+                return $credentials[$key];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $sharedRaw
+     */
+    private function loadPasswordRotationDays(array $sharedRaw): ?int
+    {
+        if (!array_key_exists('password_rotation_days', $sharedRaw)) {
+            return SharedDbConfig::DEFAULT_PASSWORD_ROTATION_DAYS;
+        }
+        if ($sharedRaw['password_rotation_days'] === null) {
+            return null;
+        }
+
+        return is_int($sharedRaw['password_rotation_days']) ? $sharedRaw['password_rotation_days'] : null;
+    }
+
+    /**
      * @param array<string, mixed> $targetRaw
      */
-    private function buildTargetConfig(array $targetRaw, string $defaultProvider): TargetConfig
-    {
+    private function buildTargetConfig(
+        array $targetRaw,
+        string $defaultProvider,
+        ?DbCredentialsConfig $remoteDefaultCredentials = null,
+    ): TargetConfig {
         $neon = is_array($targetRaw['neon'] ?? null) ? $targetRaw['neon'] : [];
         $docker = is_array($targetRaw['docker'] ?? null) ? $targetRaw['docker'] : [];
         $remote = is_array($targetRaw['remote'] ?? null) ? $targetRaw['remote'] : [];
+        $remoteConnection = $this->buildDbConnectionConfig($remote, $remoteDefaultCredentials);
+        $legacyRemoteUrl = isset($remote['url']) && is_string($remote['url']) ? $remote['url'] : null;
 
         return new TargetConfig(
             provider: isset($targetRaw['provider']) && is_string($targetRaw['provider'])
@@ -391,7 +569,8 @@ class ConfigLoader
             neonRegionId: isset($neon['region_id']) && is_string($neon['region_id']) ? $neon['region_id'] : null,
             dockerImage: isset($docker['image']) && is_string($docker['image']) ? $docker['image'] : null,
             dockerPort: isset($docker['port']) && is_int($docker['port']) ? $docker['port'] : 0,
-            remoteUrl: isset($remote['url']) && is_string($remote['url']) ? $remote['url'] : null,
+            remoteUrl: $legacyRemoteUrl,
+            remote: $remoteConnection,
             remoteThresholdBytes: isset($targetRaw['remote_threshold_bytes']) && is_int($targetRaw['remote_threshold_bytes'])
                 ? $targetRaw['remote_threshold_bytes']
                 : TargetConfig::DEFAULT_REMOTE_THRESHOLD_BYTES,

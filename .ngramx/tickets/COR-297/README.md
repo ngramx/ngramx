@@ -1,25 +1,44 @@
-# COR-297: Schedule Nightly Postmaclone Factory Produce For Anonymized Artifacts
+# COR-297: Nightly Produce And Refresh Shared Hosted Anonymized Databases
 
 ## Summary
 
-Run `ngramx postmaclone produce` on a schedule in lon1 so Hydra (59GB) and then Earl Kendrick get anonymized prebuilts in a separate Spaces bucket. Consumers restore those artifacts instead of downloading raw Forge dumps.
+Nightly factory produce publishes anonymized artifacts to `weathered-brook-anonymized-backups` and refreshes a shared hosted database on the DO Managed Database cluster. GitHub Actions replaces the lon1 droplet for scheduling; scratch restore/anonymize runs on the cluster (not the ~14GB GHA runner disk).
 
 ## Requirements
 
-- In-region scheduled job (same DO region as Spaces) with scratch Postgres.
-- Factory `postmaclone.yml` (not an app checkout).
-- Separate read (raw backups) vs write (anonymized bucket) credentials via 1Password.
-- First dataset: Hydra 59GB. Then Earl Kendrick.
-- Publish `latest.json` next to the artifact.
-- Do not write into `database-backups/all/`.
-- Job failure must be visible so stale prebuilts are not served past `max_age_hours`.
+- Scheduled job publishes fresh anonymized artifact + `latest.json` for Earl Kendrick (pioneer).
+- Artifact restored into shared hosted EK Postgres developers can connect to without local download.
+- Artifacts in `weathered-brook-anonymized-backups`, separate read/write credentials via 1Password.
+- Local `ngramx postmaclone` prebuilt escape hatch unchanged.
+- Job failure visible in GitHub Actions.
 
 ## Changes
 
-- Ticket folder created.
-- Chose Cam's dedicated factory repo (not an app checkout).
-- Created https://github.com/ngramx/postmaclone-factory with `postmaclone.yml` (Hydra MySQL + Earl Kendrick Postgres), Dockerfile, compose, and lon1 schedule notes.
-- ngramx docs PR: https://github.com/ngramx/ngramx/pull/4
-- Factory PR: https://github.com/ngramx/postmaclone-factory/pull/1
-- Confirmed raw dumps are lon1 (`weathered-brook-object-storage`), not ams3. EK object: `database-backups/all/20260808000002/earl_kendrick_prod.sql.gz` (~11MB). Live 1Password item uses field `password`, not `credential`.
-- Listed that folder: 16 dumps, no Hydra. Largest is `cortex.sql.gz` (135MB). Factory first dataset is now Earl Kendrick; Hydra blocked until a dump lands in Spaces.
+- Added factory `shared` config — produce refreshes long-lived hosted DB after publishing artifact.
+- Split connection config: host + database in factory YAML; shared `postmaclone-scratch` / `postmaclone-anon` credentials in 1Password (one item pair reused across projects).
+- Added consumer `postmaclone.shared` config schema (hosted DB + max_age_hours for COR-274).
+- `target.provider: remote` scratch DB on DO cluster for GHA (Hydra-scale restores never touch runner disk).
+- `RemoteDbTarget.destroy` wipes scratch DB after produce.
+- New `ngramx init-postmaclone-workflow` — distributes scheduled GHA workflow template.
+- Updated `postmaclone.example.yml`, README, `ngramx.example.yml`.
+- Earl Kendrick `ngramx.yml`: prebuilt + shared hosted DB refs.
+- Shared DB password rotation every 7 days (default): `ALTER ROLE` + `op item edit` on `shared.credentials.password`; tracked in `{anonymized-bucket}/_postmaclone/credential-rotations.json` keyed by op ref (credential-scoped, not per dataset).
+- Per-dataset `latest.json` still echoes `shared_password_rotated_at`; legacy value used once if central state is empty.
+- Legacy full `url` op:// refs still supported for backward compatibility.
+- Scratch/anon wipe drops only `public` objects owned by the connected role (not `DROP SCHEMA public`). Dump sanitizer strips CREATE/DROP/ALTER SCHEMA so restore does not require schema ownership.
+- Local EK produce succeeded (artifact + shared anon refresh). Factory workflow and config pushed to factory `main`.
+- Fixed PHPStan level 8 errors on produce/shared-rotation types so CI can pass.
+- Bugbot PR #15: install pdo_pgsql/pdo_mysql in produce GHA; decompress shared artifact before wiping anon; wipe owned functions/types/domains; write 1Password before ALTER ROLE and revert on failure; MySQL wipe via MysqlRunner; stream gzip decompression; preserve URL query (sslmode) on rotation.
+- Second Bugbot pass: fail closed on corrupt gzip (delete partial); DROP PROCEDURE/AGGREGATE by prokind; drop standalone composite types via pg_class.relkind = 'c'.
+
+## Ops still required (human)
+
+- Create 1Password items: `postmaclone-scratch`, `postmaclone-anon` (`username` + `password` fields only).
+- Grant the 1Password service account **write** on those items (rotation updates op:// password field).
+- Replace placeholder cluster `host` in postmaclone-factory `postmaclone.yml` with DO console hostname.
+- Provision scratch + shared databases on existing DO Postgres cluster.
+  - Scratch: `earl_kendrick_core_prod_scratch` ✓
+  - Shared: `earl_kendrick_core_prod_anon` ✓
+- Updated postmaclone-factory `postmaclone.yml` (remote scratch + shared) and GHA workflow.
+- Run `ngramx init-postmaclone-workflow` in postmaclone-factory repo; set `OP_SERVICE_ACCOUNT_TOKEN` secret.
+- Merge/release ngramx COR-297 before GHA can use new produce features.

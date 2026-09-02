@@ -131,6 +131,17 @@ The generated `auto-merge.yml` looks for the `auto-merge` label (override with `
 
 See `ngramx init-github-actions --help` for all options (`--repo`, `--ref`, `--php-version`, `--node-version`, `--auto-merge-label`, `--protected-branches`, `--merge-method`, etc.). After running, configure the repository secrets listed in the command output and confirm your CI workflow name matches `--ci-workflow-name`.
 
+### `ngramx init-postmaclone-workflow`
+
+Create `.github/workflows/postmaclone-produce.yml` for nightly factory produce (GitHub Actions instead of a lon1 droplet):
+
+```bash
+ngramx init-postmaclone-workflow --dataset earl-kendrick
+ngramx init-postmaclone-workflow   # produce --all
+```
+
+Requires repository secret `OP_SERVICE_ACCOUNT_TOKEN` (1Password service account with **read and write** on Tech Team Vault — write is required for shared DB password rotation). Factory config should use `target.provider: remote` (scratch DB on DO Managed Database) and `shared` host + database + credentials (long-lived hosted DB refreshed after publish). See [Large DBs: factory produce](#large-dbs-factory-produce--consumer-prebuilt).
+
 ### `ngramx update`
 
 Update Ngramx CLI to the latest version:
@@ -647,16 +658,25 @@ ngramx postmaclone produce --dataset earl-kendrick
 
 **Agent contract:** `postmaclone` → investigate/fix → `postmaclone down` per bug. Do not share one long-lived clone across agents — mutations from one session poison the next. TTL (`target.ttl_hours`, default 4h) is only a safety net. The anonymized Spaces bucket is an **artifact store**: each session **copies** the object to `.ngramx/cache` and restores into a **fresh** ephemeral target — never attach multiple agents to one restored DB.
 
-**Targets:** Neon (Postgres, needs `NEON_API_KEY`), Docker (MySQL/MariaDB/Postgres), or `remote` (fresh in-region DO/Neon URL via `target.remote.url` / `POSTMACLONE_REMOTE_URL`). `provider: auto` (the default) picks `remote` for large artifacts when a remote URL is set, Neon for Postgres when `NEON_API_KEY` is present, otherwise Docker. **Sources:** published **prebuilt** (preferred for large DBs), local dump, S3 prod backup, or a connection string (dumped/read only — never anonymized in place).
+**Targets:** Neon (Postgres, needs `NEON_API_KEY`), Docker (MySQL/MariaDB/Postgres), or `remote` (DO/Neon cluster via `target.remote` host + database + credentials, legacy `target.remote.url`, or `POSTMACLONE_REMOTE_URL`). `provider: auto` (the default) picks `remote` for large artifacts when remote connection config is set, Neon for Postgres when `NEON_API_KEY` is present, otherwise Docker. **Sources:** published **prebuilt** (preferred for large DBs), local dump, S3 prod backup, or a connection string (dumped/read only — never anonymized in place).
 
 #### Large DBs: factory produce + consumer prebuilt
 
-Downloading and anonymizing multi‑GB Forge dumps on every laptop is untenable. Use the dedicated **[postmaclone-factory](https://github.com/ngramx/postmaclone-factory)** repo (`postmaclone.yml`, not an app checkout) and a scheduled container job in the **same DO region** as Spaces + scratch Postgres:
+Downloading and anonymizing multi‑GB Forge dumps on every laptop is untenable. Use the dedicated **[postmaclone-factory](https://github.com/ngramx/postmaclone-factory)** repo (`postmaclone.yml`, not an app checkout) and a **scheduled GitHub Actions** job (or lon1 host) in the **same DO region** as Spaces:
 
-1. Job: `ngramx postmaclone produce --all` — pull prod dump → restore scratch → anonymize → dump (optional `include_tables` / `exclude_tables`) → upload to a **separate anonymized bucket** + `latest.json`
-2. App `ngramx.yml`: thin `postmaclone.prebuilt` (+ `target`) — consumer downloads a copy, restores, **skips anonymize**
+1. Job: `ngramx postmaclone produce --all` — pull prod dump → restore **remote scratch DB** (DO Managed Database; not the ~14GB GHA runner disk) → anonymize → dump (optional `include_tables` / `exclude_tables`) → upload to a **separate anonymized bucket** + `latest.json` → refresh **shared hosted DB**
+2. App `ngramx.yml`: `postmaclone.shared` (hosted DB, primary) and/or `postmaclone.prebuilt` (artifact escape hatch) — consumer restores locally when needed, **skips anonymize**
 
-Keep prod-read and anon-write credentials separate (`op://` refs). Local Docker remains fine for small artifacts; large restores should use in-region `remote` / Neon.
+Bootstrap the workflow in a factory repo:
+
+```bash
+ngramx init-postmaclone-workflow --dataset earl-kendrick
+# or: ngramx init-postmaclone-workflow   # --all datasets
+```
+
+Set repository secret `OP_SERVICE_ACCOUNT_TOKEN` (1Password service account with **read and write** on Tech Team Vault). Factory `target.provider: remote` uses a scratch DB on the DO cluster (`postmaclone-scratch` credentials + database name in YAML); `shared` uses `postmaclone-anon` credentials + the hosted database name. `shared.password_rotation_days` defaults to **7** (`0` disables); when due, produce runs `ALTER ROLE` / `ALTER USER`, updates the op:// password via `op item edit`, and records the timestamp in `{anonymized-bucket}/_postmaclone/credential-rotations.json` keyed by the password op ref (shared across all datasets using that credential).
+
+Keep prod-read and anon-write credentials separate (`op://` refs). Local Docker remains fine for small artifacts; large restores should use in-region `remote` scratch + shared hosted DB.
 
 ```yaml
 # App ngramx.yml — consumer (prebuilt preferred)
@@ -724,7 +744,7 @@ ngramx postmaclone          # resolves refs via `op read` when a session (or ser
 |-----|---------------------|
 | Human on **WSL** (typical for us) | Install [op](https://developer.1password.com/docs/cli/get-started/) **inside the distro**. Once: `op account add` (sign-in address `gigabytesoftware.1password.com`). Each shell: `eval $(op signin)`. `ngramx postmaclone doctor` detects WSL and prints these steps — it will **not** collect your password or assume Windows desktop-app CLI integration. |
 | Human on macOS / native Linux | Prefer **1Password app → Developer → Integrate with 1Password CLI**, or the same `op account add` / `eval $(op signin)` flow. |
-| Agent / CI | Ask an admin for a [service account](https://developer.1password.com/docs/service-accounts/) with **read** on Tech Team Vault, then `export OP_SERVICE_ACCOUNT_TOKEN=…` (non-interactive; no `op signin`). |
+| Agent / CI | Ask an admin for a [service account](https://developer.1password.com/docs/service-accounts/) with **read and write** on Tech Team Vault (write required for nightly shared DB password rotation), then `export OP_SERVICE_ACCOUNT_TOKEN=…` (non-interactive; no `op signin`). |
 | Skip 1Password | Export `POSTMACLONE_S3_KEY` / `POSTMACLONE_S3_SECRET` (or `AWS_*`), or use `--from ./local.dump` / a connection URL. |
 
 When `credentials` `op://` refs are present in YAML they are preferred over `POSTMACLONE_S3_*` / `AWS_*` so read vs write keys stay distinct. Env vars remain the fallback when no refs are configured.

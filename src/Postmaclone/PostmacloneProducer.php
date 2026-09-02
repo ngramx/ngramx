@@ -15,11 +15,14 @@ use Ngramx\Postmaclone\Backup\DatabaseDumper;
 use Ngramx\Postmaclone\Backup\LocalBackupSource;
 use Ngramx\Postmaclone\Backup\S3BackupSource;
 use Ngramx\Postmaclone\Backup\S3Credentials;
+use Ngramx\Postmaclone\Backup\S3ManifestReader;
 use Ngramx\Postmaclone\Backup\S3ObjectLocator;
 use Ngramx\Postmaclone\Backup\S3ObjectUploader;
 use Ngramx\Postmaclone\Connection\ConnectionFactory;
 use Ngramx\Postmaclone\Connection\PdoDriverGuard;
+use Ngramx\Postmaclone\Connection\RemoteDbConnectionResolver;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
+use Ngramx\Postmaclone\Restore\DatabaseWiper;
 use Ngramx\Postmaclone\Restore\MysqlRestorer;
 use Ngramx\Postmaclone\Restore\PostgresRestorer;
 use Ngramx\Postmaclone\Target\DockerDbTarget;
@@ -34,11 +37,14 @@ class PostmacloneProducer
     public function __construct(
         private readonly ConnectionFactory $connections = new ConnectionFactory(),
         private readonly DatabaseDumper $dumper = new DatabaseDumper(),
+        private readonly SharedDbRefresher $sharedRefresher = new SharedDbRefresher(),
+        private readonly SharedDbPasswordRotator $passwordRotator = new SharedDbPasswordRotator(),
+        private readonly RemoteDbConnectionResolver $connectionResolver = new RemoteDbConnectionResolver(),
     ) {
     }
 
     /**
-     * @return array{dataset: string, artifact_key: string, size: int, sha256: string, warnings: list<string>}
+     * @return array{dataset: string, artifact_key: string, size: int, sha256: string, warnings: list<string>, shared_refreshed: bool, password_rotated: bool}
      */
     public function produceDataset(FactoryDatasetConfig $dataset, string $workRoot, bool $strict = false): array
     {
@@ -65,6 +71,10 @@ class PostmacloneProducer
         $target = $this->provisionScratch($dataset, $engine);
 
         try {
+            if ($target->provider === 'remote') {
+                (new DatabaseWiper())->wipe($engine, $target);
+            }
+
             $restorer = $engine === PostmacloneConfig::ENGINE_POSTGRES
                 ? new PostgresRestorer()
                 : new MysqlRestorer();
@@ -116,11 +126,44 @@ class PostmacloneProducer
                 $dataset->publish->endpoint,
                 $dataset->publish->pathStyle,
             );
-            $uploader = new S3ObjectUploader(
-                $locator,
-                new S3Credentials($dataset->publish->credentials),
+            $publishCredentials = new S3Credentials($dataset->publish->credentials);
+            $manifestLocator = S3ObjectLocator::parse(
+                $publishPath . 'latest.json',
+                $dataset->publish->region,
+                $dataset->publish->endpoint,
+                $dataset->publish->pathStyle,
             );
+            $previousManifest = (new S3ManifestReader($manifestLocator, $publishCredentials))->read();
+
+            $uploader = new S3ObjectUploader($locator, $publishCredentials);
             $uploader->putFile($artifactLocal);
+
+            $sharedRefreshed = false;
+            $passwordRotated = false;
+            $passwordRotatedAt = null;
+            if ($dataset->shared?->isConfigured() ?? false) {
+                $this->sharedRefresher->refresh($engine, $dataset->shared, $artifactLocal);
+                $sharedRefreshed = true;
+
+                $rotationStore = CredentialRotationStateStore::forPublish($dataset->publish);
+                $credentialKey = $this->passwordRotator->credentialKey($dataset->shared);
+                $lastRotatedAt = $credentialKey !== null
+                    ? $rotationStore->lastRotatedAt($credentialKey)
+                    : null;
+                if ($lastRotatedAt === null && $previousManifest !== null) {
+                    $legacy = $previousManifest['shared_password_rotated_at'] ?? null;
+                    if (is_string($legacy) && $legacy !== '') {
+                        $lastRotatedAt = $legacy;
+                    }
+                }
+
+                $rotation = $this->passwordRotator->rotateIfDue($engine, $dataset->shared, $lastRotatedAt);
+                $passwordRotated = $rotation['rotated'];
+                $passwordRotatedAt = $rotation['rotated_at'];
+                if ($credentialKey !== null && $passwordRotatedAt !== null) {
+                    $rotationStore->recordRotatedAt($credentialKey, $passwordRotatedAt);
+                }
+            }
 
             $manifest = [
                 'dataset' => $dataset->name,
@@ -132,16 +175,11 @@ class PostmacloneProducer
                 'include_tables' => $dataset->includeTables,
                 'exclude_tables' => $dataset->excludeTables,
             ];
-            $manifestLocator = S3ObjectLocator::parse(
-                $publishPath . 'latest.json',
-                $dataset->publish->region,
-                $dataset->publish->endpoint,
-                $dataset->publish->pathStyle,
-            );
-            (new S3ObjectUploader(
-                $manifestLocator,
-                new S3Credentials($dataset->publish->credentials),
-            ))->putBody((string) json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            if ($passwordRotatedAt !== null) {
+                $manifest['shared_password_rotated_at'] = $passwordRotatedAt;
+            }
+            (new S3ObjectUploader($manifestLocator, $publishCredentials))
+                ->putBody((string) json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
             $source->cleanup(false);
             @unlink($artifactLocal);
@@ -152,6 +190,8 @@ class PostmacloneProducer
                 'size' => $size,
                 'sha256' => $sha256,
                 'warnings' => $warnings,
+                'shared_refreshed' => $sharedRefreshed,
+                'password_rotated' => $passwordRotated,
             ];
         } finally {
             $this->destroyScratch($dataset, $target, $engine);
@@ -202,7 +242,13 @@ class PostmacloneProducer
         }
 
         if ($provider === TargetConfig::PROVIDER_REMOTE) {
-            return (new RemoteDbTarget($dataset->target->remoteUrl))->provision($engine, $dataset->target->ttlHours);
+            $url = $this->connectionResolver->resolve(
+                $dataset->target->remote,
+                $engine,
+                $dataset->target->remoteUrl,
+            );
+
+            return (new RemoteDbTarget($url))->provision($engine, $dataset->target->ttlHours);
         }
 
         return (new DockerDbTarget(
@@ -231,7 +277,7 @@ class PostmacloneProducer
 
         try {
             if ($target->provider === 'remote') {
-                (new RemoteDbTarget($dataset->target->remoteUrl))->destroy($lock);
+                (new RemoteDbTarget($target->databaseUrl))->destroy($lock);
             } else {
                 (new DockerDbTarget(
                     image: $dataset->target->dockerImage,

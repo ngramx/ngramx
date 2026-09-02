@@ -27,8 +27,9 @@ readonly class TargetConfig
         public ?string $neonRegionId = null,
         public ?string $dockerImage = null,
         public int $dockerPort = 0,
-        /** Connection URL for in-region DO/Neon restore host (op:// or literal from env). */
+        /** Connection URL for in-region DO/Neon restore host (op:// or literal from env). Legacy. */
         public ?string $remoteUrl = null,
+        public ?DbConnectionConfig $remote = null,
         public ?int $remoteThresholdBytes = self::DEFAULT_REMOTE_THRESHOLD_BYTES,
     ) {
     }

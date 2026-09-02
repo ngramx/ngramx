@@ -65,6 +65,94 @@ class PostmacloneConfigValidationTest extends TestCase
         $this->assertTrue(true);
     }
 
+    public function test_accepts_shared_with_engine_credentials(): void
+    {
+        $this->validator->validate($this->base([
+            'postmaclone' => [
+                'engine' => 'postgres',
+                'engines' => [
+                    'postgres' => [
+                        'anon' => [
+                            'credentials' => [
+                                'server' => 'op://Vault/postmaclone-anon-psql/server',
+                                'port' => 'op://Vault/postmaclone-anon-psql/port',
+                                'username' => 'op://Vault/postmaclone-anon-psql/username',
+                                'password' => 'op://Vault/postmaclone-anon-psql/password',
+                            ],
+                        ],
+                    ],
+                ],
+                'shared' => [
+                    'database' => 'earl_kendrick_core_prod_anon',
+                    'max_age_hours' => 36,
+                ],
+            ],
+        ]));
+        $this->assertTrue(true);
+    }
+
+    public function test_accepts_shared_with_credential_parts(): void
+    {
+        $this->validator->validate($this->base([
+            'postmaclone' => [
+                'engine' => 'postgres',
+                'shared' => [
+                    'database' => 'earl_kendrick_core_prod_anon',
+                    'credentials' => [
+                        'server' => 'op://Vault/postmaclone-anon-psql/server',
+                        'port' => 'op://Vault/postmaclone-anon-psql/port',
+                        'username' => 'op://Vault/postmaclone-anon-psql/username',
+                        'password' => 'op://Vault/postmaclone-anon-psql/password',
+                    ],
+                    'max_age_hours' => 36,
+                ],
+            ],
+        ]));
+        $this->assertTrue(true);
+    }
+
+    public function test_accepts_shared_without_tables(): void
+    {
+        $this->validator->validate($this->base([
+            'postmaclone' => [
+                'engine' => 'postgres',
+                'shared' => [
+                    'url' => 'op://Vault/shared-earl-kendrick/database_url',
+                    'max_age_hours' => 36,
+                ],
+            ],
+        ]));
+        $this->assertTrue(true);
+    }
+
+    public function test_factory_shared_config_loads(): void
+    {
+        $path = dirname(__DIR__, 2) . '/fixtures/postmaclone/factory-with-shared.yml';
+        $loader = new ConfigLoader($this->validator);
+        $factory = $loader->loadFactory($path);
+        $shared = $factory->datasets['demo']->shared;
+        $this->assertNotNull($shared);
+        $this->assertNotNull($shared->connection);
+        $this->assertSame('demo_anon', $shared->connection->database);
+        $this->assertNotNull($shared->connection->credentials);
+        $this->assertSame(
+            'op://Vault/postmaclone-anon-psql/server',
+            $shared->connection->credentials->host
+        );
+        $this->assertSame(
+            'op://Vault/postmaclone-anon-psql/username',
+            $shared->connection->credentials->username
+        );
+        $remote = $factory->datasets['demo']->target->remote;
+        $this->assertNotNull($remote);
+        $this->assertSame('demo_scratch', $remote->database);
+        $this->assertNotNull($remote->credentials);
+        $this->assertSame(
+            'op://Vault/postmaclone-scratch-psql/server',
+            $remote->credentials->host
+        );
+    }
+
     public function test_factory_config_loads(): void
     {
         $path = dirname(__DIR__, 2) . '/fixtures/postmaclone/factory-postmaclone.yml';
