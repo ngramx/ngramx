@@ -39,12 +39,12 @@ final class SharedDbRefresher
 
         $url = $this->connectionResolver->resolve($shared->connection, $engine);
         $target = (new RemoteDbTarget($url))->provision($engine, 24 * 365);
-        $this->wiper->wipe($engine, $target);
 
         $restorePath = $this->decompressor->maybeDecompress($artifactPath);
         $createdPlain = $restorePath !== $artifactPath;
 
         try {
+            $this->wiper->wipe($engine, $target);
             if ($engine === PostmacloneConfig::ENGINE_POSTGRES) {
                 $this->postgres->restore($restorePath, $target);
             } else {

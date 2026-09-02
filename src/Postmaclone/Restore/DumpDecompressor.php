@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Ngramx\Postmaclone\Restore;
 
 use Ngramx\Postmaclone\Exception\PostmacloneException;
-use Symfony\Component\Process\Process;
 
 /**
- * Decompress .gz dumps in place for restore tooling that expects plain SQL/custom files.
+ * Decompress .gz dumps for restore tooling that expects plain SQL/custom files.
  */
 final class DumpDecompressor
 {
@@ -23,15 +22,29 @@ final class DumpDecompressor
             throw new PostmacloneException("Invalid gzip dump path: {$path}");
         }
 
-        $process = new Process(['gzip', '-dc', $path]);
-        $process->setTimeout(3600);
-        $process->run();
-        if (!$process->isSuccessful()) {
-            throw new PostmacloneException('Failed to decompress dump: ' . $process->getErrorOutput());
+        $in = gzopen($path, 'rb');
+        if ($in === false) {
+            throw new PostmacloneException("Failed to open gzip dump: {$path}");
+        }
+        $dest = fopen($out, 'wb');
+        if ($dest === false) {
+            gzclose($in);
+            throw new PostmacloneException("Failed to write decompressed dump: {$out}");
         }
 
-        if (file_put_contents($out, $process->getOutput()) === false) {
-            throw new PostmacloneException("Failed to write decompressed dump: {$out}");
+        try {
+            while (!gzeof($in)) {
+                $chunk = gzread($in, 1024 * 1024);
+                if ($chunk === false) {
+                    break;
+                }
+                if (fwrite($dest, $chunk) === false) {
+                    throw new PostmacloneException("Failed to write decompressed dump: {$out}");
+                }
+            }
+        } finally {
+            gzclose($in);
+            fclose($dest);
         }
 
         return $out;

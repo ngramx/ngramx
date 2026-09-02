@@ -18,6 +18,7 @@ readonly class DatabaseConnectionUrl
         public string $host,
         public int $port,
         public string $database,
+        public string $query = '',
     ) {
     }
 
@@ -41,6 +42,7 @@ readonly class DatabaseConnectionUrl
             host: (string) $parts['host'],
             port: (int) ($parts['port'] ?? (in_array($scheme, ['postgres', 'postgresql', 'pgsql'], true) ? 5432 : 3306)),
             database: $database,
+            query: (string) ($parts['query'] ?? ''),
         );
     }
 
@@ -53,6 +55,7 @@ readonly class DatabaseConnectionUrl
             host: $this->host,
             port: $this->port,
             database: $this->database,
+            query: $this->query,
         );
     }
 
@@ -63,6 +66,11 @@ readonly class DatabaseConnectionUrl
         $db = rawurlencode($this->database);
         $scheme = $this->scheme === 'postgresql' ? 'postgres' : $this->scheme;
 
-        return "{$scheme}://{$user}:{$pass}@{$this->host}:{$this->port}/{$db}";
+        $url = "{$scheme}://{$user}:{$pass}@{$this->host}:{$this->port}/{$db}";
+        if ($this->query !== '') {
+            $url .= '?' . $this->query;
+        }
+
+        return $url;
     }
 }

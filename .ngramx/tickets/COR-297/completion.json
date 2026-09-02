@@ -54,10 +54,21 @@
     },
     {
       "description": "PHPStan level 8 is clean after produce type fixes",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Confirm GitHub Actions PHP 8.2 and PHP 8.3 jobs on this PR pass composer phpstan",
         "Spot-check produce still returns shared_refreshed and password_rotated without null coalescing"
+      ]
+    },
+    {
+      "description": "Bugbot fixes: PDO extensions, wipe/restore order, rotation, SSL query",
+      "status": "active",
+      "steps": [
+        "Confirm the produce workflow template and generated YAML include pdo_pgsql and pdo_mysql",
+        "Confirm SharedDbRefresher decompresses the artifact before wiping the shared DB",
+        "Confirm postgres wipe SQL drops owned functions, types, and domains as well as tables",
+        "Confirm password rotation writes 1Password first and reverts that write if ALTER ROLE fails",
+        "Confirm DatabaseConnectionUrl withPassword keeps ?sslmode=require"
       ]
     }
   ]

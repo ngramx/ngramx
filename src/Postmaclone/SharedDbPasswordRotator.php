@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ngramx\Postmaclone;
 
+use Ngramx\Config\Schema\Postmaclone\DbConnectionConfig;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
 use Ngramx\Config\Schema\Postmaclone\SharedDbConfig;
 use Ngramx\Postmaclone\Backup\OpSecretWriter;
@@ -81,23 +82,27 @@ final class SharedDbPasswordRotator
         $parsed = DatabaseConnectionUrl::parse($currentUrl);
         $newPassword = $this->passwords->generate();
         $target = (new RemoteDbTarget($currentUrl))->provision($engine, 24);
+        [$opRef, $newSecret, $oldSecret] = $this->opRotationPayload($connection, $parsed, $currentUrl, $newPassword);
 
-        $this->setDatabasePassword($engine, $target, $parsed->username, $newPassword);
-
-        if ($connection->usesCredentialParts()) {
-            $passwordRef = $connection->credentials?->password;
-            if ($passwordRef === null || !str_starts_with($passwordRef, 'op://')) {
+        $this->opWriter->write($opRef, $newSecret);
+        try {
+            $this->setDatabasePassword($engine, $target, $parsed->username, $newPassword);
+        } catch (\Throwable $e) {
+            try {
+                $this->opWriter->write($opRef, $oldSecret);
+            } catch (\Throwable) {
                 throw new PostmacloneException(
-                    'shared.credentials.password must be an op:// reference when password_rotation_days is enabled'
+                    'Password rotation failed in the database and reverting 1Password also failed. '
+                    . 'The shared role still uses the previous password. ' . $e->getMessage(),
+                    0,
+                    $e,
                 );
             }
-            $this->opWriter->write($passwordRef, $newPassword);
-        } elseif ($connection->url !== null && str_starts_with($connection->url, 'op://')) {
-            $newUrl = $parsed->withPassword($newPassword)->toUrl();
-            $this->opWriter->write($connection->url, $newUrl);
-        } else {
+
             throw new PostmacloneException(
-                'Password rotation requires shared credentials.password or shared.url op:// references'
+                'Password rotation failed in the database; 1Password was reverted. ' . $e->getMessage(),
+                0,
+                $e,
             );
         }
 
@@ -124,6 +129,39 @@ final class SharedDbPasswordRotator
         }
 
         return null;
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: string}
+     */
+    private function opRotationPayload(
+        DbConnectionConfig $connection,
+        DatabaseConnectionUrl $parsed,
+        string $currentUrl,
+        string $newPassword,
+    ): array {
+        if ($connection->usesCredentialParts()) {
+            $passwordRef = $connection->credentials?->password;
+            if ($passwordRef === null || !str_starts_with($passwordRef, 'op://')) {
+                throw new PostmacloneException(
+                    'shared.credentials.password must be an op:// reference when password_rotation_days is enabled'
+                );
+            }
+
+            return [$passwordRef, $newPassword, $parsed->password];
+        }
+
+        if ($connection->url !== null && str_starts_with($connection->url, 'op://')) {
+            return [
+                $connection->url,
+                $parsed->withPassword($newPassword)->toUrl(),
+                $currentUrl,
+            ];
+        }
+
+        throw new PostmacloneException(
+            'Password rotation requires shared credentials.password or shared.url op:// references'
+        );
     }
 
     private function setDatabasePassword(string $engine, EphemeralTarget $target, string $username, string $password): void

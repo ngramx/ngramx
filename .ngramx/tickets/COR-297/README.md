@@ -28,6 +28,7 @@ Nightly factory produce publishes anonymized artifacts to `weathered-brook-anony
 - Scratch/anon wipe drops only `public` objects owned by the connected role (not `DROP SCHEMA public`). Dump sanitizer strips CREATE/DROP/ALTER SCHEMA so restore does not require schema ownership.
 - Local EK produce succeeded (artifact + shared anon refresh). Factory workflow and config pushed to factory `main`.
 - Fixed PHPStan level 8 errors on produce/shared-rotation types so CI can pass.
+- Bugbot PR #15: install pdo_pgsql/pdo_mysql in produce GHA; decompress shared artifact before wiping anon; wipe owned functions/types/domains; write 1Password before ALTER ROLE and revert on failure; MySQL wipe via MysqlRunner; stream gzip decompression; preserve URL query (sslmode) on rotation.
 
 ## Ops still required (human)
 

@@ -55,6 +55,25 @@ final class MysqlRunner
     }
 
     /**
+     * @param list<string> $mysqlArgs Arguments after `mysql` (excluding connection target)
+     */
+    public function capture(EphemeralTarget $target, array $mysqlArgs, int $timeout = 3600): string
+    {
+        $cmd = array_merge($this->command($target), $mysqlArgs);
+
+        $process = new Process($cmd);
+        $process->setTimeout($timeout);
+        $process->setEnv(array_merge($_ENV, ['MYSQL_PWD' => $target->password]));
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            throw new PostmacloneException('mysql failed: ' . $process->getErrorOutput());
+        }
+
+        return $process->getOutput();
+    }
+
+    /**
      * @return list<string>
      */
     public function command(EphemeralTarget $target): array

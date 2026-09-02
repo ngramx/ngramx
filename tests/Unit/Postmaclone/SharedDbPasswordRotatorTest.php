@@ -38,6 +38,19 @@ final class DatabaseConnectionUrlTest extends TestCase
             $updated,
         );
     }
+
+    public function test_round_trip_preserves_ssl_query(): void
+    {
+        $original = 'postgresql://app_user:old%21pass@db.example.com:25060/earl_kendrick_core_prod_anon?sslmode=require';
+        $parsed = DatabaseConnectionUrl::parse($original);
+        $this->assertSame('sslmode=require', $parsed->query);
+
+        $updated = $parsed->withPassword('N3wP4ss')->toUrl();
+        $this->assertSame(
+            'postgres://app_user:N3wP4ss@db.example.com:25060/earl_kendrick_core_prod_anon?sslmode=require',
+            $updated,
+        );
+    }
 }
 
 final class SharedDbPasswordRotatorTest extends TestCase

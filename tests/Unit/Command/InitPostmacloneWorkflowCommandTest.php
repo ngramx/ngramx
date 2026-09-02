@@ -40,6 +40,8 @@ class InitPostmacloneWorkflowCommandTest extends TestCase
         $this->assertStringContainsString("--dataset 'earl-kendrick'", $yaml);
         $this->assertStringContainsString('OP_SERVICE_ACCOUNT_TOKEN', $yaml);
         $this->assertStringContainsString('0 3 * * *', $yaml);
+        $this->assertStringContainsString('pdo_pgsql', $yaml);
+        $this->assertStringContainsString('pdo_mysql', $yaml);
     }
 
     public function test_writes_workflow_with_all_flag_when_no_dataset(): void

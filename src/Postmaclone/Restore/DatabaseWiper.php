@@ -7,7 +7,6 @@ namespace Ngramx\Postmaclone\Restore;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\Target\EphemeralTarget;
-use Symfony\Component\Process\Process;
 
 /**
  * Drop objects the connected role owns in the current database so the next restore starts clean.
@@ -19,6 +18,7 @@ final class DatabaseWiper
 {
     public function __construct(
         private readonly PsqlRunner $psql = new PsqlRunner(),
+        private readonly MysqlRunner $mysql = new MysqlRunner(),
     ) {
     }
 
@@ -58,7 +58,7 @@ BEGIN
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public'
-      AND c.relkind = 'r'
+      AND c.relkind IN ('r', 'p')
       AND c.relowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
   LOOP
     EXECUTE format('DROP TABLE IF EXISTS %I.%I CASCADE', r.nspname, r.relname);
@@ -89,39 +89,60 @@ BEGIN
   LOOP
     EXECUTE format('DROP SEQUENCE IF EXISTS %I.%I CASCADE', r.nspname, r.relname);
   END LOOP;
+
+  FOR r IN
+    SELECT n.nspname, p.proname, pg_get_function_identity_arguments(p.oid) AS args
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+  LOOP
+    EXECUTE format('DROP FUNCTION IF EXISTS %I.%I(%s) CASCADE', r.nspname, r.proname, r.args);
+  END LOOP;
+
+  FOR r IN
+    SELECT n.nspname, t.typname
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE n.nspname = 'public'
+      AND t.typowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+      AND t.typtype IN ('e', 'c')
+      AND t.typrelid = 0
+  LOOP
+    EXECUTE format('DROP TYPE IF EXISTS %I.%I CASCADE', r.nspname, r.typname);
+  END LOOP;
+
+  FOR r IN
+    SELECT n.nspname, t.typname
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE n.nspname = 'public'
+      AND t.typowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+      AND t.typtype = 'd'
+  LOOP
+    EXECUTE format('DROP DOMAIN IF EXISTS %I.%I CASCADE', r.nspname, r.typname);
+  END LOOP;
 END $$;
 SQL;
     }
 
     private function wipeMysql(EphemeralTarget $target): void
     {
-        $process = new Process([
-            'mysql',
-            $target->databaseUrl,
+        $output = $this->mysql->capture($target, [
             '-N',
             '-e',
             'SET FOREIGN_KEY_CHECKS = 0; '
             . "SELECT CONCAT('DROP TABLE IF EXISTS `', table_name, '`;') "
             . 'FROM information_schema.tables '
             . "WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE';",
-        ]);
-        $process->setTimeout(300);
-        $process->run();
-        if (!$process->isSuccessful()) {
-            throw new PostmacloneException('Failed to list MySQL tables for wipe: ' . $process->getErrorOutput());
-        }
+        ], 300);
 
-        $drops = array_filter(array_map('trim', explode("\n", $process->getOutput())));
+        $drops = array_values(array_filter(array_map('trim', explode("\n", $output))));
         if ($drops === []) {
             return;
         }
 
         $batch = 'SET FOREIGN_KEY_CHECKS = 0; ' . implode(' ', $drops) . ' SET FOREIGN_KEY_CHECKS = 1;';
-        $run = new Process(['mysql', $target->databaseUrl, '-e', $batch]);
-        $run->setTimeout(600);
-        $run->run();
-        if (!$run->isSuccessful()) {
-            throw new PostmacloneException('Failed to wipe MySQL database: ' . $run->getErrorOutput());
-        }
+        $this->mysql->run($target, ['-e', $batch], null, 600);
     }
 }
