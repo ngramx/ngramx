@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.42.0](https://github.com/ngramx/ngramx/compare/v2.41.3...v2.42.0) (2026-09-02)
+
+
+### Features
+
+* **endpoints:** support multiple browser-facing URLs per project ([#13](https://github.com/ngramx/ngramx/issues/13)) ([c58ddc8](https://github.com/ngramx/ngramx/commit/c58ddc8f52b05e5e516250feadc32f80b6af69cc))
+
 ## [2.41.3](https://github.com/ngramx/ngramx/compare/v2.41.2...v2.41.3) (2026-09-01)
 
 
