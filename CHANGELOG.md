@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.43.1](https://github.com/ngramx/ngramx/compare/v2.43.0...v2.43.1) (2026-09-03)
+
+
+### Bug Fixes
+
+* **worktree:** fast-forward integration branch before new ticket branch ([1dd0147](https://github.com/ngramx/ngramx/commit/1dd0147be255c290a4b23f81f7470375f05dda63))
+
 # [2.43.0](https://github.com/ngramx/ngramx/compare/v2.42.0...v2.43.0) (2026-09-02)
 
 
