@@ -23,17 +23,23 @@ fi
 
 echo "🚀 Requesting ngramx update on Cortex Coder..."
 
-if response=$(curl -sf -X POST --max-time 120 \
+response_file=$(mktemp)
+http_code=$(curl -sS -o "$response_file" -w '%{http_code}' -X POST --max-time 120 \
   -H "x-api-key: $api_key" \
   -H "Content-Type: application/json" \
   -d '{}' \
-  "$url" 2>&1); then
+  "$url" 2>&1) || curl_exit=$?
+response_body=$(cat "$response_file")
+rm -f "$response_file"
+
+if [ "${curl_exit:-0}" -eq 0 ] && [ "$http_code" = "200" ]; then
   echo "✅ Cortex Coder ngramx update completed"
-  echo "Response: $response"
+  echo "Response: $response_body"
 else
-  exit_code=$?
-  echo "⚠️  Cortex Coder ngramx update failed (curl exit code: $exit_code)"
-  echo "Response: $response"
+  echo "⚠️  Cortex Coder ngramx update failed (curl exit: ${curl_exit:-0}, HTTP: ${http_code:-unknown})"
+  if [ -n "$response_body" ]; then
+    echo "Response: $response_body"
+  fi
   echo "    The release published fine. Retry manually with:"
   echo "      curl -X POST -H \"x-api-key: …\" \"$url\""
   echo "    or: docker exec --user root coding-agent ngramx update"
