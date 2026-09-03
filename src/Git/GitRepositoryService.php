@@ -50,6 +50,28 @@ class GitRepositoryService
     }
 
     /**
+     * Fetch and fast-forward the integration branch before forking a new one.
+     *
+     * `git worktree add -b` creates from the repository's current HEAD, not from
+     * origin/main directly. On shared hosts the base checkout is often left on an
+     * old integration commit even after `git fetch`, so new ticket branches would
+     * inherit stale ngramx.yml (and everything else) until someone manually
+     * checked out and merged main.
+     */
+    public function prepareIntegrationBranchForNewWorktree(string $repositoryPath): bool
+    {
+        if (!$this->fetchFromOrigin($repositoryPath)) {
+            $this->lastCheckoutError = 'git fetch --prune origin failed';
+
+            return false;
+        }
+
+        $integrationBranch = $this->resolveDefaultIntegrationBranch($repositoryPath);
+
+        return $this->checkoutBranch($repositoryPath, $integrationBranch);
+    }
+
+    /**
      * Return the currently checked-out branch name, or null when HEAD is detached.
      */
     public function getCurrentBranch(string $repositoryPath): ?string

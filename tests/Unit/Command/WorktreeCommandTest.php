@@ -50,6 +50,7 @@ class WorktreeCommandTest extends TestCase
         // `up`, which a bare CommandTester cannot execute anyway.
         $this->dockerCompose->expects($this->any())->method('isServiceRunning')->willReturn(true);
         $this->gitRepositoryService->expects($this->any())->method('fetchFromOrigin')->willReturn(true);
+        $this->gitRepositoryService->expects($this->any())->method('prepareIntegrationBranchForNewWorktree')->willReturn(true);
     }
 
     protected function tearDown(): void
@@ -277,6 +278,7 @@ class WorktreeCommandTest extends TestCase
 
         $this->assertSame(0, $exitCode, $tester->getDisplay());
         $this->assertStringContainsString("new branch 'gig-123' will be created", $tester->getDisplay());
+        $this->assertStringContainsString('Updating integration branch from origin', $tester->getDisplay());
     }
 
     public function test_it_prefixes_bare_numbers_with_the_configured_default_team(): void
