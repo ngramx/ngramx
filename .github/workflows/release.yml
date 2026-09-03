@@ -101,11 +101,15 @@ jobs:
     
     - name: Make update-version script executable
       run: chmod +x scripts/update-version.js
-    
+
+    - name: Make coding-agent update script executable
+      run: chmod +x scripts/trigger-coding-agent-ngramx-update.sh
+
     - name: Run Semantic Release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        FORGE_DEPLOY_TRIGGER_URL: ${{ secrets.FORGE_DEPLOY_TRIGGER_URL }}
+        CODING_AGENT_UPDATE_URL: ${{ secrets.CODING_AGENT_UPDATE_URL }}
+        CODING_AGENT_API_KEY: ${{ secrets.CODING_AGENT_API_KEY }}
         GIT_AUTHOR_NAME: github-actions[bot]
         GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com
         GIT_COMMITTER_NAME: github-actions[bot]

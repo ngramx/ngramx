@@ -100,15 +100,22 @@ The GitHub Actions workflow automatically:
 7. 🏷️ Creates Git tag
 8. 📤 Creates GitHub Release
 9. 📎 Uploads `ngramx.phar` and `install.sh`
-10. 🚀 Triggers Cortex Coder deploy (`FORGE_DEPLOY_TRIGGER_URL` → Forge runs `deploy.sh` → `ngramx update`)
+10. 🔄 Calls `POST /v1/maintenance/ngramx-update` on Cortex Coder (replaces the PHAR in the running container; no deploy, no worktree wipe)
 
 No manual intervention required!
 
-### Cortex Coder deploy
+### Cortex Coder ngramx refresh
 
-The deploy is **not** triggered by the separate `deploy-cortex-coder.yml` workflow. GitHub does not fire `release: published` for releases created by `GITHUB_TOKEN` (semantic-release uses that token), so step 10 runs inside the Release job via `@semantic-release/exec` `successCmd` in `.releaserc.yml`, which runs `scripts/trigger-cortex-coder-deploy.sh` after the release and its `ngramx.phar` asset are published.
+The refresh is **not** a Forge deploy and **not** triggered by the separate `deploy-cortex-coder.yml` workflow (GitHub does not fire `release: published` for `GITHUB_TOKEN`-created releases anyway). Step 10 runs inside the Release job via `@semantic-release/exec` `successCmd`, which runs `scripts/trigger-coding-agent-ngramx-update.sh` after the release and its `ngramx.phar` asset are published.
 
-Set `FORGE_DEPLOY_TRIGGER_URL` in this repository's GitHub Actions secrets (same value as `gigabyte-software/cortex-coder`). Without it, releases still publish but the coding-agent keeps its existing ngramx version until the next cortex-coder deploy.
+Set these GitHub Actions secrets on **ngramx/ngramx**:
+
+| Secret | Example |
+|--------|---------|
+| `CODING_AGENT_UPDATE_URL` | `https://codabyte.gigabyte.software/v1/maintenance/ngramx-update` |
+| `CODING_AGENT_API_KEY` | Same value as `CODING_AGENT_API_KEY` on the Cortex Coder host |
+
+Without them, releases still publish but the coding-agent keeps its existing ngramx version until someone updates manually.
 
 ## Release Channels
 

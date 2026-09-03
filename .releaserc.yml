@@ -50,10 +50,8 @@ plugins:
         - path: install.sh
           label: Installation Script
 
-  # Trigger Cortex Coder deploy. Must run in the release job — GitHub does not
-  # fire `release: published` for GITHUB_TOKEN-created releases, so the separate
-  # deploy-cortex-coder workflow never runs. Uses the `success` hook so it fires
-  # only after @semantic-release/github has published the release and uploaded
-  # ngramx.phar, which `ngramx update` needs. The script never exits non-zero.
+  # Refresh ngramx on Cortex Coder. Must run in the release job — GitHub does not
+  # fire `release: published` for GITHUB_TOKEN-created releases. Uses the
+  # `success` hook so it fires only after ngramx.phar is on the release.
   - - "@semantic-release/exec"
-    - successCmd: "./scripts/trigger-cortex-coder-deploy.sh"
+    - successCmd: "./scripts/trigger-coding-agent-ngramx-update.sh"
