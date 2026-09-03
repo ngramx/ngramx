@@ -1,0 +1,40 @@
+{
+  "title": "fix(docker): Self-Heal Stale Docker Desktop Bind Mounts",
+  "description": "Clears Docker Desktop's dangling WSL bind-mount staging entries before starting containers, retries a start once when the engine reports one, and removes a worktree's entries when it is torn down.",
+  "pr_url": "",
+  "linear_url": null,
+  "test_urls": [],
+  "test_plan": [
+    {
+      "description": "A single-file bind mount whose host file is replaced no longer breaks the next container start",
+      "status": "active",
+      "steps": [
+        "On a Docker Desktop + WSL host, start a project that bind-mounts a single file (e.g. ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini) with `ngramx up`",
+        "Replace that file on the host so its inode changes: `git checkout <other-branch> -- docker/php/local.ini`, or `mv local.ini x && cp x local.ini`",
+        "Confirm the staged mount is now dead: `awk '/docker-desktop-bind-mounts/ && $4 ~ /deleted/ {print $4, $5}' /proc/self/mountinfo`",
+        "Run `ngramx up` (or `ngramx rebuild`) again",
+        "Expect it to report 'Clearing N stale Docker Desktop bind mount(s)…' and start cleanly, rather than failing with 'error mounting … no such file or directory'",
+        "On a host where sudo needs a password and there is no TTY, expect the exact `sudo umount …` command to be printed instead of a hang"
+      ]
+    },
+    {
+      "description": "Removing a worktree does not leave staged mounts behind for the next worktree at that path",
+      "status": "active",
+      "steps": [
+        "Create a worktree environment: `ngramx worktree gig-1234`",
+        "Note the staged mounts for it: `grep <worktree path> /proc/self/mountinfo`",
+        "Tear it down: `ngramx worktree gig-1234 --cleanup`",
+        "Expect no staging entries to remain for that worktree path",
+        "Recreate the same worktree and confirm its containers start first time"
+      ]
+    },
+    {
+      "description": "Unrelated start failures are unaffected",
+      "status": "active",
+      "steps": [
+        "Occupy a port the project needs, then run `ngramx up`",
+        "Expect the usual port-conflict handling and error — no stale-mount messaging, no silent retry"
+      ]
+    }
+  ]
+}

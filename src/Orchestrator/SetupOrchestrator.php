@@ -13,6 +13,7 @@ use Ngramx\Docker\HealthChecker;
 use Ngramx\Docker\ImageBuildFreshnessChecker;
 use Ngramx\Docker\NetworkAttachmentChecker;
 use Ngramx\Docker\ServiceReadinessWaiter;
+use Ngramx\Docker\StaleBindMountSweeper;
 use Ngramx\Executor\ContainerCommandExecutor;
 use Ngramx\Executor\HostCommandExecutor;
 use Ngramx\Executor\Retry\RetryPolicy;
@@ -41,6 +42,7 @@ class SetupOrchestrator
     private readonly AppUrlProbe $appUrlProbe;
     private readonly NetworkAttachmentChecker $networkAttachmentChecker;
     private readonly RetryPolicy $retryPolicy;
+    private readonly StaleBindMountSweeper $staleBindMountSweeper;
 
     public function __construct(
         private readonly DockerCompose $dockerCompose,
@@ -53,6 +55,7 @@ class SetupOrchestrator
         ?AppUrlProbe $appUrlProbe = null,
         ?NetworkAttachmentChecker $networkAttachmentChecker = null,
         ?RetryPolicy $retryPolicy = null,
+        ?StaleBindMountSweeper $staleBindMountSweeper = null,
         private readonly int $appUrlProbeAttempts = self::DEFAULT_APP_URL_PROBE_ATTEMPTS,
         private readonly int $appUrlProbeRetrySeconds = self::DEFAULT_APP_URL_PROBE_RETRY_SECONDS,
     ) {
@@ -66,6 +69,7 @@ class SetupOrchestrator
         $this->networkAttachmentChecker = $networkAttachmentChecker
             ?? new NetworkAttachmentChecker($this->dockerCompose);
         $this->retryPolicy = $retryPolicy ?? new RetryPolicy();
+        $this->staleBindMountSweeper = $staleBindMountSweeper ?? new StaleBindMountSweeper();
     }
 
     /**
@@ -461,13 +465,50 @@ class SetupOrchestrator
             $effectiveTimeout = 1800;
         }
 
+        // Docker Desktop under WSL stages bind mounts behind a hashed path that
+        // can outlive the file it stages (see StaleBindMountSweeper). Clearing
+        // the corpses for this project first turns an unreadable OCI runtime
+        // error into a no-op.
+        $this->staleBindMountSweeper->sweepUnder(dirname($composeFile), $this->formatter);
+
+        try {
+            $this->runComposeUp($composeFile, $namespace, $rebuild, $effectiveTimeout);
+        } catch (\RuntimeException $e) {
+            // A staged mount can also go stale between our sweep and the
+            // container create, and compose can name paths outside the project
+            // that the scoped sweep deliberately leaves alone. Either way the
+            // engine has just told us exactly which entries it could not
+            // resolve, so clear those and give the start one more go.
+            if (!$this->staleBindMountSweeper->recoverFromFailure($e->getMessage(), $this->formatter)) {
+                throw $e;
+            }
+
+            $this->formatter->info('Retrying now that the stale mounts are gone...');
+            $this->runComposeUp($composeFile, $namespace, $rebuild, $effectiveTimeout);
+        }
+
+        $this->formatter->info('Docker services started');
+    }
+
+    /**
+     * One `docker compose up` behind the live 3-line log panel. Split out so
+     * the stale-bind-mount retry can run the same command twice without
+     * leaving a half-drawn panel behind.
+     */
+    private function runComposeUp(
+        string $composeFile,
+        ?string $namespace,
+        bool $rebuild,
+        ?int $timeout
+    ): void {
         $panel = new LiveLogPanel($this->formatter->createSection(), 3);
+
         try {
             $this->dockerCompose->up(
                 $composeFile,
                 $namespace,
                 $rebuild,
-                $effectiveTimeout,
+                $timeout,
                 static function (string $type, string $buffer) use ($panel): void {
                     $panel->appendBuffer($buffer);
                 }
@@ -475,8 +516,6 @@ class SetupOrchestrator
         } finally {
             $panel->clear();
         }
-
-        $this->formatter->info('Docker services started');
     }
 
     /**

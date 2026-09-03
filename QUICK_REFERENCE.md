@@ -122,6 +122,31 @@ ngramx up --avoid-conflicts
 ngramx up --port-offset 5000
 ```
 
+### "no such file or directory" mounting a config file (Docker Desktop + WSL)
+
+```
+error mounting "/run/desktop/mnt/host/wsl/docker-desktop-bind-mounts/Ubuntu/<hash>"
+to rootfs at "/usr/local/etc/php/conf.d/local.ini": no such file or directory
+```
+
+Docker Desktop stages every WSL bind mount under a hash of its host path. A
+single-file mount pins one inode, so replacing the file on the host (a checkout,
+a branch switch, an editor that writes-then-renames) leaves the staged mount
+pointing at a deleted inode — and the next container create fails. Deleting a
+worktree leaves the same corpses behind for the path it occupied.
+
+ngramx clears these itself before starting containers, and retries once if the
+engine reports one anyway. When it cannot (removing a mount needs root, and
+there is no TTY to ask for a password) it prints the exact command:
+
+```bash
+sudo umount /mnt/wsl/docker-desktop-bind-mounts/<distro>/<hash>
+```
+
+Avoid the problem entirely by mounting the *directory* rather than the file
+(`./docker/php:/usr/local/etc/php/conf.d`), or by baking config into the image
+with `COPY`.
+
 ### Finding namespace
 ```bash
 # Check lock file
