@@ -100,8 +100,22 @@ The GitHub Actions workflow automatically:
 7. 🏷️ Creates Git tag
 8. 📤 Creates GitHub Release
 9. 📎 Uploads `ngramx.phar` and `install.sh`
+10. 🔄 Calls `POST /v1/maintenance/ngramx-update` on Cortex Coder (replaces the PHAR in the running container; no deploy, no worktree wipe)
 
 No manual intervention required!
+
+### Cortex Coder ngramx refresh
+
+Step 10 runs inside the Release job via `@semantic-release/exec` `successCmd`, which calls `scripts/trigger-coding-agent-ngramx-update.sh` after the release and its `ngramx.phar` asset are published. That POSTs to Cortex Coder's maintenance API — it replaces the PHAR in the running container without a Forge deploy (which would stop containers and clear worktrees).
+
+Set these GitHub Actions secrets on **ngramx/ngramx**:
+
+| Secret | Example |
+|--------|---------|
+| `CODING_AGENT_UPDATE_URL` | `https://codabyte.gigabyte.software/v1/maintenance/ngramx-update` |
+| `CODING_AGENT_API_KEY` | Same value as `CODING_AGENT_API_KEY` on the Cortex Coder host |
+
+Without them, releases still publish but the coding-agent keeps its existing ngramx version until someone updates manually.
 
 ## Release Channels
 
