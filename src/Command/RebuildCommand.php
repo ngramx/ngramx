@@ -13,6 +13,7 @@ use Ngramx\Docker\DockerLauncher;
 use Ngramx\Docker\Exception\ServiceNotHealthyException;
 use Ngramx\Docker\HealthChecker;
 use Ngramx\Docker\ServiceReadinessWaiter;
+use Ngramx\Docker\StaleBindMountSweeper;
 use Ngramx\Orchestrator\CommandOrchestrator;
 use Ngramx\Output\LiveLogPanel;
 use Ngramx\Output\OutputFormatter;
@@ -106,18 +107,25 @@ class RebuildCommand extends Command
 
             // Phase 2: Rebuild images and start containers
             $formatter->section('Rebuilding images and starting containers');
-            $buildPanel = new LiveLogPanel($formatter->createSection(), 3);
+
+            // A rebuild re-creates every container, which is exactly when a
+            // stale Docker Desktop bind mount surfaces. Clear this project's
+            // dead staged mounts first, and fall back to the engine's own
+            // report if one goes stale under us.
+            $sweeper = new StaleBindMountSweeper();
+            $sweeper->sweepUnder(dirname($config->docker->composeFile), $formatter);
+
             try {
-                $this->dockerCompose->upWithBuild(
-                    $config->docker->composeFile,
-                    $namespace,
-                    static function (string $type, string $buffer) use ($buildPanel): void {
-                        $buildPanel->appendBuffer($buffer);
-                    }
-                );
-            } finally {
-                $buildPanel->clear();
+                $this->runUpWithBuild($config->docker->composeFile, $namespace, $formatter);
+            } catch (\RuntimeException $e) {
+                if (!$sweeper->recoverFromFailure($e->getMessage(), $formatter)) {
+                    throw $e;
+                }
+
+                $formatter->info('Retrying now that the stale mounts are gone...');
+                $this->runUpWithBuild($config->docker->composeFile, $namespace, $formatter);
             }
+
             $formatter->info('Containers rebuilt and started');
 
             // Phase 3: Wait for services to be healthy (with live rolling logs)
@@ -155,6 +163,28 @@ class RebuildCommand extends Command
         } catch (\Exception $e) {
             $formatter->error("Error: {$e->getMessage()}");
             return Command::FAILURE;
+        }
+    }
+
+    /**
+     * One `docker compose up --build` behind the live 3-line log panel. Split
+     * out so the stale-bind-mount retry can run it twice without leaving a
+     * half-drawn panel on screen.
+     */
+    private function runUpWithBuild(string $composeFile, ?string $namespace, OutputFormatter $formatter): void
+    {
+        $buildPanel = new LiveLogPanel($formatter->createSection(), 3);
+
+        try {
+            $this->dockerCompose->upWithBuild(
+                $composeFile,
+                $namespace,
+                static function (string $type, string $buffer) use ($buildPanel): void {
+                    $buildPanel->appendBuffer($buffer);
+                }
+            );
+        } finally {
+            $buildPanel->clear();
         }
     }
 }

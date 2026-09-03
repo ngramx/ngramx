@@ -16,6 +16,7 @@ use Ngramx\Docker\DockerCompose;
 use Ngramx\Docker\HealthChecker;
 use Ngramx\Docker\NetworkAttachmentChecker;
 use Ngramx\Docker\NetworkAttachmentIssue;
+use Ngramx\Docker\StaleBindMountSweeper;
 use Ngramx\Executor\HostCommandExecutor;
 use Ngramx\Executor\Retry\RetryPolicy;
 use Ngramx\Http\AppUrlProbe;
@@ -600,6 +601,7 @@ class SetupOrchestratorTest extends TestCase
         ?NetworkAttachmentChecker $checker = null,
         int $appUrlProbeAttempts = 1,
         int $appUrlProbeRetrySeconds = 0,
+        ?StaleBindMountSweeper $staleBindMountSweeper = null,
     ): SetupOrchestrator {
         return new SetupOrchestrator(
             $this->dockerCompose,
@@ -613,6 +615,9 @@ class SetupOrchestratorTest extends TestCase
             // failure would otherwise pay the retry backoff for real.
             retryPolicy: new RetryPolicy(static function (int $seconds): void {
             }),
+            // A stubbed sweeper by default: the real one reads the host's
+            // mount table, which no unit test should depend on (or touch).
+            staleBindMountSweeper: $staleBindMountSweeper ?? $this->createMock(StaleBindMountSweeper::class),
             // Tests default to 1 attempt with no retry sleep so failure-path
             // tests don't sit blocked on the 60s production retry budget.
             appUrlProbeAttempts: $appUrlProbeAttempts,
@@ -640,6 +645,66 @@ class SetupOrchestratorTest extends TestCase
     private function disabledProbe(): AppUrlProbe
     {
         return new AppUrlProbe(static fn () => new Response(200));
+    }
+
+    public function test_setup_sweeps_stale_bind_mounts_for_the_project_before_starting(): void
+    {
+        $config = $this->createConfig();
+
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+        $this->dockerCompose->expects($this->once())->method('up');
+
+        $sweeper = $this->createMock(StaleBindMountSweeper::class);
+        $sweeper->expects($this->once())
+            ->method('sweepUnder')
+            ->with(dirname('docker-compose.yml'), $this->anything());
+
+        $this->createOrchestrator(staleBindMountSweeper: $sweeper)->setup($config, skipWait: true);
+    }
+
+    public function test_setup_retries_once_after_clearing_a_stale_bind_mount(): void
+    {
+        $config = $this->createConfig();
+
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+
+        $attempts = 0;
+        $this->dockerCompose->expects($this->exactly(2))
+            ->method('up')
+            ->willReturnCallback(static function () use (&$attempts): void {
+                $attempts++;
+                if ($attempts === 1) {
+                    throw new \RuntimeException(
+                        'Failed to start Docker Compose services: error mounting '
+                        . '"/run/desktop/mnt/host/wsl/docker-desktop-bind-mounts/Ubuntu/'
+                        . str_repeat('a', 64) . '": no such file or directory'
+                    );
+                }
+            });
+
+        $sweeper = $this->createMock(StaleBindMountSweeper::class);
+        $sweeper->method('recoverFromFailure')->willReturn(true);
+
+        $this->createOrchestrator(staleBindMountSweeper: $sweeper)->setup($config, skipWait: true);
+
+        $this->assertSame(2, $attempts);
+        $this->assertStringContainsString('Retrying now that the stale mounts are gone', $this->output->fetch());
+    }
+
+    public function test_setup_rethrows_start_failures_it_cannot_attribute_to_a_stale_mount(): void
+    {
+        $config = $this->createConfig();
+
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+        $this->dockerCompose->expects($this->once())
+            ->method('up')
+            ->willThrowException(new \RuntimeException('Failed to start Docker Compose services: port is allocated'));
+
+        // Default mock: recoverFromFailure() returns false, i.e. nothing to clear.
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('port is allocated');
+
+        $this->createOrchestrator()->setup($config, skipWait: true);
     }
 
     /**

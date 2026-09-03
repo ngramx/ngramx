@@ -20,6 +20,7 @@ use Ngramx\Docker\DockerCompose;
 use Ngramx\Docker\ImageReuser;
 use Ngramx\Docker\NamespaceResolver;
 use Ngramx\Docker\PortOffsetManager;
+use Ngramx\Docker\StaleBindMountSweeper;
 use Ngramx\Git\GitExcludeManager;
 use Ngramx\Git\GitRepositoryService;
 use Ngramx\Hooks\HookRunner;
@@ -69,6 +70,7 @@ class ReviewCommand extends Command
     private readonly HooksConfigLoader $hooksConfigLoader;
     private readonly HookRunner $hookRunner;
     private readonly ComposeOverrideGenerator $overrideGenerator;
+    private readonly StaleBindMountSweeper $staleBindMountSweeper;
 
     public function __construct(
         protected readonly ConfigLoader $configLoader,
@@ -91,6 +93,7 @@ class ReviewCommand extends Command
         ?HooksConfigLoader $hooksConfigLoader = null,
         ?HookRunner $hookRunner = null,
         ?ComposeOverrideGenerator $overrideGenerator = null,
+        ?StaleBindMountSweeper $staleBindMountSweeper = null,
     ) {
         parent::__construct();
         $this->portOffsetManager = $portOffsetManager ?? new PortOffsetManager();
@@ -107,6 +110,7 @@ class ReviewCommand extends Command
         $this->hooksConfigLoader = $hooksConfigLoader ?? new HooksConfigLoader();
         $this->hookRunner = $hookRunner ?? new HookRunner();
         $this->overrideGenerator = $overrideGenerator ?? new ComposeOverrideGenerator();
+        $this->staleBindMountSweeper = $staleBindMountSweeper ?? new StaleBindMountSweeper();
     }
 
     protected function configure(): void
@@ -1247,6 +1251,13 @@ class ReviewCommand extends Command
             $formatter->error('Failed to remove the worktree directory. Remove it manually: ' . $worktreePath);
             return false;
         }
+
+        // Docker Desktop stages each bind mount under a hash of its host path,
+        // and those staged mounts outlive the directory they point at. Left in
+        // place they are inherited by the *next* worktree created at this same
+        // path, whose containers then fail to start on a mount that resolves to
+        // nothing. Clear them while we still know the path.
+        $this->staleBindMountSweeper->sweepUnder($worktreePath, $formatter);
 
         return true;
     }
