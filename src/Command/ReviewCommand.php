@@ -357,6 +357,18 @@ class ReviewCommand extends Command
         if (!$worktreeWasCreated) {
             $formatter->info("Reusing existing worktree: $worktreePath");
         } elseif ($createNewBranch) {
+            $formatter->info('Updating integration branch from origin before creating a new branch...');
+            if (!$this->gitRepositoryService->prepareIntegrationBranchForNewWorktree($repositoryPath)) {
+                $message = 'Failed to update the integration branch from origin before creating a new branch.';
+                $details = trim($this->gitRepositoryService->lastCheckoutError());
+                if ($details !== '') {
+                    $message .= "\n\n" . OutputFormatter::escape($details);
+                }
+                $formatter->error($message);
+
+                return Command::FAILURE;
+            }
+
             $formatter->info("Creating new branch $selectedBranch with worktree at .ngramx/worktrees/$folderName");
             if (!$this->gitRepositoryService->addWorktreeWithNewBranch($repositoryPath, $worktreePath, $selectedBranch)) {
                 $formatter->error("Failed to create the new branch '$selectedBranch'. It may already exist and be checked out elsewhere — switch that checkout off it or pick a different name, then retry.");

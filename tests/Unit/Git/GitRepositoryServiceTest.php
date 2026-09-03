@@ -878,6 +878,33 @@ class GitRepositoryServiceTest extends TestCase
         $this->assertSame('main', $this->service->resolveDefaultIntegrationBranch($this->gitRepoPath));
     }
 
+    public function test_prepareIntegrationBranchForNewWorktree_fast_forwards_stale_main(): void
+    {
+        $this->runGitCommand('git checkout main');
+        file_put_contents($this->gitRepoPath . '/new-on-main.txt', 'x');
+        $this->runGitCommand('git add new-on-main.txt');
+        $this->runGitCommand('git commit -m "Advance main on origin"');
+        $this->runGitCommand('git push origin main');
+
+        $originMain = trim((string) shell_exec('git -C ' . escapeshellarg($this->gitRepoPath) . ' rev-parse origin/main'));
+
+        // Simulate a long-lived base checkout: local main left behind, HEAD on a feature branch.
+        $this->runGitCommand('git reset --hard HEAD~1');
+        $this->runGitCommand('git checkout feature/TICKET-456');
+
+        $this->assertNotSame(
+            $originMain,
+            trim((string) shell_exec('git -C ' . escapeshellarg($this->gitRepoPath) . ' rev-parse main'))
+        );
+
+        $this->assertTrue($this->service->prepareIntegrationBranchForNewWorktree($this->gitRepoPath));
+        $this->assertSame('main', $this->service->getCurrentBranch($this->gitRepoPath));
+        $this->assertSame(
+            $originMain,
+            trim((string) shell_exec('git -C ' . escapeshellarg($this->gitRepoPath) . ' rev-parse HEAD'))
+        );
+    }
+
     public function test_hasUncommittedChanges_detects_dirty_working_tree(): void
     {
         $this->assertFalse($this->service->hasUncommittedChanges($this->gitRepoPath));
