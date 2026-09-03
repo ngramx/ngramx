@@ -1,5 +1,13 @@
 name: Deploy Cortex Coder
 
+# NOTE: This workflow does not run in practice. semantic-release publishes
+# releases using GITHUB_TOKEN, and GitHub deliberately does not trigger
+# `release: published` workflows from token-created releases (avoids infinite
+# loops). Cortex Coder deploy is triggered from the Release workflow via
+# @semantic-release/exec publishCmd in .releaserc.yml instead.
+#
+# Kept as documentation and for manual `workflow_dispatch` if we add that later.
+
 on:
   release:
     types: [published]

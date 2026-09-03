@@ -105,6 +105,7 @@ jobs:
     - name: Run Semantic Release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        FORGE_DEPLOY_TRIGGER_URL: ${{ secrets.FORGE_DEPLOY_TRIGGER_URL }}
         GIT_AUTHOR_NAME: github-actions[bot]
         GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com
         GIT_COMMITTER_NAME: github-actions[bot]
