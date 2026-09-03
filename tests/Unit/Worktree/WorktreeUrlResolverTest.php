@@ -88,18 +88,54 @@ class WorktreeUrlResolverTest extends TestCase
         $this->assertSame('http://app.localhost:8080', $url);
     }
 
+    public function test_it_keeps_the_apps_own_host_when_the_baseline_is_a_client_error(): void
+    {
+        // Hydra's API vhost 404s on "/", and an unrouted hostname 404s too. The
+        // statuses match, but for unrelated reasons -- upgrading on that
+        // evidence advertised an origin that served nothing.
+        $resolver = $this->resolverReturning(static fn (string $host): int => 404);
+
+        $url = $resolver->resolve('http://dev.api.hydra', 'gig-3054-hydra-main', 8100, 'api');
+
+        $this->assertSame('http://dev.api.hydra:8180', $url);
+    }
+
+    public function test_it_keeps_the_apps_own_host_when_the_baseline_is_unreachable(): void
+    {
+        $resolver = $this->resolverReturning(static fn (string $host): ?int => null);
+
+        $url = $resolver->resolve('http://dev.hydra', 'gig-3054-hydra-main', 8100);
+
+        $this->assertSame('http://dev.hydra:8180', $url);
+    }
+
+    public function test_a_redirecting_baseline_still_upgrades_a_host_agnostic_app(): void
+    {
+        // 3xx is the app serving (Laravel redirecting to /login), so an equal
+        // status on the invented subdomain is real evidence of host-agnosticism.
+        $resolver = $this->resolverReturning(static fn (string $host): int => 302);
+
+        $url = $resolver->resolve('http://earl-kendrick.localhost', 'gig-9001-ek', 8000);
+
+        $this->assertSame('http://gig-9001-ek.localhost:8080', $url);
+    }
+
     /**
      * Build a resolver whose probe returns a status code derived from the
-     * request's Host header.
+     * request's Host header. Returning null simulates a refused connection.
      *
-     * @param callable(string): int $statusForHost
+     * @param callable(string): (int|null) $statusForHost
      */
     private function resolverReturning(callable $statusForHost): WorktreeUrlResolver
     {
         $probe = new AppUrlProbe(static function (string $method, string $url, array $options) use ($statusForHost): Response {
             $host = (string) ($options['headers']['Host'] ?? '');
+            $status = $statusForHost($host);
+            if ($status === null) {
+                throw new ConnectException('refused', new Request($method, $url));
+            }
 
-            return new Response($statusForHost($host));
+            return new Response($status);
         });
 
         return new WorktreeUrlResolver($probe, baselineAttempts: 1);

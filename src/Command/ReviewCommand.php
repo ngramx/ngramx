@@ -625,10 +625,14 @@ class ReviewCommand extends Command
                     $portMap
                 )
             );
-            if ($resolvedUrls->primary !== $worktreeUrl) {
-                $worktreeUrl = $resolvedUrls->primary;
-                $this->seedWorktreeEnv($repositoryPath, $worktreePath, $worktreeUrl, $formatter);
-            }
+            // Re-seed unconditionally, not just when the probe changed its mind.
+            // A `pre_start` command that recreates .env from a template -- hydra
+            // does `cp docker/config/env.dev .env` -- runs after the pre-start
+            // seed and reverts APP_URL to the template's portless canonical URL.
+            // The app then generates links on port 80, pointing the browser at
+            // whichever stack owns that port instead of this worktree.
+            $worktreeUrl = $resolvedUrls->primary;
+            $this->seedWorktreeEnv($repositoryPath, $worktreePath, $worktreeUrl, $formatter);
             $worktreeUrls = $resolvedUrls;
             // Hostnames may have changed since the pre-start seed; a Vite dev
             // server only reads VITE_* at boot, so recreate any endpoint
