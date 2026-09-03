@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.43.3](https://github.com/ngramx/ngramx/compare/v2.43.2...v2.43.3) (2026-09-03)
+
+
+### Bug Fixes
+
+* **release:** refresh ngramx on coding-agent via maintenance API ([46612c0](https://github.com/ngramx/ngramx/commit/46612c0d6b7a4b819164d28bef6663dffa62674e))
+
 ## [2.43.2](https://github.com/ngramx/ngramx/compare/v2.43.1...v2.43.2) (2026-09-03)
 
 
