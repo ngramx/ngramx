@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.43.4](https://github.com/ngramx/ngramx/compare/v2.43.3...v2.43.4) (2026-09-03)
+
+
+### Bug Fixes
+
+* **docker:** Self-Heal Stale Docker Desktop Bind Mounts ([#20](https://github.com/ngramx/ngramx/issues/20)) ([f363369](https://github.com/ngramx/ngramx/commit/f363369fbb9b42b382afde05e9cc5a0dfe8dfaa6))
+* **release:** show HTTP status on coding-agent update failure ([#19](https://github.com/ngramx/ngramx/issues/19)) ([d70a199](https://github.com/ngramx/ngramx/commit/d70a1994ee3542d2f1d037c8efc55c6e646d4d25))
+
 ## [2.43.3](https://github.com/ngramx/ngramx/compare/v2.43.2...v2.43.3) (2026-09-03)
 
 
