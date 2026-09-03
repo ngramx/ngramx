@@ -42,17 +42,6 @@ plugins:
         - src/Application.php
       message: "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
 
-  # Trigger Cortex Coder deploy (must run in the release job — GITHUB_TOKEN-created
-  # releases do not fire the separate deploy-cortex-coder workflow).
-  - - "@semantic-release/exec"
-    - publishCmd: >-
-        if [ -n "${FORGE_DEPLOY_TRIGGER_URL:-}" ]; then
-          echo "Triggering Cortex Coder deployment...";
-          curl -sf -X POST "${FORGE_DEPLOY_TRIGGER_URL}" && echo "Cortex Coder deploy triggered";
-        else
-          echo "FORGE_DEPLOY_TRIGGER_URL not set — skipping Cortex Coder deploy";
-        fi
-
   # Create GitHub release and upload assets
   - - "@semantic-release/github"
     - assets:
@@ -61,3 +50,10 @@ plugins:
         - path: install.sh
           label: Installation Script
 
+  # Trigger Cortex Coder deploy. Must run in the release job — GitHub does not
+  # fire `release: published` for GITHUB_TOKEN-created releases, so the separate
+  # deploy-cortex-coder workflow never runs. Uses the `success` hook so it fires
+  # only after @semantic-release/github has published the release and uploaded
+  # ngramx.phar, which `ngramx update` needs. The script never exits non-zero.
+  - - "@semantic-release/exec"
+    - successCmd: "./scripts/trigger-cortex-coder-deploy.sh"

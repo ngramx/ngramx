@@ -106,7 +106,7 @@ No manual intervention required!
 
 ### Cortex Coder deploy
 
-The deploy is **not** triggered by the separate `deploy-cortex-coder.yml` workflow. GitHub does not fire `release: published` for releases created by `GITHUB_TOKEN` (semantic-release uses that token), so step 10 runs inside the Release job via `@semantic-release/exec` `publishCmd` in `.releaserc.yml`.
+The deploy is **not** triggered by the separate `deploy-cortex-coder.yml` workflow. GitHub does not fire `release: published` for releases created by `GITHUB_TOKEN` (semantic-release uses that token), so step 10 runs inside the Release job via `@semantic-release/exec` `successCmd` in `.releaserc.yml`, which runs `scripts/trigger-cortex-coder-deploy.sh` after the release and its `ngramx.phar` asset are published.
 
 Set `FORGE_DEPLOY_TRIGGER_URL` in this repository's GitHub Actions secrets (same value as `gigabyte-software/cortex-coder`). Without it, releases still publish but the coding-agent keeps its existing ngramx version until the next cortex-coder deploy.
 
