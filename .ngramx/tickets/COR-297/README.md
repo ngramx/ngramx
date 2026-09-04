@@ -42,3 +42,4 @@ Nightly factory produce publishes anonymized artifacts to `weathered-brook-anony
 - Updated postmaclone-factory `postmaclone.yml` (remote scratch + shared) and GHA workflow.
 - Run `ngramx init-postmaclone-workflow` in postmaclone-factory repo; set `OP_SERVICE_ACCOUNT_TOKEN` secret.
 - Merge/release ngramx COR-297 before GHA can use new produce features.
+- Factory repo transferred to https://github.com/gigabyte-software/postmaclone-factory so it can use Gigabyte Enterprise larger runners with static IPs.

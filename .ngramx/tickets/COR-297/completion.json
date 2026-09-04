@@ -6,11 +6,11 @@
   "test_urls": [
     {
       "label": "Factory produce workflow",
-      "url": "https://github.com/ngramx/postmaclone-factory/actions/workflows/postmaclone-produce.yml"
+      "url": "https://github.com/gigabyte-software/postmaclone-factory/actions/workflows/postmaclone-produce.yml"
     },
     {
       "label": "Factory postmaclone.yml",
-      "url": "https://github.com/ngramx/postmaclone-factory/blob/main/postmaclone.yml"
+      "url": "https://github.com/gigabyte-software/postmaclone-factory/blob/main/postmaclone.yml"
     }
   ],
   "test_plan": [
@@ -18,7 +18,7 @@
       "description": "Factory config and image are reviewable and ngramx docs point at the dedicated repo",
       "status": "stale",
       "steps": [
-        "Open https://github.com/ngramx/postmaclone-factory and confirm postmaclone.yml lists hydra then earl-kendrick",
+        "Open https://github.com/gigabyte-software/postmaclone-factory and confirm postmaclone.yml lists hydra then earl-kendrick",
         "Confirm publish paths use weathered-brook-anonymized-backups, not database-backups/all",
         "Confirm credentials are op:// refs (read vs write items are separate)",
         "Confirm ngramx README Large DBs section links the factory repo",

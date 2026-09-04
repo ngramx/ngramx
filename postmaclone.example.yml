@@ -1,6 +1,6 @@
 # Factory config for nightly anonymized artifact production.
 # Lives in the dedicated factory repo (not an app checkout):
-#   https://github.com/ngramx/postmaclone-factory
+#   https://github.com/gigabyte-software/postmaclone-factory
 # Discover as postmaclone.yml / .yaml.
 #
 #   ngramx postmaclone produce --all
