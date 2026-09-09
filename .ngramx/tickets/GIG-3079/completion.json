@@ -1,7 +1,7 @@
 {
   "title": "GIG-3079: Implement Backup Monitoring Alert For Database Backups",
   "description": "Fails factory produce when the raw Spaces backup prefix has no object newer than 24 hours, so a silent Forge backup outage turns the nightly job red.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/21",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3079/implement-backup-monitoring-alert-for-database-backups",
   "test_urls": [
     {
