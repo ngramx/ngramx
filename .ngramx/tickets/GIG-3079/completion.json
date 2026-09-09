@@ -1,0 +1,35 @@
+{
+  "title": "GIG-3079: Implement Backup Monitoring Alert For Database Backups",
+  "description": "Fails factory produce when the raw Spaces backup prefix has no object newer than 24 hours, so a silent Forge backup outage turns the nightly job red.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/21",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-3079/implement-backup-monitoring-alert-for-database-backups",
+  "test_urls": [
+    {
+      "label": "Factory produce workflow",
+      "url": "https://github.com/gigabyte-software/postmaclone-factory/actions/workflows/postmaclone-produce.yml"
+    },
+    {
+      "label": "Factory postmaclone.yml",
+      "url": "https://github.com/gigabyte-software/postmaclone-factory/blob/main/postmaclone.yml"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Unit tests cover fresh, stale, empty, and local backup sources",
+      "status": "active",
+      "steps": [
+        "In the ngramx app container run vendor/bin/phpunit --filter BackupFreshnessCheckerTest",
+        "Confirm all five tests pass"
+      ]
+    },
+    {
+      "description": "Stale raw backups fail produce before restore or publish",
+      "status": "active",
+      "steps": [
+        "Confirm produceDataset calls BackupFreshnessChecker before materialize",
+        "After this ngramx version is released, run a factory produce against a prefix whose newest object is older than 24 hours and confirm the job fails with 'Database backups do not appear to be running — last backup file modified X days ago'",
+        "Confirm the last anonymized artifact and shared hosted DB were not overwritten"
+      ]
+    }
+  ]
+}

@@ -664,7 +664,7 @@ ngramx postmaclone produce --dataset earl-kendrick
 
 Downloading and anonymizing multi‑GB Forge dumps on every laptop is untenable. Use the dedicated **[postmaclone-factory](https://github.com/gigabyte-software/postmaclone-factory)** repo (`postmaclone.yml`, not an app checkout) and a **scheduled GitHub Actions** job (or lon1 host) in the **same DO region** as Spaces:
 
-1. Job: `ngramx postmaclone produce --all` — pull prod dump → restore **remote scratch DB** (DO Managed Database; not the ~14GB GHA runner disk) → anonymize → dump (optional `include_tables` / `exclude_tables`) → upload to a **separate anonymized bucket** + `latest.json` → refresh **shared hosted DB**
+1. Job: `ngramx postmaclone produce --all` — refuse if the raw backup prefix has no object newer than 24 hours → pull prod dump → restore **remote scratch DB** (DO Managed Database; not the ~14GB GHA runner disk) → anonymize → dump (optional `include_tables` / `exclude_tables`) → upload to a **separate anonymized bucket** + `latest.json` → refresh **shared hosted DB**
 2. App `ngramx.yml`: `postmaclone.shared` (hosted DB, primary) and/or `postmaclone.prebuilt` (artifact escape hatch) — consumer restores locally when needed, **skips anonymize**
 
 Bootstrap the workflow in a factory repo:

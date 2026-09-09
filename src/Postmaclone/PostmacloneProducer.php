@@ -11,6 +11,7 @@ use Ngramx\Config\Schema\Postmaclone\TargetConfig;
 use Ngramx\Filesystem\AbsolutePath;
 use Ngramx\Postmaclone\Anonymizer\LiveAnonymizer;
 use Ngramx\Postmaclone\Anonymizer\SqlDialect;
+use Ngramx\Postmaclone\Backup\BackupFreshnessChecker;
 use Ngramx\Postmaclone\Backup\DatabaseDumper;
 use Ngramx\Postmaclone\Backup\LocalBackupSource;
 use Ngramx\Postmaclone\Backup\S3BackupSource;
@@ -40,6 +41,7 @@ class PostmacloneProducer
         private readonly SharedDbRefresher $sharedRefresher = new SharedDbRefresher(),
         private readonly SharedDbPasswordRotator $passwordRotator = new SharedDbPasswordRotator(),
         private readonly RemoteDbConnectionResolver $connectionResolver = new RemoteDbConnectionResolver(),
+        private readonly BackupFreshnessChecker $backupFreshness = new BackupFreshnessChecker(),
     ) {
     }
 
@@ -65,6 +67,8 @@ class PostmacloneProducer
                 $faker->assertMethodExists($column->faker);
             }
         }
+
+        $this->backupFreshness->assertFresh($dataset);
 
         $source = $this->buildBackupSource($dataset, $cacheDir);
         $dumpPath = $source->materialize();

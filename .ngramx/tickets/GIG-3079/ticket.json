@@ -1,0 +1,18 @@
+{
+  "id": "GIG-3079",
+  "uuid": "b1bf7aa1-ce1b-4a89-8ac0-0b2e9259c8d4",
+  "title": "Implement backup monitoring alert for database backups",
+  "url": "https://linear.app/gigabyte/issue/GIG-3079/implement-backup-monitoring-alert-for-database-backups",
+  "gitBranchName": "gig-3079-implement-backup-monitoring-alert-for-database-backups",
+  "status": "In Progress",
+  "priority": "Urgent",
+  "estimate": "4 Points",
+  "team": "Gigabyte",
+  "assignee": "Cameron Smith",
+  "createdAt": "2026-09-03T08:40:53.198Z",
+  "createdBy": "Rob Corley",
+  "blockedBy": [],
+  "blocks": [],
+  "relatedTo": [],
+  "description": "The team discovered that database backups on Forge had silently stopped running since August 6th. The backup config was completely deleted (not just disabled), and no one was notified. If a data loss event had occurred during this period, there would have been no backups to restore from.\n\nImplement a monitoring check that:\n\n1. Runs nightly (can be integrated into the post-clone job in the managed cluster setup Cameron is building)\n2. Checks the backup bucket for the most recently modified file\n3. If no file has been modified in the last 24 hours, raises a Sentry error flagged as urgent\n4. The alert should be clear: \"Database backups do not appear to be running — last backup file modified X days ago\"\n\n## Context\n\n* Cameron is already working on the managed cluster / post-clone setup, so this can be added as a gate/check in that workflow\n* The backup config was recreated, but there's no protection against it silently disappearing again\n* Rob removed a former team member's access as a precaution, though the cause of the deletion is unknown\n\n## Goal\n\nEnsure the team is immediately notified if database backups stop running, preventing the catastrophic scenario of discovering missing backups only after a data loss event."
+}
