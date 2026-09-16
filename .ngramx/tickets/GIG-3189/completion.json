@@ -12,7 +12,7 @@
   "test_plan": [
     {
       "description": "Unit tests cover 10% progress boundaries and sanitizer byte ticks",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run vendor/bin/phpunit tests/Unit/Postmaclone/PercentReporterTest.php tests/Unit/Postmaclone/PlainSqlDumpSanitizerTest.php tests/Unit/Command/InitPostmacloneWorkflowCommandTest.php",
         "Confirm the new cases pass"
@@ -20,11 +20,28 @@
     },
     {
       "description": "Factory workflow template unbuffers produce output and installs pg_dump 17",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run ngramx init-postmaclone-workflow --dataset earl-kendrick in an empty directory",
         "Confirm the generated workflow installs postgresql-client-17",
         "Confirm the produce step uses stdbuf and php -d output_buffering=Off"
+      ]
+    },
+    {
+      "description": "mysqldump is not polled (Bugbot pipe hang)",
+      "status": "active",
+      "steps": [
+        "Open src/Postmaclone/Backup/DatabaseDumper.php",
+        "Confirm mysqlDump calls Process::run() and does not call runDumpProcess",
+        "Confirm runDumpProcess calls clearstatcache before filesize"
+      ]
+    },
+    {
+      "description": "Generated workflow adds the PGDG apt repo",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Command/InitPostmacloneWorkflowCommandTest.php",
+        "Confirm the generated YAML contains apt.postgresql.org and postgresql-client-17"
       ]
     }
   ]

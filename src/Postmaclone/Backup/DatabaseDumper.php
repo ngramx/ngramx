@@ -120,12 +120,22 @@ class DatabaseDumper
             $process->setEnv(array_merge($_ENV, ['MYSQL_PWD' => $pass]));
         }
         $process->setTimeout(7200);
-        $this->runDumpProcess($process, $out, $onProgress, 'Dumping anonymized database');
+        if ($onProgress !== null) {
+            $onProgress('Dumping anonymized database');
+        }
+        // mysqldump writes the whole dump to stdout. Must run() so Symfony
+        // drains the pipe; polling isRunning() + sleep lets the pipe fill
+        // and blocks the child until the two-hour timeout.
+        $process->run();
         if (!$process->isSuccessful()) {
             throw new PostmacloneException('mysqldump failed: ' . $process->getErrorOutput());
         }
         if (file_put_contents($out, $process->getOutput()) === false) {
             throw new PostmacloneException("Failed to write dump: {$out}");
+        }
+        if ($onProgress !== null) {
+            $size = is_file($out) ? (int) filesize($out) : 0;
+            $onProgress(sprintf('Dumping anonymized database finished (%s)', $this->formatBytes($size)));
         }
     }
 
@@ -178,17 +188,26 @@ class DatabaseDumper
         $process->start();
         while ($process->isRunning()) {
             $process->checkTimeout();
-            $size = is_file($out) ? (int) filesize($out) : 0;
+            $process->getIncrementalOutput();
+            $process->getIncrementalErrorOutput();
+            $size = $this->dumpFileSize($out);
             if ($size - $lastBytes >= 256 * 1024 * 1024) {
                 $onProgress(sprintf('%s (%s written)', $label, $this->formatBytes($size)));
                 $lastBytes = $size;
             }
             usleep(5_000_000);
         }
-        $size = is_file($out) ? (int) filesize($out) : 0;
+        $size = $this->dumpFileSize($out);
         if ($size > 0) {
             $onProgress(sprintf('%s finished (%s)', $label, $this->formatBytes($size)));
         }
+    }
+
+    private function dumpFileSize(string $path): int
+    {
+        clearstatcache(true, $path);
+
+        return is_file($path) ? (int) filesize($path) : 0;
     }
 
     private function formatBytes(int $bytes): string
