@@ -1,7 +1,7 @@
 {
   "title": "GIG-3189: Produce Progress Every Ten Percent",
   "description": "Logs produce stages and ~10% progress on download, sanitize, anonymize, and gzip so factory GitHub Actions is not silent for hours.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/23",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3189/identify-and-configure-all-pii-columns-for-post-clone-anonymization",
   "test_urls": [
     {

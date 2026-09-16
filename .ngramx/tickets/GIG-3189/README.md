@@ -20,3 +20,4 @@ Engine support so project PII rules can rewrite JSON payloads, clear tokens, kee
 - PR: https://github.com/ngramx/ngramx/pull/22
 - Bugbot: decode JSON as objects so `{}` stays `{}`; strip `unique` before `emailOrName`; escape MySQL backslashes in SQL literals.
 - Produce logs each stage and ~10% ticks on download, dump sanitizer, per-table anonymize, and gzip. Console lines are flushed so GitHub Actions is not silent for hours. Workflow template pins `postgresql-client-17` and runs PHP with `stdbuf` + `output_buffering=Off`.
+- PR: https://github.com/ngramx/ngramx/pull/23
