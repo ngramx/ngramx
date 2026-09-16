@@ -46,9 +46,10 @@ class PostmacloneProducer
     }
 
     /**
+     * @param (callable(string): void)|null $onProgress
      * @return array{dataset: string, artifact_key: string, size: int, sha256: string, warnings: list<string>, shared_refreshed: bool, password_rotated: bool}
      */
-    public function produceDataset(FactoryDatasetConfig $dataset, string $workRoot, bool $strict = false): array
+    public function produceDataset(FactoryDatasetConfig $dataset, string $workRoot, bool $strict = false, ?callable $onProgress = null): array
     {
         $engine = $dataset->engine ?? PostmacloneConfig::ENGINE_POSTGRES;
         if (!in_array($engine, [
@@ -70,19 +71,24 @@ class PostmacloneProducer
             }
         }
 
+        $this->progress($onProgress, 'Checking backup freshness');
         $this->backupFreshness->assertFresh($dataset);
 
-        $source = $this->buildBackupSource($dataset, $cacheDir);
+        $this->progress($onProgress, 'Downloading dump');
+        $source = $this->buildBackupSource($dataset, $cacheDir, $onProgress);
         $dumpPath = $source->materialize();
+        $this->progress($onProgress, 'Provisioning scratch database');
         $target = $this->provisionScratch($dataset, $engine);
 
         try {
             if ($target->provider === 'remote') {
+                $this->progress($onProgress, 'Wiping scratch database');
                 (new DatabaseWiper())->wipe($engine, $target);
             }
 
+            $this->progress($onProgress, 'Restoring dump into scratch');
             $restorer = $engine === PostmacloneConfig::ENGINE_POSTGRES
-                ? new PostgresRestorer()
+                ? new PostgresRestorer(onProgress: $onProgress)
                 : new MysqlRestorer();
             $restorer->restore($dumpPath, $target);
 
@@ -97,11 +103,13 @@ class PostmacloneProducer
                 $target->password,
             );
 
+            $this->progress($onProgress, 'Anonymizing scratch database');
             $anonymizer = new LiveAnonymizer(
                 $faker,
                 new SqlDialect($engine),
                 $dataset->testPassword,
                 strict: $strict,
+                onProgress: $onProgress,
             );
             $anonymizer->anonymize($pdo, $dataset->tables);
             $warnings = $anonymizer->warnings();
@@ -109,6 +117,7 @@ class PostmacloneProducer
             $artifactName = $dataset->publish->file ?? ($dataset->name . '_anon.sql.gz');
             $artifactLocal = rtrim($cacheDir, '/') . '/' . $artifactName;
             $connUrl = $this->dumpConnectionUrl($engine, $pdoHost, $pdoPort, $target);
+            $this->progress($onProgress, 'Dumping anonymized database');
             $artifactLocal = $this->dumper->dump(
                 $connUrl,
                 $engine === 'mariadb' ? 'mysql' : $engine,
@@ -116,6 +125,7 @@ class PostmacloneProducer
                 $dataset->includeTables,
                 $dataset->excludeTables,
                 gzip: true,
+                onProgress: $onProgress,
             );
 
             $size = (int) filesize($artifactLocal);
@@ -141,6 +151,7 @@ class PostmacloneProducer
             );
             $previousManifest = (new S3ManifestReader($manifestLocator, $publishCredentials))->read();
 
+            $this->progress($onProgress, 'Uploading artifact');
             $uploader = new S3ObjectUploader($locator, $publishCredentials);
             $uploader->putFile($artifactLocal);
 
@@ -148,6 +159,7 @@ class PostmacloneProducer
             $passwordRotated = false;
             $passwordRotatedAt = null;
             if ($dataset->shared?->isConfigured() ?? false) {
+                $this->progress($onProgress, 'Refreshing shared hosted database');
                 $this->sharedRefresher->refresh($engine, $dataset->shared, $artifactLocal);
                 $sharedRefreshed = true;
 
@@ -200,11 +212,25 @@ class PostmacloneProducer
                 'password_rotated' => $passwordRotated,
             ];
         } finally {
+            $this->progress($onProgress, 'Destroying scratch database');
             $this->destroyScratch($dataset, $target, $engine);
         }
     }
 
-    private function buildBackupSource(FactoryDatasetConfig $dataset, string $cacheDir): LocalBackupSource|S3BackupSource
+    /**
+     * @param (callable(string): void)|null $onProgress
+     */
+    private function progress(?callable $onProgress, string $message): void
+    {
+        if ($onProgress !== null) {
+            $onProgress($message);
+        }
+    }
+
+    /**
+     * @param (callable(string): void)|null $onProgress
+     */
+    private function buildBackupSource(FactoryDatasetConfig $dataset, string $cacheDir, ?callable $onProgress = null): LocalBackupSource|S3BackupSource
     {
         $backup = $dataset->backup;
         if ($backup->source === BackupConfig::SOURCE_S3 || (
@@ -227,6 +253,7 @@ class PostmacloneProducer
                 $cacheDir,
                 file: $backup->file,
                 credentials: new S3Credentials($backup->credentials),
+                onProgress: $onProgress,
             );
         }
 

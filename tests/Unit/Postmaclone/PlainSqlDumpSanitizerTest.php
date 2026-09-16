@@ -74,4 +74,29 @@ SQL);
         self::assertStringNotContainsString('ALTER SCHEMA', $body);
         self::assertStringContainsString('OWNER TO CURRENT_USER', $body);
     }
+
+    public function testReportsSanitizerProgressByInputBytes(): void
+    {
+        $path = $this->dir . '/progress.sql';
+        $line = str_repeat('A', 99) . "\n";
+        file_put_contents($path, str_repeat($line, 10));
+
+        $lines = [];
+        (new PlainSqlDumpSanitizer())->forPsql($path, function (string $message) use (&$lines): void {
+            $lines[] = $message;
+        });
+
+        self::assertSame([
+            'Sanitizing dump 10%',
+            'Sanitizing dump 20%',
+            'Sanitizing dump 30%',
+            'Sanitizing dump 40%',
+            'Sanitizing dump 50%',
+            'Sanitizing dump 60%',
+            'Sanitizing dump 70%',
+            'Sanitizing dump 80%',
+            'Sanitizing dump 90%',
+            'Sanitizing dump 100%',
+        ], $lines);
+    }
 }

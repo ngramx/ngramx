@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Ngramx\Postmaclone\Anonymizer;
 
+use Ngramx\Config\Schema\Postmaclone\ColumnRule;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
 use Ngramx\Config\Schema\Postmaclone\TableRule;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\FakerMethodResolver;
+use Ngramx\Postmaclone\Progress\PercentReporter;
 use PDO;
 use Throwable;
 
@@ -20,14 +22,24 @@ class LiveAnonymizer
 
     private readonly AnonymizedValueFactory $values;
 
+    /**
+     * @var (callable(string): void)|null
+     */
+    private $onProgress;
+
+    /**
+     * @param (callable(string): void)|null $onProgress
+     */
     public function __construct(
         FakerMethodResolver $faker,
         private readonly SqlDialect $dialect,
         string $testPassword = PostmacloneConfig::DEFAULT_TEST_PASSWORD,
         private readonly int $chunkSize = 500,
         private readonly bool $strict = false,
+        ?callable $onProgress = null,
     ) {
         $this->values = new AnonymizedValueFactory($faker, $testPassword);
+        $this->onProgress = $onProgress;
     }
 
     /**
@@ -86,14 +98,19 @@ class LiveAnonymizer
 
         $selectCols = array_unique(array_merge([$pk], array_keys($columns)));
         $quoted = array_map(fn (string $c) => $this->dialect->quoteIdentifier($c), $selectCols);
-        $sql = 'SELECT ' . implode(', ', $quoted)
-            . ' FROM ' . $this->dialect->quoteIdentifier($table->table);
+        $from = ' FROM ' . $this->dialect->quoteIdentifier($table->table);
+        $where = $this->tableWhere($columns);
+        $sql = 'SELECT ' . implode(', ', $quoted) . $from . $where;
 
-        foreach ($columns as $rule) {
-            if ($rule->where !== null && $rule->where !== '') {
-                $sql .= ' WHERE ' . $rule->where;
-                break;
-            }
+        $total = $this->countRows($pdo, $from . $where);
+        if ($total !== null) {
+            $this->progress(sprintf(
+                'Anonymizing %s (%s rows)',
+                $table->table,
+                number_format($total)
+            ));
+        } else {
+            $this->progress("Anonymizing {$table->table}");
         }
 
         $stmt = $pdo->query($sql);
@@ -102,6 +119,10 @@ class LiveAnonymizer
 
             return;
         }
+
+        $reporter = $this->onProgress !== null && $total !== null
+            ? new PercentReporter($total, "Anonymizing {$table->table}", $this->onProgress)
+            : null;
 
         $usable = new TableRule($table->table, $columns, $table->primaryKey);
         $batch = [];
@@ -114,11 +135,50 @@ class LiveAnonymizer
             $batch[] = $row;
             if (count($batch) >= $this->chunkSize) {
                 $this->applyBatch($pdo, $usable, $pk, $batch);
+                $reporter?->add(count($batch));
                 $batch = [];
             }
         }
         if ($batch !== []) {
             $this->applyBatch($pdo, $usable, $pk, $batch);
+            $reporter?->add(count($batch));
+        }
+        $reporter?->finish();
+    }
+
+    /**
+     * @param array<string, ColumnRule> $columns
+     */
+    private function tableWhere(array $columns): string
+    {
+        foreach ($columns as $rule) {
+            if ($rule->where !== null && $rule->where !== '') {
+                return ' WHERE ' . $rule->where;
+            }
+        }
+
+        return '';
+    }
+
+    private function countRows(PDO $pdo, string $fromAndWhere): ?int
+    {
+        try {
+            $stmt = $pdo->query('SELECT COUNT(*)' . $fromAndWhere);
+            if ($stmt === false) {
+                return null;
+            }
+            $n = $stmt->fetchColumn();
+
+            return is_numeric($n) ? (int) $n : null;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    private function progress(string $message): void
+    {
+        if ($this->onProgress !== null) {
+            ($this->onProgress)($message);
         }
     }
 

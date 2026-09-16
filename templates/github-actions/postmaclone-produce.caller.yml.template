@@ -39,8 +39,16 @@ jobs:
 
       - name: Install database clients
         run: |
+          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y postgresql-client mysql-client gzip
+          sudo apt-get install -y ca-certificates curl gnupg mysql-client gzip
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          pg_dump --version
 
       - name: Install 1Password CLI
         uses: 1password/install-cli-action@v2
@@ -57,4 +65,4 @@ jobs:
           POSTMACLONE_REMOTE_URL: ${{ secrets.POSTMACLONE_REMOTE_URL }}
         run: |
           set -euo pipefail
-          php ngramx.phar postmaclone produce {{PRODUCE_ARGS}} --config {{CONFIG_PATH}}
+          stdbuf -oL -eL php -d output_buffering=Off -d implicit_flush=1 ngramx.phar postmaclone produce {{PRODUCE_ARGS}} --config {{CONFIG_PATH}}

@@ -407,6 +407,9 @@ class PostmacloneCommand extends Command
                     $factory->datasets[$name],
                     $workRoot,
                     (bool) $input->getOption('strict'),
+                    onProgress: static function (string $message) use ($formatter): void {
+                        $formatter->info($message);
+                    },
                 );
                 foreach ($result['warnings'] as $warning) {
                     $formatter->warning($warning);

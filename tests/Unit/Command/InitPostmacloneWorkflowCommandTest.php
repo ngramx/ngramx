@@ -42,6 +42,9 @@ class InitPostmacloneWorkflowCommandTest extends TestCase
         $this->assertStringContainsString('0 3 * * *', $yaml);
         $this->assertStringContainsString('pdo_pgsql', $yaml);
         $this->assertStringContainsString('pdo_mysql', $yaml);
+        $this->assertStringContainsString('postgresql-client-17', $yaml);
+        $this->assertStringContainsString('apt.postgresql.org', $yaml);
+        $this->assertStringContainsString('stdbuf -oL -eL php -d output_buffering=Off', $yaml);
     }
 
     public function test_writes_workflow_with_all_flag_when_no_dataset(): void
