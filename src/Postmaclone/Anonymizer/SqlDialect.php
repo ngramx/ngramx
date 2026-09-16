@@ -41,6 +41,9 @@ class SqlDialect
         }
 
         $string = (string) $value;
+        if ($this->engine !== PostmacloneConfig::ENGINE_POSTGRES) {
+            $string = str_replace(['\\', "\0"], ['\\\\', '\\0'], $string);
+        }
         $escaped = str_replace("'", "''", $string);
 
         return "'" . $escaped . "'";

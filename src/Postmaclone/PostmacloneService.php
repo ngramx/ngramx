@@ -692,7 +692,9 @@ class PostmacloneService
     {
         foreach ($pm->tables as $table) {
             foreach ($table->columns as $column) {
-                $faker->assertMethodExists($column->faker);
+                foreach ($column->fakerExpressions() as $expression) {
+                    $faker->assertMethodExists($expression);
+                }
             }
         }
     }

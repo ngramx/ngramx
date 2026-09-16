@@ -446,14 +446,43 @@ class ConfigValidator
                         "{$prefix}.{$tableName}.{$columnName} must be a faker method string or an object"
                     );
                 }
-                if (!isset($rule['faker']) || !is_string($rule['faker']) || trim($rule['faker']) === '') {
-                    throw new ConfigException("{$prefix}.{$tableName}.{$columnName}.faker is required");
+                $hasFaker = isset($rule['faker']) && is_string($rule['faker']) && trim($rule['faker']) !== '';
+                $hasJson = isset($rule['json']) && is_array($rule['json']) && $rule['json'] !== [];
+                $hasJsonArray = isset($rule['json_array']) && is_string($rule['json_array']) && trim($rule['json_array']) !== '';
+                if (!$hasFaker && !$hasJson && !$hasJsonArray) {
+                    throw new ConfigException(
+                        "{$prefix}.{$tableName}.{$columnName} requires faker, json, or json_array"
+                    );
+                }
+                if (isset($rule['faker']) && !is_string($rule['faker'])) {
+                    throw new ConfigException("{$prefix}.{$tableName}.{$columnName}.faker must be a string");
+                }
+                if (isset($rule['json'])) {
+                    if (!is_array($rule['json']) || $rule['json'] === []) {
+                        throw new ConfigException("{$prefix}.{$tableName}.{$columnName}.json must be a non-empty map of path => faker");
+                    }
+                    foreach ($rule['json'] as $path => $expression) {
+                        if (!is_string($path) || $path === '' || !is_string($expression) || trim($expression) === '') {
+                            throw new ConfigException(
+                                "{$prefix}.{$tableName}.{$columnName}.json keys and values must be non-empty strings"
+                            );
+                        }
+                    }
+                }
+                if (isset($rule['json_array']) && (!is_string($rule['json_array']) || trim($rule['json_array']) === '')) {
+                    throw new ConfigException("{$prefix}.{$tableName}.{$columnName}.json_array must be a non-empty string");
                 }
                 if (isset($rule['unique']) && !is_bool($rule['unique'])) {
                     throw new ConfigException("{$prefix}.{$tableName}.{$columnName}.unique must be a boolean");
                 }
                 if (isset($rule['preserve_nulls']) && !is_bool($rule['preserve_nulls'])) {
                     throw new ConfigException("{$prefix}.{$tableName}.{$columnName}.preserve_nulls must be a boolean");
+                }
+                if (isset($rule['recursive']) && !is_bool($rule['recursive'])) {
+                    throw new ConfigException("{$prefix}.{$tableName}.{$columnName}.recursive must be a boolean");
+                }
+                if (isset($rule['consistent']) && !is_bool($rule['consistent'])) {
+                    throw new ConfigException("{$prefix}.{$tableName}.{$columnName}.consistent must be a boolean");
                 }
                 if (isset($rule['where']) && (!is_string($rule['where']) || $rule['where'] === '')) {
                     throw new ConfigException("{$prefix}.{$tableName}.{$columnName}.where must be a non-empty string");

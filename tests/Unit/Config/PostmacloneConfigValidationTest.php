@@ -164,6 +164,46 @@ class PostmacloneConfigValidationTest extends TestCase
         $this->assertSame('spaces://anon-bucket/demo/', $factory->datasets['demo']->publish->path);
     }
 
+    public function test_accepts_json_only_column_rules(): void
+    {
+        $this->validator->validate($this->base([
+            'postmaclone' => [
+                'engine' => 'postgres',
+                'tables' => [
+                    'xero_invoices' => [
+                        'json' => [
+                            'json' => [
+                                'Contact.EmailAddress' => 'safeEmail',
+                            ],
+                            'recursive' => true,
+                        ],
+                        'tags' => [
+                            'json_array' => 'word',
+                        ],
+                        'access_token' => 'clear',
+                    ],
+                ],
+            ],
+        ]));
+        $this->assertTrue(true);
+    }
+
+    public function test_rejects_column_object_without_faker_or_json(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('requires faker, json, or json_array');
+        $this->validator->validate($this->base([
+            'postmaclone' => [
+                'engine' => 'postgres',
+                'tables' => [
+                    'users' => [
+                        'email' => ['unique' => true],
+                    ],
+                ],
+            ],
+        ]));
+    }
+
     public function test_rejects_unknown_engine(): void
     {
         $this->expectException(ConfigException::class);

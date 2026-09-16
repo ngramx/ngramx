@@ -60,6 +60,12 @@ class FakerMethodResolver
         if ($name === 'password') {
             return [static fn () => null, $unique]; // handled specially by anonymizer
         }
+        if ($name === 'clear') {
+            return [static fn () => '', $unique];
+        }
+        if ($name === 'emailOrName') {
+            return [static fn () => null, $unique]; // needs the current cell; handled by AnonymizedValueFactory
+        }
 
         $this->assertFormatterExists($name);
 
@@ -73,7 +79,7 @@ class FakerMethodResolver
     public function assertMethodExists(string $method): void
     {
         $method = trim($method);
-        if ($method === '' || $method === 'password') {
+        if ($method === '' || $method === 'password' || $method === 'clear' || $method === 'emailOrName') {
             return;
         }
 
@@ -100,7 +106,7 @@ class FakerMethodResolver
         if ($this->hasUniquePrefix($name)) {
             $name = lcfirst(substr($name, 6));
         }
-        if ($name === 'password') {
+        if ($name === 'password' || $name === 'clear' || $name === 'emailOrName') {
             return;
         }
 
@@ -256,9 +262,9 @@ class FakerMethodResolver
     private function assertCall(string $call): void
     {
         $name = $this->formatterName($call);
-        if ($name === 'password') {
+        if ($name === 'password' || $name === 'clear' || $name === 'emailOrName') {
             throw new PostmacloneException(
-                "Faker method 'password' cannot be used inside a chained expression; use it alone."
+                "Faker method '{$name}' cannot be used inside a chained expression; use it alone."
             );
         }
         $this->assertFormatterExists($name);

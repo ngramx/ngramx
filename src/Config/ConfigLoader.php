@@ -615,15 +615,32 @@ class ConfigLoader
                     );
                     continue;
                 }
-                if (!is_array($rule) || !isset($rule['faker']) || !is_string($rule['faker'])) {
+                if (!is_array($rule)) {
                     continue;
+                }
+                $faker = isset($rule['faker']) && is_string($rule['faker']) ? $rule['faker'] : '';
+                $json = $this->loadJsonColumnRules($rule['json'] ?? null);
+                $jsonArray = isset($rule['json_array']) && is_string($rule['json_array'])
+                    ? $rule['json_array']
+                    : null;
+                if ($faker === '' && $json === [] && ($jsonArray === null || $jsonArray === '')) {
+                    continue;
+                }
+                if ($faker !== '' && str_starts_with($faker, 'unique') && strlen($faker) > 6 && ctype_upper($faker[6] ?? '')) {
+                    $uniqueDefault = true;
+                } else {
+                    $uniqueDefault = false;
                 }
                 $columns[$columnName] = new ColumnRule(
                     column: $columnName,
-                    faker: $rule['faker'],
-                    unique: (bool) ($rule['unique'] ?? false),
+                    faker: $faker,
+                    unique: (bool) ($rule['unique'] ?? $uniqueDefault),
                     preserveNulls: (bool) ($rule['preserve_nulls'] ?? true),
                     where: isset($rule['where']) && is_string($rule['where']) ? $rule['where'] : null,
+                    json: $json,
+                    jsonArray: $jsonArray,
+                    jsonRecursive: (bool) ($rule['recursive'] ?? false),
+                    consistent: (bool) ($rule['consistent'] ?? false),
                 );
             }
 
@@ -635,6 +652,25 @@ class ConfigLoader
         }
 
         return $tables;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function loadJsonColumnRules(mixed $raw): array
+    {
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $json = [];
+        foreach ($raw as $path => $expression) {
+            if (is_string($path) && $path !== '' && is_string($expression) && $expression !== '') {
+                $json[$path] = $expression;
+            }
+        }
+
+        return $json;
     }
 
     /**

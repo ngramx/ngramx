@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Ngramx\Postmaclone\Anonymizer;
 
-use Ngramx\Config\Schema\Postmaclone\ColumnRule;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
 use Ngramx\Config\Schema\Postmaclone\TableRule;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
@@ -12,12 +11,15 @@ use Ngramx\Postmaclone\FakerMethodResolver;
 
 class SqlEmitter
 {
+    private readonly AnonymizedValueFactory $values;
+
     public function __construct(
-        private readonly FakerMethodResolver $faker,
+        FakerMethodResolver $faker,
         private readonly SqlDialect $dialect,
-        private readonly string $testPassword = PostmacloneConfig::DEFAULT_TEST_PASSWORD,
+        string $testPassword = PostmacloneConfig::DEFAULT_TEST_PASSWORD,
         private readonly int $chunkSize = 500,
     ) {
+        $this->values = new AnonymizedValueFactory($faker, $testPassword);
     }
 
     /**
@@ -80,9 +82,18 @@ class SqlEmitter
                     continue;
                 }
 
+                try {
+                    $replacement = $this->values->value($rule, $current);
+                } catch (\Throwable) {
+                    $replacement = $rule->isJsonRewrite() ? '{}' : null;
+                    if ($replacement === null) {
+                        continue;
+                    }
+                }
+
                 $sets[] = $this->dialect->quoteIdentifier($column)
                     . ' = '
-                    . $this->dialect->quoteLiteral($this->fakeValue($rule));
+                    . $this->dialect->quoteLiteral($replacement);
             }
 
             if ($sets === []) {
@@ -106,15 +117,6 @@ class SqlEmitter
         }
 
         return array_merge($lines, $buffer);
-    }
-
-    private function fakeValue(ColumnRule $rule): mixed
-    {
-        if ($rule->faker === 'password') {
-            return password_hash($this->testPassword, PASSWORD_BCRYPT);
-        }
-
-        return $this->faker->generate($rule->faker, $rule->unique);
     }
 
     /**

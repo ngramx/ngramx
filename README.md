@@ -732,6 +732,43 @@ postmaclone:
 
 Faker values may be a single formatter (`firstName`, `uniqueSafeEmail`), a `{{formatter}}` template mixed with literal text, or a ` + `-joined expression of formatters and quoted strings. Formatter args work inside both forms (`numberBetween(1, 999)`, `numerify("###")`). Set `unique: true` on the column rule to uniquify the whole composed string.
 
+Special formatters (not FakerPHP methods):
+
+- `password` — bcrypt hash of `postmaclone.test_password` (default `password`)
+- `clear` — empty string; use for OAuth tokens, API keys, and other secrets so clones cannot call live services
+- `emailOrName` — `safeEmail` when the current cell contains `@`, otherwise a first + last name
+
+`consistent: true` memoizes the replacement for each original value in a single run so the same email or name stays aligned across tables (for example `users.email` and `core_contacts.email`).
+
+Missing tables and columns are skipped with a warning. Per-row JSON or UPDATE failures are also warnings; JSON cells that cannot be rewritten become `{}`. Pass `--strict` to fail the run instead.
+
+#### JSON columns
+
+Decode the cell, rewrite selected paths or keys, then encode it again. Structure and unlisted keys stay intact.
+
+```yaml
+tables:
+  xero_tokens:
+    access_token: clear
+    refresh_token: clear
+  xero_invoices:
+    json:
+      json:
+        Contact.Name: company
+        Contact.EmailAddress: uniqueSafeEmail
+        LineItems.*.Description: sentence
+    original_json:
+      json:
+        email: uniqueSafeEmail
+        name: name
+      recursive: true          # also match those keys at any depth
+  campaign_distributions:
+    emails:
+      json_array: uniqueSafeEmail
+```
+
+`json` paths use `.` and `*` (every array element or object value at that level). `recursive: true` matches the listed keys anywhere in the document. `json_array` rewrites each scalar element of a JSON array.
+
 
 **Spaces credentials (1Password):** put `op://` refs under `postmaclone.backup.credentials` in `ngramx.yml` (safe to commit). Item: **Tech Team Vault** → `ngramx-db-backup-read-access`. Plaintext keys in YAML are rejected.
 

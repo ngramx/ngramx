@@ -64,7 +64,9 @@ class PostmacloneProducer
         $faker = new FakerMethodResolver($dataset->locale, $dataset->seed);
         foreach ($dataset->tables as $table) {
             foreach ($table->columns as $column) {
-                $faker->assertMethodExists($column->faker);
+                foreach ($column->fakerExpressions() as $expression) {
+                    $faker->assertMethodExists($expression);
+                }
             }
         }
 
