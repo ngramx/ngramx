@@ -1,0 +1,31 @@
+{
+  "title": "GIG-3189: JSON Token Anonymization And Skip Missing Columns",
+  "description": "Adds JSON path rewrite, token clearing, consistent replacements, and continue-on-failure so postmaclone clones cannot keep live secrets or abort on a missing column.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-3189/identify-and-configure-all-pii-columns-for-post-clone-anonymization",
+  "test_urls": [
+    {
+      "label": "Postmaclone anonymizer docs",
+      "url": "https://github.com/ngramx/ngramx/blob/main/README.md"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Unit tests cover JSON rewrite, clear, emailOrName, consistent mapping, and skip-invalid-JSON",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/JsonPayloadAnonymizerTest.php tests/Unit/Postmaclone/AnonymizedValueFactoryTest.php tests/Unit/Postmaclone/SqlEmitterTest.php tests/Unit/Postmaclone/FakerMethodResolverTest.php tests/Unit/Config/PostmacloneConfigValidationTest.php",
+        "Confirm the new cases pass"
+      ]
+    },
+    {
+      "description": "Missing columns and invalid JSON do not abort a non-strict run",
+      "status": "active",
+      "steps": [
+        "Configure a table with a missing column and a JSON column containing invalid JSON",
+        "Run ngramx postmaclone without --strict",
+        "Confirm the run finishes, the missing column is warned, and the invalid JSON cell is {}"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "GIG-3189",
+  "uuid": "204837f3-85b7-43ed-9d91-09058c82611f",
+  "title": "Identify and configure all PII columns for post-clone anonymization",
+  "url": "https://linear.app/gigabyte/issue/GIG-3189/identify-and-configure-all-pii-columns-for-post-clone-anonymization",
+  "gitBranchName": "gig-3189-identify-and-configure-all-pii-columns-for-post-clone",
+  "status": "In Progress",
+  "priority": "High",
+  "estimate": "4 Points",
+  "team": "Gigabyte",
+  "assignee": "Cameron Smith",
+  "createdAt": "2026-09-11T10:58:44.629Z",
+  "createdBy": "Rob Corley",
+  "blockedBy": [],
+  "blocks": [],
+  "relatedTo": [],
+  "description": "Audit all database schemas across active projects for PII columns and update each project's ngramx post-clone config. Engine support is required for JSON payloads, tokens, and continue-on-failure."
+}

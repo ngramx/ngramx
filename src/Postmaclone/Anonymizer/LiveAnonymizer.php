@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Ngramx\Postmaclone\Anonymizer;
 
-use Ngramx\Config\Schema\Postmaclone\ColumnRule;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
 use Ngramx\Config\Schema\Postmaclone\TableRule;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\FakerMethodResolver;
 use PDO;
+use Throwable;
 
 class LiveAnonymizer
 {
@@ -18,13 +18,16 @@ class LiveAnonymizer
      */
     private array $warnings = [];
 
+    private readonly AnonymizedValueFactory $values;
+
     public function __construct(
-        private readonly FakerMethodResolver $faker,
+        FakerMethodResolver $faker,
         private readonly SqlDialect $dialect,
-        private readonly string $testPassword = PostmacloneConfig::DEFAULT_TEST_PASSWORD,
+        string $testPassword = PostmacloneConfig::DEFAULT_TEST_PASSWORD,
         private readonly int $chunkSize = 500,
         private readonly bool $strict = false,
     ) {
+        $this->values = new AnonymizedValueFactory($faker, $testPassword);
     }
 
     /**
@@ -44,7 +47,11 @@ class LiveAnonymizer
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
         foreach ($tables as $tableRule) {
-            $this->anonymizeTable($pdo, $tableRule);
+            try {
+                $this->anonymizeTable($pdo, $tableRule);
+            } catch (Throwable $e) {
+                $this->failOrWarn("Anonymization failed for table '{$tableRule->table}': {$e->getMessage()}");
+            }
         }
     }
 
@@ -52,33 +59,37 @@ class LiveAnonymizer
     {
         $pk = $table->primaryKey ?? $this->detectPrimaryKey($pdo, $table->table);
         if ($pk === null) {
-            $message = "Table '{$table->table}' has no usable primary key; set tables.{$table->table}.primary_key";
-            if ($this->strict) {
-                throw new PostmacloneException($message);
-            }
-            $this->warnings[] = $message;
+            $this->failOrWarn("Table '{$table->table}' has no usable primary key; set tables.{$table->table}.primary_key");
 
             return;
         }
 
         if (!$this->tableExists($pdo, $table->table)) {
-            $message = "Table '{$table->table}' does not exist; skipping";
-            if ($this->strict) {
-                throw new PostmacloneException($message);
-            }
-            $this->warnings[] = $message;
+            $this->failOrWarn("Table '{$table->table}' does not exist; skipping");
 
             return;
         }
 
-        $columns = array_keys($table->columns);
-        $selectCols = array_unique(array_merge([$pk], $columns));
+        $present = $this->existingColumns($pdo, $table->table);
+        $columns = [];
+        foreach ($table->columns as $column => $rule) {
+            if (!isset($present[$column])) {
+                $this->failOrWarn("Column '{$table->table}.{$column}' does not exist; skipping");
+                continue;
+            }
+            $columns[$column] = $rule;
+        }
+
+        if ($columns === []) {
+            return;
+        }
+
+        $selectCols = array_unique(array_merge([$pk], array_keys($columns)));
         $quoted = array_map(fn (string $c) => $this->dialect->quoteIdentifier($c), $selectCols);
         $sql = 'SELECT ' . implode(', ', $quoted)
             . ' FROM ' . $this->dialect->quoteIdentifier($table->table);
 
-        // Optional per-column where is OR'd lightly; first non-null where wins as filter.
-        foreach ($table->columns as $rule) {
+        foreach ($columns as $rule) {
             if ($rule->where !== null && $rule->where !== '') {
                 $sql .= ' WHERE ' . $rule->where;
                 break;
@@ -87,9 +98,12 @@ class LiveAnonymizer
 
         $stmt = $pdo->query($sql);
         if ($stmt === false) {
-            throw new PostmacloneException("Failed to select from {$table->table}");
+            $this->failOrWarn("Failed to select from {$table->table}; skipping");
+
+            return;
         }
 
+        $usable = new TableRule($table->table, $columns, $table->primaryKey);
         $batch = [];
         while (true) {
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -99,12 +113,12 @@ class LiveAnonymizer
             /** @var array<string, mixed> $row */
             $batch[] = $row;
             if (count($batch) >= $this->chunkSize) {
-                $this->applyBatch($pdo, $table, $pk, $batch);
+                $this->applyBatch($pdo, $usable, $pk, $batch);
                 $batch = [];
             }
         }
         if ($batch !== []) {
-            $this->applyBatch($pdo, $table, $pk, $batch);
+            $this->applyBatch($pdo, $usable, $pk, $batch);
         }
     }
 
@@ -119,18 +133,29 @@ class LiveAnonymizer
             $i = 0;
             foreach ($table->columns as $column => $rule) {
                 if (!array_key_exists($column, $row)) {
-                    $this->warnings[] = "Column '{$table->table}.{$column}' missing; skipping column";
+                    $this->failOrWarn("Column '{$table->table}.{$column}' missing; skipping column");
                     continue;
                 }
                 $current = $row[$column];
-                // Opt-in column: leave existing NULL cells alone unless preserve_nulls: false
                 if ($current === null && $rule->preserveNulls) {
                     continue;
                 }
 
+                try {
+                    $replacement = $this->values->value($rule, $current);
+                } catch (Throwable $e) {
+                    $this->failOrWarn(
+                        "Could not anonymize {$table->table}.{$column}: {$e->getMessage()}"
+                    );
+                    $replacement = $rule->isJsonRewrite() ? '{}' : null;
+                    if ($replacement === null) {
+                        continue;
+                    }
+                }
+
                 $placeholder = ':v' . $i;
                 $sets[] = $this->dialect->quoteIdentifier($column) . ' = ' . $placeholder;
-                $params[$placeholder] = $this->fakeValue($rule);
+                $params[$placeholder] = $replacement;
                 $i++;
             }
 
@@ -141,22 +166,47 @@ class LiveAnonymizer
             $sql = 'UPDATE ' . $this->dialect->quoteIdentifier($table->table)
                 . ' SET ' . implode(', ', $sets)
                 . ' WHERE ' . $this->dialect->quoteIdentifier($pk) . ' = :pk';
-            $update = $pdo->prepare($sql);
-            foreach ($params as $key => $value) {
-                $update->bindValue($key, $value);
+            try {
+                $update = $pdo->prepare($sql);
+                foreach ($params as $key => $value) {
+                    $update->bindValue($key, $value);
+                }
+                $update->bindValue(':pk', $row[$pk]);
+                $update->execute();
+            } catch (Throwable $e) {
+                $this->failOrWarn(
+                    "UPDATE failed for {$table->table} {$pk}={$row[$pk]}: {$e->getMessage()}"
+                );
             }
-            $update->bindValue(':pk', $row[$pk]);
-            $update->execute();
         }
     }
 
-    private function fakeValue(ColumnRule $rule): mixed
+    /**
+     * @return array<string, true>
+     */
+    private function existingColumns(PDO $pdo, string $table): array
     {
-        if ($rule->faker === 'password') {
-            return password_hash($this->testPassword, PASSWORD_BCRYPT);
+        if ($this->dialect->isPostgres()) {
+            $stmt = $pdo->prepare(
+                'SELECT column_name FROM information_schema.columns '
+                . 'WHERE table_schema = current_schema() AND table_name = :t'
+            );
+        } else {
+            $stmt = $pdo->prepare(
+                'SELECT COLUMN_NAME FROM information_schema.columns '
+                . 'WHERE table_schema = DATABASE() AND table_name = :t'
+            );
+        }
+        $stmt->execute([':t' => $table]);
+
+        $present = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $name) {
+            if (is_string($name) && $name !== '') {
+                $present[$name] = true;
+            }
         }
 
-        return $this->faker->generate($rule->faker, $rule->unique);
+        return $present;
     }
 
     private function tableExists(PDO $pdo, string $table): bool
@@ -191,7 +241,7 @@ SQL;
                 $name = $stmt->fetchColumn();
 
                 return is_string($name) && $name !== '' ? $name : null;
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 return 'id';
             }
         }
@@ -209,5 +259,14 @@ SQL;
         $name = $stmt->fetchColumn();
 
         return is_string($name) && $name !== '' ? $name : null;
+    }
+
+    private function failOrWarn(string $message): void
+    {
+        if ($this->strict) {
+            throw new PostmacloneException($message);
+        }
+
+        $this->warnings[] = $message;
     }
 }

@@ -101,4 +101,48 @@ class SqlEmitterTest extends TestCase
         $this->assertStringContainsString('UPDATE `users` SET', $sql);
         $this->assertStringContainsString('`email`', $sql);
     }
+
+    public function test_clears_token_columns(): void
+    {
+        $tables = [
+            'xero_tokens' => new TableRule(
+                table: 'xero_tokens',
+                columns: ['access_token' => new ColumnRule('access_token', 'clear')],
+                primaryKey: 'id',
+            ),
+        ];
+        $rows = ['xero_tokens' => [['id' => 1, 'access_token' => 'live-secret']]];
+
+        $emitter = new SqlEmitter(
+            new FakerMethodResolver('en_GB', 42),
+            new SqlDialect('postgres'),
+        );
+        $sql = $emitter->emit($tables, $rows);
+
+        $this->assertStringContainsString('"access_token" = \'\'', $sql);
+        $this->assertStringNotContainsString('live-secret', $sql);
+    }
+
+    public function test_invalid_json_becomes_empty_object(): void
+    {
+        $tables = [
+            'payloads' => new TableRule(
+                table: 'payloads',
+                columns: [
+                    'body' => new ColumnRule('body', json: ['email' => 'safeEmail']),
+                ],
+                primaryKey: 'id',
+            ),
+        ];
+        $rows = ['payloads' => [['id' => 1, 'body' => 'not-json']]];
+
+        $emitter = new SqlEmitter(
+            new FakerMethodResolver('en_GB', 42),
+            new SqlDialect('postgres'),
+        );
+        $sql = $emitter->emit($tables, $rows);
+
+        $this->assertStringContainsString('"body" = \'{}\'', $sql);
+        $this->assertStringNotContainsString('not-json', $sql);
+    }
 }
