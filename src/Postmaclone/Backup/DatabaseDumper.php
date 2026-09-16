@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ngramx\Postmaclone\Backup;
 
 use Ngramx\Postmaclone\Exception\PostmacloneException;
+use Ngramx\Postmaclone\Progress\PercentReporter;
 use Symfony\Component\Process\Process;
 
 /**
@@ -15,6 +16,7 @@ class DatabaseDumper
     /**
      * @param list<string>|null $includeTables
      * @param list<string>|null $excludeTables
+     * @param (callable(string): void)|null $onProgress
      */
     public function dump(
         string $connectionUrl,
@@ -23,6 +25,7 @@ class DatabaseDumper
         ?array $includeTables = null,
         ?array $excludeTables = null,
         bool $gzip = true,
+        ?callable $onProgress = null,
     ): string {
         $plain = $gzip ? preg_replace('/\.gz$/i', '', $outPath) : $outPath;
         if (!is_string($plain) || $plain === '') {
@@ -38,16 +41,16 @@ class DatabaseDumper
         }
 
         if ($engine === 'postgres') {
-            $this->pgDump($connectionUrl, $plain, $includeTables, $excludeTables);
+            $this->pgDump($connectionUrl, $plain, $includeTables, $excludeTables, $onProgress);
         } else {
-            $this->mysqlDump($connectionUrl, $plain, $includeTables, $excludeTables);
+            $this->mysqlDump($connectionUrl, $plain, $includeTables, $excludeTables, $onProgress);
         }
 
         if (!$gzip) {
             return $plain;
         }
 
-        $this->gzipFile($plain, $outPath);
+        $this->gzipFile($plain, $outPath, $onProgress);
         @unlink($plain);
 
         return $outPath;
@@ -56,8 +59,9 @@ class DatabaseDumper
     /**
      * @param list<string>|null $includeTables
      * @param list<string>|null $excludeTables
+     * @param (callable(string): void)|null $onProgress
      */
-    private function pgDump(string $url, string $out, ?array $includeTables, ?array $excludeTables): void
+    private function pgDump(string $url, string $out, ?array $includeTables, ?array $excludeTables, ?callable $onProgress): void
     {
         $cmd = ['pg_dump', '--no-owner', '--no-acl', '-f', $out];
         foreach ($includeTables ?? [] as $table) {
@@ -70,7 +74,7 @@ class DatabaseDumper
 
         $process = new Process($cmd);
         $process->setTimeout(7200);
-        $process->run();
+        $this->runDumpProcess($process, $out, $onProgress, 'Dumping anonymized database');
         if (!$process->isSuccessful()) {
             throw new PostmacloneException('pg_dump failed: ' . $process->getErrorOutput());
         }
@@ -79,8 +83,9 @@ class DatabaseDumper
     /**
      * @param list<string>|null $includeTables
      * @param list<string>|null $excludeTables
+     * @param (callable(string): void)|null $onProgress
      */
-    private function mysqlDump(string $url, string $out, ?array $includeTables, ?array $excludeTables): void
+    private function mysqlDump(string $url, string $out, ?array $includeTables, ?array $excludeTables, ?callable $onProgress): void
     {
         $parts = parse_url($url);
         if ($parts === false) {
@@ -115,7 +120,7 @@ class DatabaseDumper
             $process->setEnv(array_merge($_ENV, ['MYSQL_PWD' => $pass]));
         }
         $process->setTimeout(7200);
-        $process->run();
+        $this->runDumpProcess($process, $out, $onProgress, 'Dumping anonymized database');
         if (!$process->isSuccessful()) {
             throw new PostmacloneException('mysqldump failed: ' . $process->getErrorOutput());
         }
@@ -124,7 +129,10 @@ class DatabaseDumper
         }
     }
 
-    private function gzipFile(string $src, string $dest): void
+    /**
+     * @param (callable(string): void)|null $onProgress
+     */
+    private function gzipFile(string $src, string $dest, ?callable $onProgress = null): void
     {
         $in = fopen($src, 'rb');
         if ($in === false) {
@@ -135,14 +143,63 @@ class DatabaseDumper
             fclose($in);
             throw new PostmacloneException("Failed to open gzip destination: {$dest}");
         }
+
+        $size = filesize($src);
+        $reporter = $onProgress !== null
+            ? new PercentReporter($size === false ? 0 : $size, 'Compressing dump', $onProgress)
+            : null;
+
         while (!feof($in)) {
             $chunk = fread($in, 1024 * 1024);
             if ($chunk === false) {
                 break;
             }
             gzwrite($out, $chunk);
+            $reporter?->add(strlen($chunk));
         }
+        $reporter?->finish();
         fclose($in);
         gzclose($out);
+    }
+
+    /**
+     * @param (callable(string): void)|null $onProgress
+     */
+    private function runDumpProcess(Process $process, string $out, ?callable $onProgress, string $label): void
+    {
+        if ($onProgress === null) {
+            $process->run();
+
+            return;
+        }
+
+        $onProgress($label);
+        $lastBytes = 0;
+        $process->start();
+        while ($process->isRunning()) {
+            $process->checkTimeout();
+            $size = is_file($out) ? (int) filesize($out) : 0;
+            if ($size - $lastBytes >= 256 * 1024 * 1024) {
+                $onProgress(sprintf('%s (%s written)', $label, $this->formatBytes($size)));
+                $lastBytes = $size;
+            }
+            usleep(5_000_000);
+        }
+        $size = is_file($out) ? (int) filesize($out) : 0;
+        if ($size > 0) {
+            $onProgress(sprintf('%s finished (%s)', $label, $this->formatBytes($size)));
+        }
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        if ($bytes < 1024 * 1024) {
+            return $bytes . ' B';
+        }
+        if ($bytes < 1024 * 1024 * 1024) {
+            return sprintf('%.1f MB', $bytes / (1024 * 1024));
+        }
+
+        return sprintf('%.1f GB', $bytes / (1024 * 1024 * 1024));
     }
 }

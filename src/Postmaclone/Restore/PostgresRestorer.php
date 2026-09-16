@@ -10,10 +10,20 @@ use Symfony\Component\Process\Process;
 
 class PostgresRestorer implements RestorerInterface
 {
+    /**
+     * @var (callable(string): void)|null
+     */
+    private $onProgress;
+
+    /**
+     * @param (callable(string): void)|null $onProgress
+     */
     public function __construct(
         private readonly PlainSqlDumpSanitizer $sanitizer = new PlainSqlDumpSanitizer(),
         private readonly PsqlRunner $psql = new PsqlRunner(),
+        ?callable $onProgress = null,
     ) {
+        $this->onProgress = $onProgress;
     }
 
     public function restore(string $dumpPath, EphemeralTarget $target): void
@@ -23,12 +33,21 @@ class PostgresRestorer implements RestorerInterface
         }
 
         if ($this->looksLikeCustomFormat($dumpPath)) {
+            $this->progress('Restoring custom-format dump into scratch');
             $this->restoreCustom($dumpPath, $target);
+            $this->progress('Restore finished');
 
             return;
         }
 
         $this->restorePlain($dumpPath, $target);
+    }
+
+    private function progress(string $message): void
+    {
+        if ($this->onProgress !== null) {
+            ($this->onProgress)($message);
+        }
     }
 
     private function restoreCustom(string $dumpPath, EphemeralTarget $target): void
@@ -78,10 +97,13 @@ class PostgresRestorer implements RestorerInterface
 
     private function restorePlain(string $dumpPath, EphemeralTarget $target): void
     {
-        $psqlPath = $this->sanitizer->forPsql($dumpPath);
+        $this->progress('Sanitizing dump for psql');
+        $psqlPath = $this->sanitizer->forPsql($dumpPath, $this->onProgress);
 
         try {
+            $this->progress('Loading sanitized dump into scratch (this can take over an hour)');
             $this->psql->runFile($target, $psqlPath, 3600);
+            $this->progress('Restore finished');
         } catch (PostmacloneException $e) {
             throw new PostmacloneException(
                 'psql restore failed: ' . $e->getMessage()

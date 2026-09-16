@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ngramx\Postmaclone\Restore;
 
 use Ngramx\Postmaclone\Exception\PostmacloneException;
+use Ngramx\Postmaclone\Progress\PercentReporter;
 
 /**
  * Prepares plain-text pg_dump scripts like `pg_restore --no-owner --no-acl`:
@@ -15,7 +16,10 @@ use Ngramx\Postmaclone\Exception\PostmacloneException;
  */
 final class PlainSqlDumpSanitizer
 {
-    public function forPsql(string $dumpPath): string
+    /**
+     * @param (callable(string): void)|null $onProgress
+     */
+    public function forPsql(string $dumpPath, ?callable $onProgress = null): string
     {
         $outPath = $dumpPath . '.sanitized';
         $in = fopen($dumpPath, 'rb');
@@ -28,8 +32,14 @@ final class PlainSqlDumpSanitizer
             throw new PostmacloneException("Failed to write sanitized dump: {$outPath}");
         }
 
+        $size = filesize($dumpPath);
+        $reporter = $onProgress !== null
+            ? new PercentReporter($size === false ? 0 : $size, 'Sanitizing dump', $onProgress)
+            : null;
+
         try {
             while (($line = fgets($in)) !== false) {
+                $reporter?->add(strlen($line));
                 $rewritten = $this->rewriteLine($line);
                 if ($rewritten === null) {
                     continue;
@@ -38,6 +48,7 @@ final class PlainSqlDumpSanitizer
                     throw new PostmacloneException("Failed while writing sanitized dump: {$outPath}");
                 }
             }
+            $reporter?->finish();
         } finally {
             fclose($in);
             fclose($out);

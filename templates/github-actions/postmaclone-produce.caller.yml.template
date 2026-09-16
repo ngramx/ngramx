@@ -40,7 +40,8 @@ jobs:
       - name: Install database clients
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client mysql-client gzip
+          sudo apt-get install -y postgresql-client-17 mysql-client gzip
+          pg_dump --version
 
       - name: Install 1Password CLI
         uses: 1password/install-cli-action@v2
@@ -57,4 +58,4 @@ jobs:
           POSTMACLONE_REMOTE_URL: ${{ secrets.POSTMACLONE_REMOTE_URL }}
         run: |
           set -euo pipefail
-          php ngramx.phar postmaclone produce {{PRODUCE_ARGS}} --config {{CONFIG_PATH}}
+          stdbuf -oL -eL php -d output_buffering=Off -d implicit_flush=1 ngramx.phar postmaclone produce {{PRODUCE_ARGS}} --config {{CONFIG_PATH}}

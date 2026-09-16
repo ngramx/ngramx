@@ -9,6 +9,7 @@ use Symfony\Component\Console\Formatter\OutputFormatter as ConsoleFormatter;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleSectionOutput;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Output\StreamOutput;
 
 class OutputFormatter
 {
@@ -67,6 +68,23 @@ class OutputFormatter
         }
 
         $this->output->writeln(str_repeat(' ', $this->indent) . $styled);
+        $this->flush();
+    }
+
+    /**
+     * Push the line out immediately so long produce stages show up in GHA logs.
+     */
+    private function flush(): void
+    {
+        if ($this->output instanceof StreamOutput) {
+            $stream = $this->output->getStream();
+            if (is_resource($stream)) {
+                fflush($stream);
+            }
+        }
+        if (defined('STDOUT') && is_resource(STDOUT)) {
+            fflush(STDOUT);
+        }
     }
 
     /**

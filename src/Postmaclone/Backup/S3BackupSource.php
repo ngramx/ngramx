@@ -7,6 +7,7 @@ namespace Ngramx\Postmaclone\Backup;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
+use Ngramx\Postmaclone\Progress\PercentReporter;
 use Psr\Http\Message\ResponseInterface;
 
 class S3BackupSource implements BackupSourceInterface
@@ -15,6 +16,14 @@ class S3BackupSource implements BackupSourceInterface
     private ?S3ObjectLocator $resolvedLocator = null;
     private ?int $lastModified = null;
 
+    /**
+     * @var (callable(string): void)|null
+     */
+    private $onProgress;
+
+    /**
+     * @param (callable(string): void)|null $onProgress
+     */
     public function __construct(
         private readonly S3ObjectLocator $locator,
         private readonly string $cacheDir,
@@ -22,7 +31,9 @@ class S3BackupSource implements BackupSourceInterface
         private readonly ?S3SigV4Signer $signer = null,
         private readonly ?string $file = null,
         private readonly ?S3Credentials $credentials = null,
+        ?callable $onProgress = null,
     ) {
+        $this->onProgress = $onProgress;
     }
 
     public function materialize(): string
@@ -42,14 +53,33 @@ class S3BackupSource implements BackupSourceInterface
         $this->localPath = $path;
 
         $client = $this->client ?? new Client(['timeout' => 600, 'http_errors' => true]);
+        $reporter = null;
+        $onProgress = $this->onProgress;
 
         try {
             $response = $client->request('GET', $url, [
                 'headers' => $headers,
                 'sink' => $path,
+                'progress' => static function (int|float $dlTotal, int|float $dlNow) use (&$reporter, $onProgress): void {
+                    if ($onProgress === null) {
+                        return;
+                    }
+                    $total = (int) $dlTotal;
+                    if ($total <= 0) {
+                        return;
+                    }
+                    if ($reporter === null) {
+                        $reporter = new PercentReporter($total, 'Downloading dump', $onProgress);
+                    }
+                    $reporter->set((int) $dlNow);
+                },
             ]);
         } catch (GuzzleException $e) {
             throw new PostmacloneException('S3 download failed: ' . $e->getMessage(), 0, $e);
+        }
+
+        if ($reporter instanceof PercentReporter) {
+            $reporter->finish();
         }
 
         if ($response->getStatusCode() >= 400) {
@@ -205,18 +235,60 @@ class S3BackupSource implements BackupSourceInterface
             gzclose($in);
             throw new PostmacloneException("Failed to write decompressed dump: {$dest}");
         }
+
+        $uncompressed = $this->gzipUncompressedSize($path);
+        $reporter = $this->onProgress !== null && $uncompressed !== null
+            ? new PercentReporter($uncompressed, 'Decompressing dump', $this->onProgress)
+            : null;
+        if ($this->onProgress !== null && $reporter === null) {
+            ($this->onProgress)('Decompressing dump');
+        }
+
+        $written = 0;
         while (!gzeof($in)) {
             $chunk = gzread($in, 1024 * 1024);
             if ($chunk === false) {
                 break;
             }
             fwrite($out, $chunk);
+            $written += strlen($chunk);
+            $reporter?->set($written);
         }
+        $reporter?->finish();
         gzclose($in);
         fclose($out);
         unlink($path);
         $this->localPath = $dest;
 
         return $dest;
+    }
+
+    /**
+     * gzip ISIZE is the uncompressed size modulo 2^32. Good enough for progress
+     * on dumps under 4 GiB; larger files still finish at 100% when the stream ends.
+     */
+    private function gzipUncompressedSize(string $path): ?int
+    {
+        $size = filesize($path);
+        if ($size === false || $size < 4) {
+            return null;
+        }
+        $fh = fopen($path, 'rb');
+        if ($fh === false) {
+            return null;
+        }
+        fseek($fh, -4, SEEK_END);
+        $raw = fread($fh, 4);
+        fclose($fh);
+        if (!is_string($raw) || strlen($raw) !== 4) {
+            return null;
+        }
+        $unpacked = unpack('Vsize', $raw);
+        if (!is_array($unpacked)) {
+            return null;
+        }
+        $n = (int) $unpacked['size'];
+
+        return $n > 0 ? $n : null;
     }
 }
