@@ -1,7 +1,7 @@
 {
   "title": "GIG-3189: JSON Token Anonymization And Skip Missing Columns",
   "description": "Adds JSON path rewrite, token clearing, consistent replacements, and continue-on-failure so postmaclone clones cannot keep live secrets or abort on a missing column.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/22",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3189/identify-and-configure-all-pii-columns-for-post-clone-anonymization",
   "test_urls": [
     {

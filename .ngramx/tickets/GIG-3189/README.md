@@ -17,3 +17,4 @@ Engine support so project PII rules can rewrite JSON payloads, clear tokens, kee
 - `JsonPayloadAnonymizer` + `AnonymizedValueFactory` used by live and SQL emitters.
 - Special formatters: `clear`, `emailOrName`.
 - Live anonymizer skips missing tables/columns and warns on per-row failures; invalid JSON becomes `{}`.
+- PR: https://github.com/ngramx/ngramx/pull/22
