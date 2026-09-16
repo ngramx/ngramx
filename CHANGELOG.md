@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.45.0](https://github.com/ngramx/ngramx/compare/v2.44.0...v2.45.0) (2026-09-16)
+
+
+### Features
+
+* rewrite JSON cells and skip missing anonymizer columns ([2bb8afd](https://github.com/ngramx/ngramx/commit/2bb8afdb7745b46dc8123f6f7e2aeda8270cfe1b))
+
 # [2.44.0](https://github.com/ngramx/ngramx/compare/v2.43.5...v2.44.0) (2026-09-09)
 
 
