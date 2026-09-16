@@ -30,6 +30,20 @@ class AnonymizedValueFactoryTest extends TestCase
         $this->assertNotSame('Alice Smith', $name);
     }
 
+    public function test_unique_prefix_still_resolves_email_or_name(): void
+    {
+        $factory = $this->factory();
+        $email = $factory->value(new ColumnRule('pm', 'uniqueEmailOrName'), 'pm@example.com');
+        $name = $factory->value(new ColumnRule('pm', 'uniqueEmailOrName'), 'Alice Smith');
+
+        $this->assertIsString($email);
+        $this->assertStringContainsString('@', $email);
+        $this->assertNotSame('pm@example.com', $email);
+        $this->assertIsString($name);
+        $this->assertStringNotContainsString('@', $name);
+        $this->assertNotSame('Alice Smith', $name);
+    }
+
     public function test_consistent_reuses_replacement_for_same_original(): void
     {
         $factory = $this->factory();

@@ -145,4 +145,13 @@ class SqlEmitterTest extends TestCase
         $this->assertStringContainsString('"body" = \'{}\'', $sql);
         $this->assertStringNotContainsString('not-json', $sql);
     }
+
+    public function test_mysql_quote_literal_escapes_json_backslashes(): void
+    {
+        $dialect = new SqlDialect('mysql');
+        $json = '{"name":"foo \\"bar\\""}';
+
+        $this->assertSame("'{\"name\":\"foo \\\\\"bar\\\\\"\"}'", $dialect->quoteLiteral($json));
+        $this->assertSame("'{\"name\":\"foo \\\"bar\\\"\"}'", (new SqlDialect('postgres'))->quoteLiteral($json));
+    }
 }

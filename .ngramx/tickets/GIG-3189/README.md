@@ -18,3 +18,4 @@ Engine support so project PII rules can rewrite JSON payloads, clear tokens, kee
 - Special formatters: `clear`, `emailOrName`.
 - Live anonymizer skips missing tables/columns and warns on per-row failures; invalid JSON becomes `{}`.
 - PR: https://github.com/ngramx/ngramx/pull/22
+- Bugbot: decode JSON as objects so `{}` stays `{}`; strip `unique` before `emailOrName`; escape MySQL backslashes in SQL literals.

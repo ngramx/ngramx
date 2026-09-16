@@ -53,6 +53,11 @@ class AnonymizedValueFactory
     public function scalar(string $faker, mixed $current, ColumnRule $rule): mixed
     {
         $method = trim($faker);
+        $unique = $rule->unique;
+        if (str_starts_with($method, 'unique') && strlen($method) > 6 && ctype_upper($method[6] ?? '')) {
+            $unique = true;
+            $method = lcfirst(substr($method, 6));
+        }
         if ($method === 'clear') {
             return '';
         }
@@ -68,12 +73,12 @@ class AnonymizedValueFactory
         if ($rule->consistent) {
             $key = $method . "\0" . (is_scalar($current) || $current === null ? (string) $current : serialize($current));
             if (!array_key_exists($key, $this->consistentCache)) {
-                $this->consistentCache[$key] = $this->faker->generate($method, $rule->unique);
+                $this->consistentCache[$key] = $this->faker->generate($method, $unique);
             }
 
             return $this->consistentCache[$key];
         }
 
-        return $this->faker->generate($method, $rule->unique);
+        return $this->faker->generate($method, $unique);
     }
 }

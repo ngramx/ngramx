@@ -12,7 +12,7 @@
   "test_plan": [
     {
       "description": "Unit tests cover JSON rewrite, clear, emailOrName, consistent mapping, and skip-invalid-JSON",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run vendor/bin/phpunit tests/Unit/Postmaclone/JsonPayloadAnonymizerTest.php tests/Unit/Postmaclone/AnonymizedValueFactoryTest.php tests/Unit/Postmaclone/SqlEmitterTest.php tests/Unit/Postmaclone/FakerMethodResolverTest.php tests/Unit/Config/PostmacloneConfigValidationTest.php",
         "Confirm the new cases pass"
@@ -20,11 +20,35 @@
     },
     {
       "description": "Missing columns and invalid JSON do not abort a non-strict run",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Configure a table with a missing column and a JSON column containing invalid JSON",
         "Run ngramx postmaclone without --strict",
         "Confirm the run finishes, the missing column is warned, and the invalid JSON cell is {}"
+      ]
+    },
+    {
+      "description": "Empty JSON objects keep object shape after rewrite",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/JsonPayloadAnonymizerTest.php --filter empty_objects",
+        "Confirm a payload with empty objects still encodes as {} not []"
+      ]
+    },
+    {
+      "description": "uniqueEmailOrName produces an email or name, not NULL",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/AnonymizedValueFactoryTest.php --filter unique_prefix",
+        "Confirm email-valued and name-valued cells both get non-null replacements"
+      ]
+    },
+    {
+      "description": "MySQL SQL emit escapes backslashes in JSON literals",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/SqlEmitterTest.php --filter mysql_quote_literal",
+        "Confirm JSON backslashes are doubled in the MySQL quoted literal"
       ]
     }
   ]

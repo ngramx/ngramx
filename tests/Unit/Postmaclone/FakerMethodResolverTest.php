@@ -47,6 +47,7 @@ class FakerMethodResolverTest extends TestCase
         $resolver = new FakerMethodResolver('en_GB', 1);
         $resolver->assertMethodExists('clear');
         $resolver->assertMethodExists('emailOrName');
+        $resolver->assertMethodExists('uniqueEmailOrName');
         $this->assertSame('', $resolver->generate('clear'));
     }
 

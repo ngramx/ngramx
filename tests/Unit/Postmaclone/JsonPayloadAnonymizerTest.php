@@ -77,6 +77,20 @@ class JsonPayloadAnonymizerTest extends TestCase
         $this->assertStringContainsString('@', (string) $rewritten[0]);
     }
 
+    public function test_empty_objects_stay_objects_after_rewrite(): void
+    {
+        $rule = new ColumnRule(column: 'payload', json: ['email' => 'safeEmail']);
+        $current = '{"email":"keep@example.com","empty":{},"nested":{"inner":{}}}';
+
+        $rewritten = $this->anonymizer()->rewrite($current, $rule);
+
+        $this->assertStringContainsString('"empty":{}', $rewritten);
+        $this->assertStringContainsString('"inner":{}', $rewritten);
+        $this->assertStringNotContainsString('"empty":[]', $rewritten);
+        $this->assertStringNotContainsString('"inner":[]', $rewritten);
+        $this->assertStringNotContainsString('keep@example.com', $rewritten);
+    }
+
     public function test_try_rewrite_returns_null_for_invalid_json(): void
     {
         $rule = new ColumnRule(column: 'payload', json: ['email' => 'safeEmail']);
