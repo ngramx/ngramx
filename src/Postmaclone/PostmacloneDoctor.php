@@ -35,7 +35,9 @@ final class PostmacloneDoctor
                 'ok' => false,
                 'checks' => [[
                     'ok' => false,
-                    'message' => 'Missing postmaclone: section in ngramx.yml',
+                    'message' => $config->postmacloneError !== null
+                        ? 'Invalid postmaclone section: ' . $config->postmacloneError
+                        : 'Missing postmaclone: section in ngramx.yml',
                     'blocking' => true,
                 ]],
                 'next_steps' => [],

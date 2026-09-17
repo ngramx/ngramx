@@ -24,3 +24,4 @@ Engine support so project PII rules can rewrite JSON payloads, clear tokens, kee
 - Bugbot: mysqldump uses `run()` so the stdout pipe is drained (polling hung the child). `clearstatcache` on pg_dump file-size ticks. Workflow template adds the PGDG apt repo before `postgresql-client-17`.
 - Prefer `/usr/lib/postgresql/{N}/bin/pg_dump` (newest N) over the Debian `pg_wrapper`. Factory run 35177394530 had client 17 installed but still invoked 16.15. Template also prepends that bin dir to PATH.
 - PR: https://github.com/ngramx/ngramx/pull/24
+- `ngramx down` / `up` no longer fail the whole yml load when `postmaclone.tables` is invalid. Docker/setup/commands still load; the postmaclone section is ignored with a warning. The EK error (`context.faker is required`) was an old CLI requiring `faker` on every column object — json-only rules are valid in 2.45.0+, but teardown must not depend on that either.

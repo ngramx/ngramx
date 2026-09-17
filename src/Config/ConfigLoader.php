@@ -68,9 +68,19 @@ class ConfigLoader
             throw new ConfigException('Invalid configuration: expected array, got ' . gettype($config));
         }
 
-        $this->validator->validate($config);
+        $this->validator->validate($config, includePostmaclone: false);
 
-        return $this->buildConfig($config, dirname($filePath));
+        $postmacloneError = null;
+        if (isset($config['postmaclone'])) {
+            try {
+                $this->validator->validatePostmaclone($config);
+            } catch (ConfigException $e) {
+                $postmacloneError = $e->getMessage();
+                unset($config['postmaclone']);
+            }
+        }
+
+        return $this->buildConfig($config, dirname($filePath), $postmacloneError);
     }
 
     /**
@@ -139,7 +149,7 @@ class ConfigLoader
     /**
      * @param array<string, mixed> $config
      */
-    private function buildConfig(array $config, string $configDir): NgramxConfig
+    private function buildConfig(array $config, string $configDir, ?string $postmacloneError = null): NgramxConfig
     {
         $docker = $this->buildDockerConfig($config['docker'], $configDir);
         $setup = $this->buildSetupConfig($config['setup'] ?? []);
@@ -163,6 +173,7 @@ class ConfigLoader
             commands: $commands,
             defaultTeam: strtolower((string) $defaultTeam),
             postmaclone: $postmaclone,
+            postmacloneError: $postmacloneError,
         );
     }
 

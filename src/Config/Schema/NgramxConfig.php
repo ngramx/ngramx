@@ -25,6 +25,7 @@ readonly class NgramxConfig
         public array $commands = [],
         public string $defaultTeam = self::DEFAULT_TEAM,
         public ?PostmacloneConfig $postmaclone = null,
+        public ?string $postmacloneError = null,
     ) {
     }
 }
