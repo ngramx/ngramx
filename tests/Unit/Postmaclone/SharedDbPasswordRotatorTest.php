@@ -97,6 +97,39 @@ final class SharedDbPasswordRotatorTest extends TestCase
         $this->assertSame('op://Vault/postmaclone-anon/password', $key);
     }
 
+    public function test_env_flag_false_skips_rotation(): void
+    {
+        $this->assertFalse(SharedDbPasswordRotator::environmentAllowsRotation('false'));
+        $this->assertFalse(SharedDbPasswordRotator::environmentAllowsRotation('0'));
+        $this->assertFalse(SharedDbPasswordRotator::environmentAllowsRotation('off'));
+
+        $previous = getenv(SharedDbPasswordRotator::ENV_FLAG);
+        putenv(SharedDbPasswordRotator::ENV_FLAG . '=false');
+        try {
+            $rotator = new SharedDbPasswordRotator();
+            $result = $rotator->rotateIfDue('postgres', new SharedDbConfig(
+                connection: new DbConnectionConfig(url: 'op://Vault/item/database_url'),
+                passwordRotationDays: 7,
+            ), '2020-01-01T00:00:00+00:00');
+
+            $this->assertFalse($result['rotated']);
+            $this->assertSame('2020-01-01T00:00:00+00:00', $result['rotated_at']);
+        } finally {
+            if ($previous === false) {
+                putenv(SharedDbPasswordRotator::ENV_FLAG);
+            } else {
+                putenv(SharedDbPasswordRotator::ENV_FLAG . '=' . $previous);
+            }
+        }
+    }
+
+    public function test_env_flag_true_and_unset_allow_rotation_schedule(): void
+    {
+        $this->assertTrue(SharedDbPasswordRotator::environmentAllowsRotation('true'));
+        $this->assertTrue(SharedDbPasswordRotator::environmentAllowsRotation('1'));
+        $this->assertTrue(SharedDbPasswordRotator::environmentAllowsRotation(''));
+    }
+
     public function test_recent_rotation_is_skipped(): void
     {
         $rotator = new SharedDbPasswordRotator();

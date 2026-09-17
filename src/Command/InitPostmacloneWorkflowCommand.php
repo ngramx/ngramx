@@ -113,7 +113,7 @@ class InitPostmacloneWorkflowCommand extends Command
             $formatter->section('Factory config');
             $formatter->info('Define engines.{postgres|mysql}.scratch/anon.credentials once (1Password server/port/user/pass).');
             $formatter->info('Each dataset only needs target.remote.database and shared.database for its engine.');
-            $formatter->info('shared.password_rotation_days defaults to 7; produce rotates the DB password and updates 1Password when due.');
+            $formatter->info('shared.password_rotation_days defaults to 7. Set repository variable ROTATE_DATABASE_PASSWORD=true to run ALTER ROLE + op item edit; leave it false to rotate manually.');
             $formatter->info('See postmaclone.example.yml and README Post Maclone → Large DBs.');
 
             return Command::SUCCESS;

@@ -29,3 +29,5 @@ Engine support so project PII rules can rewrite JSON payloads, clear tokens, kee
 - Factory produce failed on AKT: `op item edit` in GitHub Actions treats inherited stdin as a JSON template (`invalid JSON provided`). Writer now fetches the item, replaces the field, and pipes JSON. Commits use `fix:` / `chore:` so merge to main cuts a release.
 - 2.45.1 still failed TFD: piped JSON became `unable to process line 1: Couldn't update the item` (stdin parsed as item specifiers). Writer now uses `--template` plus stdin from `/dev/null`.
 - PR: https://github.com/ngramx/ngramx/pull/26
+- `ROTATE_DATABASE_PASSWORD` env (GitHub variable or secret) gates `op item edit`. Factory defaults it to false until the service account can write `postmaclone-anon-psql`.
+- PR: https://github.com/ngramx/ngramx/pull/27
