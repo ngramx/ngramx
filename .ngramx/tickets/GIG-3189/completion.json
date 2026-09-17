@@ -1,7 +1,7 @@
 {
   "title": "GIG-3189: Edit Onepassword Items Via Template File",
   "description": "Writes 1Password item updates with op item edit --template and stdin from /dev/null so GitHub Actions no longer treats the payload as item specifiers.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/26",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3189/identify-and-configure-all-pii-columns-for-post-clone-anonymization",
   "test_urls": [
     {
