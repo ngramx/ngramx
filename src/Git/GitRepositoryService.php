@@ -174,6 +174,24 @@ class GitRepositoryService
     }
 
     /**
+     * Resolve a ref to a commit SHA, or null when the ref does not exist.
+     */
+    private function resolveCommit(string $repositoryPath, string $ref): ?string
+    {
+        $process = new Process(['git', 'rev-parse', '--verify', $ref . '^{commit}'], $repositoryPath);
+        $process->setTimeout(10);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            return null;
+        }
+
+        $sha = trim($process->getOutput());
+
+        return $sha !== '' ? $sha : null;
+    }
+
+    /**
      * Whether origin (or $remote) has a remote-tracking branch of this name.
      */
     private function remoteTrackingBranchExists(
@@ -758,6 +776,11 @@ class GitRepositoryService
      * checkout on an old integration commit or a leftover feature branch, which
      * is what made Codabyte worktrees miss recent mainline changes.
      *
+     * The start-point is resolved to a commit SHA before `worktree add`. Passing
+     * `origin/main` (or any remote-tracking branch) as the commit-ish makes
+     * `branch.autoSetupMerge` set the new branch's upstream to that integration
+     * branch, so a later bare `git push` updates main. A SHA has no upstream.
+     *
      * Hooks are disabled for the creation checkout for the same reason as
      * addWorktree(): the new worktree has no primed dependencies yet, so a
      * failing hook would falsely report the creation as failed.
@@ -774,9 +797,16 @@ class GitRepositoryService
         }
 
         $startPoint ??= $this->integrationStartPoint($repositoryPath);
+        $startCommit = $this->resolveCommit($repositoryPath, $startPoint);
+        if ($startCommit === null) {
+            $this->lastCheckoutError = "Could not resolve {$startPoint}";
+            $this->cleanUpFailedWorktree($repositoryPath, $worktreePath);
+
+            return false;
+        }
 
         $addProcess = new Process(
-            ['git', '-c', 'core.hooksPath=/dev/null', 'worktree', 'add', '-b', $newBranch, $worktreePath, $startPoint],
+            ['git', '-c', 'core.hooksPath=/dev/null', 'worktree', 'add', '-b', $newBranch, $worktreePath, $startCommit],
             $repositoryPath
         );
         $addProcess->setTimeout(120);

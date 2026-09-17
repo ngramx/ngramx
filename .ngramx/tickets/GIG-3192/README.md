@@ -18,3 +18,4 @@ Codabyte / Cortex coder was forking ticket worktrees from a stale parent HEAD. C
 - New ticket branches now fork from `origin/<integration>` (`origin/main` or `origin/master` via `origin/HEAD`, then those remotes). The parent checkout is not switched. This is repo-agnostic for every ngramx + Cortex coder project; Codabyte picks it up on the next ngramx release.
 - completion.json recorded for PR open.
 - PR: https://github.com/ngramx/ngramx/pull/28
+- Bugbot: `git worktree add -b <ticket> <path> origin/main` set the new branch's upstream to origin/main, so a bare `git push` could update main. The start-point is now resolved to a commit SHA first.

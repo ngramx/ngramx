@@ -1,6 +1,6 @@
 {
   "title": "GIG-3192: Create New Worktrees From The Latest Origin Integration Branch",
-  "description": "New ngramx worktree branches fork from origin/main (or origin/master) after fetch, so Codabyte no longer starts from a stale parent HEAD.",
+  "description": "New ngramx worktree branches fork from the origin integration commit without tracking main, so Codabyte starts from latest main and a bare git push cannot update it.",
   "pr_url": "https://github.com/ngramx/ngramx/pull/28",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3192/fix-ngramx-worktree-creation-ensure-main-branch-is-updated-before",
   "test_urls": [
@@ -12,7 +12,7 @@
   "test_plan": [
     {
       "description": "Unit tests cover stale HEAD, dirty parent, fetch failure, and master-only remotes",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "In the ngramx-dev container run vendor/bin/phpunit --filter 'GitRepositoryServiceTest|WorktreeCommandTest'",
         "Confirm all tests pass, including addWorktreeWithNewBranch_starts_from_origin_integration_not_head"
@@ -20,11 +20,20 @@
     },
     {
       "description": "A new worktree on a stale parent checkout still starts from latest origin/main",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "In a clone whose local main is behind origin/main and whose HEAD is on a feature branch, run ngramx worktree gig-3192-verify --no-interaction",
         "Confirm the new branch tip matches origin/main and includes commits that were missing from the parent HEAD",
         "Confirm the parent checkout stayed on the feature branch"
+      ]
+    },
+    {
+      "description": "New ticket branches do not track origin/main",
+      "status": "active",
+      "steps": [
+        "In the ngramx-dev container run vendor/bin/phpunit --filter test_addWorktreeWithNewBranch_does_not_set_upstream_to_origin_main",
+        "Confirm the new branch tip equals origin/main and git rev-parse branch@{u} fails (no upstream)",
+        "After creating a worktree with ngramx worktree, run git -C <worktree> rev-parse --abbrev-ref --symbolic-full-name @{u} and confirm it is unset"
       ]
     }
   ]
