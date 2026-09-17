@@ -1,7 +1,7 @@
 {
   "title": "GIG-3189: Gate Password Rotation With Rotate Database Password Flag",
   "description": "Produce skips ALTER ROLE and op item edit unless ROTATE_DATABASE_PASSWORD is true, so factory can leave rotation off until the 1Password service account has write access.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/27",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3189/identify-and-configure-all-pii-columns-for-post-clone-anonymization",
   "test_urls": [
     {

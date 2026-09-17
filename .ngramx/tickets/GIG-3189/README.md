@@ -30,3 +30,4 @@ Engine support so project PII rules can rewrite JSON payloads, clear tokens, kee
 - 2.45.1 still failed TFD: piped JSON became `unable to process line 1: Couldn't update the item` (stdin parsed as item specifiers). Writer now uses `--template` plus stdin from `/dev/null`.
 - PR: https://github.com/ngramx/ngramx/pull/26
 - `ROTATE_DATABASE_PASSWORD` env (GitHub variable or secret) gates `op item edit`. Factory defaults it to false until the service account can write `postmaclone-anon-psql`.
+- PR: https://github.com/ngramx/ngramx/pull/27
