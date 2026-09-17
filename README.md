@@ -674,7 +674,7 @@ ngramx init-postmaclone-workflow --dataset earl-kendrick
 # or: ngramx init-postmaclone-workflow   # --all datasets
 ```
 
-Set repository secret `OP_SERVICE_ACCOUNT_TOKEN` (1Password service account with **read and write** on Tech Team Vault). Factory `target.provider: remote` uses a scratch DB on the DO cluster (`postmaclone-scratch` credentials + database name in YAML); `shared` uses `postmaclone-anon` credentials + the hosted database name. `shared.password_rotation_days` defaults to **7** (`0` disables); when due, produce runs `ALTER ROLE` / `ALTER USER`, updates the op:// password via `op item edit`, and records the timestamp in `{anonymized-bucket}/_postmaclone/credential-rotations.json` keyed by the password op ref (shared across all datasets using that credential).
+Set repository secret `OP_SERVICE_ACCOUNT_TOKEN` (1Password service account with **read** on Tech Team Vault; **write** only if you enable rotation). Factory `target.provider: remote` uses a scratch DB on the DO cluster (`postmaclone-scratch` credentials + database name in YAML); `shared` uses `postmaclone-anon` credentials + the hosted database name. `shared.password_rotation_days` defaults to **7** (`0` disables). Produce only runs `ALTER ROLE` / `op item edit` when the `ROTATE_DATABASE_PASSWORD` env is `true` (GitHub Actions variable or secret; factory workflows default it to `false`). Rotation timestamps live in `{anonymized-bucket}/_postmaclone/credential-rotations.json` keyed by the password op ref.
 
 Keep prod-read and anon-write credentials separate (`op://` refs). Local Docker remains fine for small artifacts; large restores should use in-region `remote` scratch + shared hosted DB.
 

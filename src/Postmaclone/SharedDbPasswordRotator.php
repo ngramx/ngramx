@@ -23,6 +23,8 @@ final class SharedDbPasswordRotator
 {
     public const DEFAULT_ROTATION_DAYS = 7;
 
+    public const ENV_FLAG = 'ROTATE_DATABASE_PASSWORD';
+
     public function __construct(
         private readonly OpSecretWriter $opWriter = new OpSecretWriter(),
         private readonly SecurePasswordGenerator $passwords = new SecurePasswordGenerator(),
@@ -42,7 +44,7 @@ final class SharedDbPasswordRotator
     ): array {
         $credentialKey = $this->credentialKey($shared);
         $days = $shared->passwordRotationDays ?? self::DEFAULT_ROTATION_DAYS;
-        if ($days <= 0 || !$shared->isConfigured()) {
+        if ($days <= 0 || !$shared->isConfigured() || !self::environmentAllowsRotation()) {
             return [
                 'rotated' => false,
                 'rotated_at' => $lastRotatedAt,
@@ -111,6 +113,21 @@ final class SharedDbPasswordRotator
             'rotated_at' => $now->format('c'),
             'credential_key' => $credentialKey,
         ];
+    }
+
+    /**
+     * GitHub Actions can set ROTATE_DATABASE_PASSWORD=false until the
+     * 1Password service account has write access. Unset keeps the YAML
+     * schedule (local produce). Only 1/true/yes/on enable when the env is set.
+     */
+    public static function environmentAllowsRotation(?string $value = null): bool
+    {
+        $raw = $value ?? getenv(self::ENV_FLAG);
+        if ($raw === false || $raw === '') {
+            return true;
+        }
+
+        return in_array(strtolower(trim($raw)), ['1', 'true', 'yes', 'on'], true);
     }
 
     public function credentialKey(SharedDbConfig $shared): ?string

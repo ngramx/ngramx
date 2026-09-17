@@ -46,6 +46,7 @@ class InitPostmacloneWorkflowCommandTest extends TestCase
         $this->assertStringContainsString('apt.postgresql.org', $yaml);
         $this->assertStringContainsString('/usr/lib/postgresql/17/bin', $yaml);
         $this->assertStringContainsString('stdbuf -oL -eL php -d output_buffering=Off', $yaml);
+        $this->assertStringContainsString('ROTATE_DATABASE_PASSWORD', $yaml);
     }
 
     public function test_writes_workflow_with_all_flag_when_no_dataset(): void

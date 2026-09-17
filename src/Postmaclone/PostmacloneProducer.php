@@ -175,6 +175,9 @@ class PostmacloneProducer
                     }
                 }
 
+                if (!SharedDbPasswordRotator::environmentAllowsRotation()) {
+                    $this->progress($onProgress, 'Skipping password rotation (ROTATE_DATABASE_PASSWORD is off)');
+                }
                 $rotation = $this->passwordRotator->rotateIfDue($engine, $dataset->shared, $lastRotatedAt);
                 $passwordRotated = $rotation['rotated'];
                 $passwordRotatedAt = $rotation['rotated_at'];

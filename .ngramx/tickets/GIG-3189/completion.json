@@ -1,7 +1,7 @@
 {
-  "title": "GIG-3189: Edit Onepassword Items Via Template File",
-  "description": "Writes 1Password item updates with op item edit --template and stdin from /dev/null so GitHub Actions no longer treats the payload as item specifiers.",
-  "pr_url": "https://github.com/ngramx/ngramx/pull/26",
+  "title": "GIG-3189: Gate Password Rotation With Rotate Database Password Flag",
+  "description": "Produce skips ALTER ROLE and op item edit unless ROTATE_DATABASE_PASSWORD is true, so factory can leave rotation off until the 1Password service account has write access.",
+  "pr_url": "",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3189/identify-and-configure-all-pii-columns-for-post-clone-anonymization",
   "test_urls": [
     {
@@ -11,12 +11,12 @@
   ],
   "test_plan": [
     {
-      "description": "Item JSON template drops empty fields and keeps set values",
+      "description": "ROTATE_DATABASE_PASSWORD=false skips a due rotation",
       "status": "active",
       "steps": [
-        "Run vendor/bin/phpunit tests/Unit/Postmaclone/OpSecretWriterTest.php",
-        "Confirm applyFieldValue still replaces password by id or label",
-        "Confirm toEditTemplate drops fields with a missing or empty value"
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/SharedDbPasswordRotatorTest.php tests/Unit/Command/InitPostmacloneWorkflowCommandTest.php",
+        "Confirm environmentAllowsRotation is false for false/0/off and true for true/1/empty",
+        "Confirm the generated produce workflow passes ROTATE_DATABASE_PASSWORD"
       ]
     }
   ]
