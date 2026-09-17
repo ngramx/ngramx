@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.2](https://github.com/ngramx/ngramx/compare/v2.45.1...v2.45.2) (2026-09-17)
+
+
+### Bug Fixes
+
+* edit 1Password items via --template so Actions produce can rotate ([08a703c](https://github.com/ngramx/ngramx/commit/08a703cdfcc78224161933440f99f00f9eca2cab))
+
 ## [2.45.1](https://github.com/ngramx/ngramx/compare/v2.45.0...v2.45.1) (2026-09-17)
 
 
