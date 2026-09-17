@@ -48,7 +48,10 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
-          pg_dump --version
+          test -x /usr/lib/postgresql/17/bin/pg_dump
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/pg_dump --version
+          /usr/lib/postgresql/17/bin/pg_dump --version | grep -E ' \(PostgreSQL\) 17\.'
 
       - name: Install 1Password CLI
         uses: 1password/install-cli-action@v2
@@ -65,4 +68,6 @@ jobs:
           POSTMACLONE_REMOTE_URL: ${{ secrets.POSTMACLONE_REMOTE_URL }}
         run: |
           set -euo pipefail
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          pg_dump --version | grep -E ' \(PostgreSQL\) 17\.'
           stdbuf -oL -eL php -d output_buffering=Off -d implicit_flush=1 ngramx.phar postmaclone produce {{PRODUCE_ARGS}} --config {{CONFIG_PATH}}

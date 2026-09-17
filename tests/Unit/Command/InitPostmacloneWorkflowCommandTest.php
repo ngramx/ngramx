@@ -44,6 +44,7 @@ class InitPostmacloneWorkflowCommandTest extends TestCase
         $this->assertStringContainsString('pdo_mysql', $yaml);
         $this->assertStringContainsString('postgresql-client-17', $yaml);
         $this->assertStringContainsString('apt.postgresql.org', $yaml);
+        $this->assertStringContainsString('/usr/lib/postgresql/17/bin', $yaml);
         $this->assertStringContainsString('stdbuf -oL -eL php -d output_buffering=Off', $yaml);
     }
 

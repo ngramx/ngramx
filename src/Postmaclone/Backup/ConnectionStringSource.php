@@ -63,9 +63,12 @@ class ConnectionStringSource implements BackupSourceInterface
 
     private function pgDump(string $out): void
     {
-        $this->assertDumpClientOnPath('pg_dump', 'sudo apt install postgresql-client');
+        $pgDump = PostgresDumpBinary::resolve();
+        if ($pgDump === 'pg_dump') {
+            $this->assertDumpClientOnPath('pg_dump', 'sudo apt install postgresql-client');
+        }
 
-        $process = new Process(['pg_dump', '--no-owner', '--no-acl', '-f', $out, $this->connectionUrl]);
+        $process = new Process([$pgDump, '--no-owner', '--no-acl', '-f', $out, $this->connectionUrl]);
         $process->setTimeout(3600);
         $process->run();
         if (!$process->isSuccessful()) {
