@@ -1,7 +1,7 @@
 {
   "title": "GIG-3192: Create New Worktrees From The Latest Origin Integration Branch",
   "description": "New ngramx worktree branches fork from origin/main (or origin/master) after fetch, so Codabyte no longer starts from a stale parent HEAD.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/28",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3192/fix-ngramx-worktree-creation-ensure-main-branch-is-updated-before",
   "test_urls": [
     {
