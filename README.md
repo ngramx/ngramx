@@ -304,7 +304,7 @@ This command:
 
 1. Fetches from `origin`
 2. Searches remote branches for the ticket (canonical slug, hyphen-less spelling, then bare number)
-3. Uses the matching branch, prompts if multiple, or creates a new `{team}-{number}` branch when none exists
+3. Uses the matching branch, prompts if multiple, or creates a new `{team}-{number}` branch from `origin/<integration>` (usually `origin/main`) when none exists
 4. Creates or reuses a worktree under `.ngramx/worktrees/` and brings up a parallel dev environment (same machinery as `review --worktree`)
 5. Prints the application URL, worktree path, and any URLs from `.ngramx/tickets/<ticket>/completion.json`
 

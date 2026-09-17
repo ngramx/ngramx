@@ -361,9 +361,9 @@ class ReviewCommand extends Command
         if (!$worktreeWasCreated) {
             $formatter->info("Reusing existing worktree: $worktreePath");
         } elseif ($createNewBranch) {
-            $formatter->info('Updating integration branch from origin before creating a new branch...');
+            $formatter->info('Fetching the latest integration branch from origin before creating a new branch...');
             if (!$this->gitRepositoryService->prepareIntegrationBranchForNewWorktree($repositoryPath)) {
-                $message = 'Failed to update the integration branch from origin before creating a new branch.';
+                $message = 'Failed to fetch the latest integration branch from origin before creating a new branch.';
                 $details = trim($this->gitRepositoryService->lastCheckoutError());
                 if ($details !== '') {
                     $message .= "\n\n" . OutputFormatter::escape($details);

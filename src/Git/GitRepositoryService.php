@@ -50,13 +50,15 @@ class GitRepositoryService
     }
 
     /**
-     * Fetch and fast-forward the integration branch before forking a new one.
+     * Fetch origin and confirm the integration start-point exists before forking
+     * a new ticket branch.
      *
-     * `git worktree add -b` creates from the repository's current HEAD, not from
-     * origin/main directly. On shared hosts the base checkout is often left on an
-     * old integration commit even after `git fetch`, so new ticket branches would
-     * inherit stale ngramx.yml (and everything else) until someone manually
-     * checked out and merged main.
+     * New worktrees are created from `origin/<integration>`, not from the parent
+     * checkout's HEAD. Checking out and fast-forwarding local main on a shared
+     * host (Codabyte / Cortex coder) fails when that checkout is dirty, has
+     * diverged, or already has main open in another worktree — and it still
+     * leaves the new branch pointing at stale HEAD if the checkout is skipped.
+     * Fetch + verify is enough; the parent working tree is left alone.
      */
     public function prepareIntegrationBranchForNewWorktree(string $repositoryPath): bool
     {
@@ -66,9 +68,20 @@ class GitRepositoryService
             return false;
         }
 
-        $integrationBranch = $this->resolveDefaultIntegrationBranch($repositoryPath);
+        $startPoint = $this->integrationStartPoint($repositoryPath);
+        $verify = new Process(['git', 'rev-parse', '--verify', '--quiet', $startPoint], $repositoryPath);
+        $verify->setTimeout(10);
+        $verify->run();
 
-        return $this->checkoutBranch($repositoryPath, $integrationBranch);
+        if (!$verify->isSuccessful()) {
+            $this->lastCheckoutError = "Could not resolve {$startPoint} after fetching origin";
+
+            return false;
+        }
+
+        $this->lastCheckoutError = '';
+
+        return true;
     }
 
     /**
@@ -138,12 +151,44 @@ class GitRepositoryService
         }
 
         foreach (['main', 'master'] as $candidate) {
+            if ($this->remoteTrackingBranchExists($repositoryPath, $candidate)) {
+                return $candidate;
+            }
+        }
+
+        foreach (['main', 'master'] as $candidate) {
             if ($this->localBranchExists($repositoryPath, $candidate)) {
                 return $candidate;
             }
         }
 
         return 'main';
+    }
+
+    /**
+     * Remote-tracking ref new ticket branches should be forked from.
+     */
+    public function integrationStartPoint(string $repositoryPath): string
+    {
+        return 'origin/' . $this->resolveDefaultIntegrationBranch($repositoryPath);
+    }
+
+    /**
+     * Whether origin (or $remote) has a remote-tracking branch of this name.
+     */
+    private function remoteTrackingBranchExists(
+        string $repositoryPath,
+        string $branch,
+        string $remote = 'origin'
+    ): bool {
+        $process = new Process(
+            ['git', 'show-ref', '--verify', '--quiet', 'refs/remotes/' . $remote . '/' . $branch],
+            $repositoryPath
+        );
+        $process->setTimeout(10);
+        $process->run();
+
+        return $process->isSuccessful();
     }
 
     /**
@@ -708,20 +753,30 @@ class GitRepositoryService
     /**
      * Create a git worktree at $worktreePath on a brand-new branch $newBranch.
      *
-     * The branch is created from the repository's current HEAD. Hooks are
-     * disabled for the creation checkout for the same reason as addWorktree():
-     * the new worktree has no primed dependencies yet, so a failing hook would
-     * falsely report the creation as failed.
+     * The branch is created from $startPoint (default: origin/<integration>),
+     * not from the parent checkout's current HEAD. Shared hosts often leave that
+     * checkout on an old integration commit or a leftover feature branch, which
+     * is what made Codabyte worktrees miss recent mainline changes.
+     *
+     * Hooks are disabled for the creation checkout for the same reason as
+     * addWorktree(): the new worktree has no primed dependencies yet, so a
+     * failing hook would falsely report the creation as failed.
      */
-    public function addWorktreeWithNewBranch(string $repositoryPath, string $worktreePath, string $newBranch): bool
-    {
+    public function addWorktreeWithNewBranch(
+        string $repositoryPath,
+        string $worktreePath,
+        string $newBranch,
+        ?string $startPoint = null
+    ): bool {
         $parent = dirname($worktreePath);
         if (!is_dir($parent)) {
             @mkdir($parent, 0755, true);
         }
 
+        $startPoint ??= $this->integrationStartPoint($repositoryPath);
+
         $addProcess = new Process(
-            ['git', '-c', 'core.hooksPath=/dev/null', 'worktree', 'add', '-b', $newBranch, $worktreePath],
+            ['git', '-c', 'core.hooksPath=/dev/null', 'worktree', 'add', '-b', $newBranch, $worktreePath, $startPoint],
             $repositoryPath
         );
         $addProcess->setTimeout(120);

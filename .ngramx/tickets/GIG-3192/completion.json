@@ -1,0 +1,31 @@
+{
+  "title": "GIG-3192: Create New Worktrees From The Latest Origin Integration Branch",
+  "description": "New ngramx worktree branches fork from origin/main (or origin/master) after fetch, so Codabyte no longer starts from a stale parent HEAD.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-3192/fix-ngramx-worktree-creation-ensure-main-branch-is-updated-before",
+  "test_urls": [
+    {
+      "label": "ngramx repository",
+      "url": "https://github.com/ngramx/ngramx"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Unit tests cover stale HEAD, dirty parent, fetch failure, and master-only remotes",
+      "status": "active",
+      "steps": [
+        "In the ngramx-dev container run vendor/bin/phpunit --filter 'GitRepositoryServiceTest|WorktreeCommandTest'",
+        "Confirm all tests pass, including addWorktreeWithNewBranch_starts_from_origin_integration_not_head"
+      ]
+    },
+    {
+      "description": "A new worktree on a stale parent checkout still starts from latest origin/main",
+      "status": "active",
+      "steps": [
+        "In a clone whose local main is behind origin/main and whose HEAD is on a feature branch, run ngramx worktree gig-3192-verify --no-interaction",
+        "Confirm the new branch tip matches origin/main and includes commits that were missing from the parent HEAD",
+        "Confirm the parent checkout stayed on the feature branch"
+      ]
+    }
+  ]
+}
