@@ -1,7 +1,7 @@
 {
   "title": "GIG-3189: Prefer Newest Versioned Pg Dump Binary",
   "description": "Resolves pg_dump from /usr/lib/postgresql/{N}/bin (newest N) so produce does not follow Debian's pg_wrapper when an older client is also installed.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/24",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3189/identify-and-configure-all-pii-columns-for-post-clone-anonymization",
   "test_urls": [
     {
