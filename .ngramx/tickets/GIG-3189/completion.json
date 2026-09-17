@@ -1,22 +1,31 @@
 {
-  "title": "GIG-3189: Prefer Newest Versioned Pg Dump Binary",
-  "description": "Resolves pg_dump from /usr/lib/postgresql/{N}/bin (newest N) so produce does not follow Debian's pg_wrapper when an older client is also installed.",
-  "pr_url": "https://github.com/ngramx/ngramx/pull/24",
+  "title": "GIG-3189: Ignore Invalid Postmaclone Rules On Up And Down",
+  "description": "Loads docker, setup, and custom commands even when the postmaclone section fails validation, and updates 1Password secrets by piping item JSON so produce password rotation works in GitHub Actions.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/25",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3189/identify-and-configure-all-pii-columns-for-post-clone-anonymization",
   "test_urls": [
     {
-      "label": "Postmaclone produce docs",
-      "url": "https://github.com/ngramx/ngramx/blob/main/README.md"
+      "label": "ngramx repository",
+      "url": "https://github.com/ngramx/ngramx"
     }
   ],
   "test_plan": [
     {
-      "description": "PostgresDumpBinary picks the newest versioned path",
+      "description": "Invalid postmaclone rules do not block config load or custom commands",
+      "status": "stale",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Config/ConfigLoaderTest.php tests/Unit/ApplicationTest.php tests/Unit/Postmaclone/PostmacloneDoctorTest.php tests/Unit/Command/DownCommandTest.php",
+        "Confirm a yml with valid docker plus core_activity_logs.context: {} loads docker and artisan, and sets postmacloneError",
+        "Confirm Application registers the artisan command and does not record a config load error"
+      ]
+    },
+    {
+      "description": "Password rotation writes 1Password via item JSON, not field assignment",
       "status": "active",
       "steps": [
-        "Run vendor/bin/phpunit tests/Unit/Postmaclone/PostgresDumpBinaryTest.php tests/Unit/Command/InitPostmacloneWorkflowCommandTest.php",
-        "Confirm a tree with 16 and 17 clients resolves to 17",
-        "Confirm the generated workflow prepends /usr/lib/postgresql/17/bin to PATH"
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/OpSecretWriterTest.php",
+        "Confirm applyFieldValue replaces password by id or label and appends a CONCEALED field when missing",
+        "Confirm git log on the PR uses a fix: or feat: subject so semantic-release will cut a version after merge"
       ]
     }
   ]

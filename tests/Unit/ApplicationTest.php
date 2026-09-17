@@ -88,6 +88,46 @@ class ApplicationTest extends TestCase
      * CLI missing all their custom commands with zero explanation. We now
      * capture the error and surface it.
      */
+    public function test_invalid_postmaclone_does_not_block_custom_commands(): void
+    {
+        $originalCwd = getcwd();
+        $this->assertIsString($originalCwd);
+
+        $tmp = sys_get_temp_dir() . '/ngramx-app-test-' . bin2hex(random_bytes(6));
+        mkdir($tmp, 0o755, true);
+
+        try {
+            file_put_contents($tmp . '/ngramx.yml', <<<YAML
+                version: "1.0"
+                docker:
+                  compose_file: "docker-compose.yml"
+                  primary_service: "app"
+                  app_url: "http://localhost:80"
+                commands:
+                  artisan:
+                    command: "php artisan"
+                    description: "Run artisan"
+                postmaclone:
+                  tables:
+                    core_activity_logs:
+                      context: {}
+                YAML);
+            chdir($tmp);
+
+            $app = new Application();
+
+            $this->assertSame([], $app->getConfigLoadErrors());
+            $this->assertTrue($app->has('artisan'));
+            $warnings = implode("\n", $app->getConfigWarnings());
+            $this->assertStringContainsString('postmaclone', $warnings);
+            $this->assertStringContainsString('core_activity_logs.context', $warnings);
+        } finally {
+            chdir($originalCwd);
+            @unlink($tmp . '/ngramx.yml');
+            @rmdir($tmp);
+        }
+    }
+
     public function test_unparseable_ngramx_yml_is_captured_as_load_error(): void
     {
         $originalCwd = getcwd();

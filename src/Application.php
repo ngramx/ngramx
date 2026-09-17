@@ -334,6 +334,13 @@ class Application extends BaseApplication
                 // Check for missing recommended commands
                 $warningChecker = new ConfigWarningChecker();
                 $this->configWarnings = $warningChecker->check($config);
+                if ($config->postmacloneError !== null) {
+                    $this->configWarnings[] = sprintf(
+                        'postmaclone in %s is invalid and will be ignored — %s',
+                        $configPath,
+                        $config->postmacloneError,
+                    );
+                }
             } catch (\Throwable $e) {
                 $this->configLoadErrors[] = sprintf(
                     'Failed to load %s — %s',

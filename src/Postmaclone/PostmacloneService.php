@@ -681,7 +681,9 @@ class PostmacloneService
     {
         if ($config->postmaclone === null) {
             throw new PostmacloneException(
-                'Missing postmaclone: section in ngramx.yml. Add tables and backup/target settings first.'
+                $config->postmacloneError !== null
+                    ? 'Invalid postmaclone section: ' . $config->postmacloneError
+                    : 'Missing postmaclone: section in ngramx.yml. Add tables and backup/target settings first.'
             );
         }
 

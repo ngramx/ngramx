@@ -21,7 +21,7 @@ class ConfigValidator
      * @param array<string, mixed> $config
      * @throws ConfigException
      */
-    public function validate(array $config): void
+    public function validate(array $config, bool $includePostmaclone = true): void
     {
         $this->validateRequiredFields($config);
         $this->validateDockerSection($config['docker']);
@@ -48,8 +48,8 @@ class ConfigValidator
             }
         }
 
-        if (isset($config['postmaclone'])) {
-            $this->validatePostmacloneSection($config['postmaclone']);
+        if ($includePostmaclone) {
+            $this->validatePostmaclone($config);
         }
 
         if (isset($config['hooks'])) {
@@ -129,6 +129,22 @@ class ConfigValidator
         if (isset($entry['cwd']) && !is_string($entry['cwd'])) {
             throw new ConfigException("{$path}.cwd must be a string");
         }
+    }
+
+    /**
+     * Validate postmaclone when present. Isolated so docker/setup/commands
+     * can load even when anonymizer rules are stale or incomplete.
+     *
+     * @param array<string, mixed> $config
+     * @throws ConfigException
+     */
+    public function validatePostmaclone(array $config): void
+    {
+        if (!isset($config['postmaclone'])) {
+            return;
+        }
+
+        $this->validatePostmacloneSection($config['postmaclone']);
     }
 
     /**

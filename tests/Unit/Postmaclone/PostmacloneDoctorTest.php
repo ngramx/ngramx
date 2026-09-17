@@ -36,6 +36,25 @@ final class PostmacloneDoctorTest extends TestCase
         self::assertFalse($diagnosis['needs_s3']);
     }
 
+    public function test_invalid_section_error_is_blocking(): void
+    {
+        $config = new NgramxConfig(
+            version: '1',
+            docker: new DockerConfig('docker-compose.yml', 'app', 'http://localhost'),
+            setup: new SetupConfig(),
+            n8n: new N8nConfig('./.n8n'),
+            postmaclone: null,
+            postmacloneError: 'postmaclone.tables.core_activity_logs.context requires faker, json, or json_array',
+        );
+
+        $diagnosis = (new PostmacloneDoctor())->diagnose($config, sys_get_temp_dir());
+
+        self::assertFalse($diagnosis['ok']);
+        self::assertTrue($diagnosis['checks'][0]['blocking']);
+        self::assertStringContainsString('Invalid postmaclone section', $diagnosis['checks'][0]['message']);
+        self::assertStringContainsString('core_activity_logs.context', $diagnosis['checks'][0]['message']);
+    }
+
     public function test_connection_source_skips_op_and_s3_checks(): void
     {
         $config = $this->config(new BackupConfig(source: BackupConfig::SOURCE_CONNECTION));

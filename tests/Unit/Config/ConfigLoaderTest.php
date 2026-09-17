@@ -397,6 +397,34 @@ YAML);
         });
     }
 
+    public function test_it_loads_docker_when_postmaclone_rules_are_invalid(): void
+    {
+        $root = $this->makeTempDir();
+        file_put_contents($root . '/ngramx.yml', <<<YAML
+            version: "1.0"
+            docker:
+              compose_file: "docker-compose.yml"
+              primary_service: "app"
+              app_url: "http://localhost:80"
+            commands:
+              artisan:
+                command: "php artisan"
+                description: "Run artisan"
+            postmaclone:
+              tables:
+                core_activity_logs:
+                  context: {}
+            YAML);
+
+        $config = $this->loader->load($root . '/ngramx.yml');
+
+        $this->assertSame('app', $config->docker->primaryService);
+        $this->assertArrayHasKey('artisan', $config->commands);
+        $this->assertNull($config->postmaclone);
+        $this->assertNotNull($config->postmacloneError);
+        $this->assertStringContainsString('core_activity_logs.context', $config->postmacloneError);
+    }
+
     public function test_find_config_file_does_not_escape_the_repository_boundary(): void
     {
         // Parent repo carries the config; a linked worktree lives inside it and
