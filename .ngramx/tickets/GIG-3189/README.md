@@ -26,3 +26,4 @@ Engine support so project PII rules can rewrite JSON payloads, clear tokens, kee
 - PR: https://github.com/ngramx/ngramx/pull/24
 - `ngramx down` / `up` no longer fail the whole yml load when `postmaclone.tables` is invalid. Docker/setup/commands still load; the postmaclone section is ignored with a warning. The EK error (`context.faker is required`) was an old CLI requiring `faker` on every column object — json-only rules are valid in 2.45.0+, but teardown must not depend on that either.
 - PR: https://github.com/ngramx/ngramx/pull/25
+- Factory produce failed on AKT: `op item edit` in GitHub Actions treats inherited stdin as a JSON template (`invalid JSON provided`). Writer now fetches the item, replaces the field, and pipes JSON. Commits use `fix:` / `chore:` so merge to main cuts a release.
