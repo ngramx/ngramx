@@ -1,7 +1,7 @@
 {
   "title": "GIG-3189: Ignore Invalid Postmaclone Rules On Up And Down",
   "description": "Loads docker, setup, and custom commands even when the postmaclone section fails validation, so ngramx up/down are not blocked by anonymizer schema errors.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/25",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3189/identify-and-configure-all-pii-columns-for-post-clone-anonymization",
   "test_urls": [
     {
