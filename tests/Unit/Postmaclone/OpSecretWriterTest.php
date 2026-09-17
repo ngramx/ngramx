@@ -53,4 +53,23 @@ final class OpSecretWriterTest extends TestCase
         $this->assertSame('CONCEALED', $updated['fields'][1]['type']);
         $this->assertSame('new-secret', $updated['fields'][1]['value']);
     }
+
+    public function test_edit_template_drops_empty_fields(): void
+    {
+        $item = [
+            'title' => 'postmaclone-anon-psql',
+            'fields' => [
+                ['id' => 'username', 'label' => 'username', 'value' => 'anon'],
+                ['id' => 'notesPlain', 'label' => 'notesPlain'],
+                ['id' => 'empty', 'label' => 'empty', 'value' => ''],
+                ['id' => 'password', 'label' => 'password', 'value' => 'kept'],
+            ],
+        ];
+
+        $template = OpSecretWriter::toEditTemplate($item);
+
+        $this->assertCount(2, $template['fields']);
+        $this->assertSame('username', $template['fields'][0]['id']);
+        $this->assertSame('password', $template['fields'][1]['id']);
+    }
 }

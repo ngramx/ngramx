@@ -1,7 +1,7 @@
 {
-  "title": "GIG-3189: Ignore Invalid Postmaclone Rules On Up And Down",
-  "description": "Loads docker, setup, and custom commands even when the postmaclone section fails validation, and updates 1Password secrets by piping item JSON so produce password rotation works in GitHub Actions.",
-  "pr_url": "https://github.com/ngramx/ngramx/pull/25",
+  "title": "GIG-3189: Edit Onepassword Items Via Template File",
+  "description": "Writes 1Password item updates with op item edit --template and stdin from /dev/null so GitHub Actions no longer treats the payload as item specifiers.",
+  "pr_url": "",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3189/identify-and-configure-all-pii-columns-for-post-clone-anonymization",
   "test_urls": [
     {
@@ -11,21 +11,12 @@
   ],
   "test_plan": [
     {
-      "description": "Invalid postmaclone rules do not block config load or custom commands",
-      "status": "stale",
-      "steps": [
-        "Run vendor/bin/phpunit tests/Unit/Config/ConfigLoaderTest.php tests/Unit/ApplicationTest.php tests/Unit/Postmaclone/PostmacloneDoctorTest.php tests/Unit/Command/DownCommandTest.php",
-        "Confirm a yml with valid docker plus core_activity_logs.context: {} loads docker and artisan, and sets postmacloneError",
-        "Confirm Application registers the artisan command and does not record a config load error"
-      ]
-    },
-    {
-      "description": "Password rotation writes 1Password via item JSON, not field assignment",
+      "description": "Item JSON template drops empty fields and keeps set values",
       "status": "active",
       "steps": [
         "Run vendor/bin/phpunit tests/Unit/Postmaclone/OpSecretWriterTest.php",
-        "Confirm applyFieldValue replaces password by id or label and appends a CONCEALED field when missing",
-        "Confirm git log on the PR uses a fix: or feat: subject so semantic-release will cut a version after merge"
+        "Confirm applyFieldValue still replaces password by id or label",
+        "Confirm toEditTemplate drops fields with a missing or empty value"
       ]
     }
   ]

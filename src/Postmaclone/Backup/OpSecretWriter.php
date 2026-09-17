@@ -10,9 +10,11 @@ use Symfony\Component\Process\Process;
 /**
  * Updates 1Password item fields via the local `op` CLI (requires write access on the item).
  *
- * Field-assignment `op item edit item field=value` is treated as a JSON template
- * read from stdin in GitHub Actions (non-TTY). That yields "invalid JSON provided".
- * Fetch the item, replace the field, and pipe the JSON instead.
+ * GitHub Actions is a non-TTY pipe. There `op item edit field=value` fails with
+ * "invalid JSON provided", and piping item JSON fails with "unable to process
+ * line 1: Couldn't update the item" (stdin is parsed as item specifiers).
+ * Write a template file and pass `--template` with stdin redirected from
+ * /dev/null so neither assignment nor piped JSON is involved.
  */
 class OpSecretWriter
 {
@@ -33,19 +35,25 @@ class OpSecretWriter
         $ref = OpReference::parse($reference);
         $item = $this->getItem($ref);
         $payload = json_encode(
-            self::applyFieldValue($item, $ref->field, $value),
+            self::toEditTemplate(self::applyFieldValue($item, $ref->field, $value)),
             JSON_THROW_ON_ERROR,
         );
 
-        $process = $this->run(
-            ['op', 'item', 'edit', $ref->item, '--vault', $ref->vault],
-            $payload,
-        );
+        $template = $this->writeTemplateFile($payload);
+        try {
+            $process = $this->runDisconnected([
+                'op', 'item', 'edit', $ref->item,
+                '--vault', $ref->vault,
+                '--template', $template,
+            ]);
+        } finally {
+            @unlink($template);
+        }
 
         if (!$process->isSuccessful()) {
             $err = trim($process->getErrorOutput() ?: $process->getOutput());
             $message = "op item edit failed for {$reference}" . ($err !== '' ? ": {$err}" : '');
-            if (str_contains(strtolower($err), 'permission') || str_contains(strtolower($err), 'denied')) {
+            if ($this->looksLikeWriteDenied($err)) {
                 $message .= "\nThe 1Password service account needs write access on this item.";
             }
 
@@ -93,16 +101,45 @@ class OpSecretWriter
     }
 
     /**
+     * Drop empty fields that make `op item edit --template` reject the payload.
+     *
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    public static function toEditTemplate(array $item): array
+    {
+        $fields = $item['fields'] ?? [];
+        if (!is_array($fields)) {
+            $fields = [];
+        }
+
+        $kept = [];
+        foreach ($fields as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            if (!array_key_exists('value', $entry) || $entry['value'] === null || $entry['value'] === '') {
+                continue;
+            }
+            $kept[] = $entry;
+        }
+
+        $item['fields'] = $kept;
+
+        return $item;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function getItem(OpReference $ref): array
     {
-        $process = $this->run([
+        $process = $this->runDisconnected([
             'op', 'item', 'get', $ref->item,
             '--vault', $ref->vault,
             '--format', 'json',
             '--reveal',
-        ], '');
+        ]);
 
         if (!$process->isSuccessful()) {
             $err = trim($process->getErrorOutput() ?: $process->getOutput());
@@ -130,18 +167,44 @@ class OpSecretWriter
         return $item;
     }
 
+    private function writeTemplateFile(string $payload): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'op-item-');
+        if ($path === false) {
+            throw new PostmacloneException('Failed to create a temporary 1Password item template');
+        }
+        if (file_put_contents($path, $payload) === false) {
+            @unlink($path);
+            throw new PostmacloneException('Failed to write the temporary 1Password item template');
+        }
+        chmod($path, 0600);
+
+        return $path;
+    }
+
     /**
      * @param list<string> $command
      */
-    private function run(array $command, string $stdin): Process
+    private function runDisconnected(array $command): Process
     {
-        $process = new Process($command);
+        // Symfony Process always opens a stdin pipe. Redirect from /dev/null
+        // so `op` sees a regular EOF instead of a JSON/item stream.
+        $process = new Process(array_merge(
+            ['bash', '-c', 'exec "$@" </dev/null', 'op-stdin'],
+            $command,
+        ));
         $process->setTimeout(60);
-        // Always bind stdin. In GitHub Actions `op item edit` otherwise treats
-        // the inherited non-TTY stream as a JSON template and fails.
-        $process->setInput($stdin);
         $process->run();
 
         return $process;
+    }
+
+    private function looksLikeWriteDenied(string $err): bool
+    {
+        $lower = strtolower($err);
+
+        return str_contains($lower, 'permission')
+            || str_contains($lower, 'denied')
+            || str_contains($lower, 'couldn\'t update the item');
     }
 }
