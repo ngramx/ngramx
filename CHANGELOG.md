@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.1](https://github.com/ngramx/ngramx/compare/v2.45.0...v2.45.1) (2026-09-17)
+
+
+### Bug Fixes
+
+* ignore invalid postmaclone rules when loading ngramx.yml ([0ad533f](https://github.com/ngramx/ngramx/commit/0ad533f780ed29f5817dd244463960d70a3f1d8d))
+* pipe item JSON to op item edit so password rotation works in CI ([c20a016](https://github.com/ngramx/ngramx/commit/c20a0169452c9ea5d6eaef5ddc785f065f32699e))
+
 # [2.45.0](https://github.com/ngramx/ngramx/compare/v2.44.0...v2.45.0) (2026-09-16)
 
 
