@@ -63,7 +63,7 @@ class DatabaseDumper
      */
     private function pgDump(string $url, string $out, ?array $includeTables, ?array $excludeTables, ?callable $onProgress): void
     {
-        $cmd = ['pg_dump', '--no-owner', '--no-acl', '-f', $out];
+        $cmd = [PostgresDumpBinary::resolve(), '--no-owner', '--no-acl', '-f', $out];
         foreach ($includeTables ?? [] as $table) {
             $cmd[] = '--table=' . $table;
         }

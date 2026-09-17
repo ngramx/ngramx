@@ -1,7 +1,7 @@
 {
-  "title": "GIG-3189: Produce Progress Every Ten Percent",
-  "description": "Logs produce stages and ~10% progress on download, sanitize, anonymize, and gzip so factory GitHub Actions is not silent for hours.",
-  "pr_url": "https://github.com/ngramx/ngramx/pull/23",
+  "title": "GIG-3189: Prefer Newest Versioned Pg Dump Binary",
+  "description": "Resolves pg_dump from /usr/lib/postgresql/{N}/bin (newest N) so produce does not follow Debian's pg_wrapper when an older client is also installed.",
+  "pr_url": "",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3189/identify-and-configure-all-pii-columns-for-post-clone-anonymization",
   "test_urls": [
     {
@@ -11,37 +11,12 @@
   ],
   "test_plan": [
     {
-      "description": "Unit tests cover 10% progress boundaries and sanitizer byte ticks",
-      "status": "stale",
-      "steps": [
-        "Run vendor/bin/phpunit tests/Unit/Postmaclone/PercentReporterTest.php tests/Unit/Postmaclone/PlainSqlDumpSanitizerTest.php tests/Unit/Command/InitPostmacloneWorkflowCommandTest.php",
-        "Confirm the new cases pass"
-      ]
-    },
-    {
-      "description": "Factory workflow template unbuffers produce output and installs pg_dump 17",
-      "status": "stale",
-      "steps": [
-        "Run ngramx init-postmaclone-workflow --dataset earl-kendrick in an empty directory",
-        "Confirm the generated workflow installs postgresql-client-17",
-        "Confirm the produce step uses stdbuf and php -d output_buffering=Off"
-      ]
-    },
-    {
-      "description": "mysqldump is not polled (Bugbot pipe hang)",
+      "description": "PostgresDumpBinary picks the newest versioned path",
       "status": "active",
       "steps": [
-        "Open src/Postmaclone/Backup/DatabaseDumper.php",
-        "Confirm mysqlDump calls Process::run() and does not call runDumpProcess",
-        "Confirm runDumpProcess calls clearstatcache before filesize"
-      ]
-    },
-    {
-      "description": "Generated workflow adds the PGDG apt repo",
-      "status": "active",
-      "steps": [
-        "Run vendor/bin/phpunit tests/Unit/Command/InitPostmacloneWorkflowCommandTest.php",
-        "Confirm the generated YAML contains apt.postgresql.org and postgresql-client-17"
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/PostgresDumpBinaryTest.php tests/Unit/Command/InitPostmacloneWorkflowCommandTest.php",
+        "Confirm a tree with 16 and 17 clients resolves to 17",
+        "Confirm the generated workflow prepends /usr/lib/postgresql/17/bin to PATH"
       ]
     }
   ]

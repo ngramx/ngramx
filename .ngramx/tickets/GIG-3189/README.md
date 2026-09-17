@@ -22,3 +22,4 @@ Engine support so project PII rules can rewrite JSON payloads, clear tokens, kee
 - Produce logs each stage and ~10% ticks on download, dump sanitizer, per-table anonymize, and gzip. Console lines are flushed so GitHub Actions is not silent for hours. Workflow template pins `postgresql-client-17` and runs PHP with `stdbuf` + `output_buffering=Off`.
 - PR: https://github.com/ngramx/ngramx/pull/23
 - Bugbot: mysqldump uses `run()` so the stdout pipe is drained (polling hung the child). `clearstatcache` on pg_dump file-size ticks. Workflow template adds the PGDG apt repo before `postgresql-client-17`.
+- Prefer `/usr/lib/postgresql/{N}/bin/pg_dump` (newest N) over the Debian `pg_wrapper`. Factory run 35177394530 had client 17 installed but still invoked 16.15. Template also prepends that bin dir to PATH.
