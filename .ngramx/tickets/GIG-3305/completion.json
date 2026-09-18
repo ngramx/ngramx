@@ -1,0 +1,31 @@
+{
+  "title": "GIG-3305: Batch Postmaclone Anonymizer Updates",
+  "description": "LiveAnonymizer writes a chunk in one UPDATE CASE WHEN statement instead of one UPDATE per row, so produce can finish inside the GitHub-hosted six-hour cap.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/30",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-3305/batch-postmaclone-anonymizer-updates",
+  "test_urls": [
+    {
+      "label": "ngramx repository",
+      "url": "https://github.com/ngramx/ngramx"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Batched UPDATE covers a chunk, preserves nulls, and falls back per-row",
+      "status": "stale",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/LiveAnonymizerTest.php with pdo_sqlite",
+        "Confirm one UPDATE for a three-row clear, null emails stay null, JSON rewrite stays one statement",
+        "Confirm a forced CASE failure falls back to per-row UPDATEs and still anonymizes"
+      ]
+    },
+    {
+      "description": "Strict mode falls back to per-row UPDATEs before throwing",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/LiveAnonymizerTest.php --filter test_strict_batch_failure_falls_back_then_throws",
+        "Confirm the two rows are cleared and PostmacloneException mentions fell back to per-row"
+      ]
+    }
+  ]
+}
