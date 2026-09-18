@@ -12,3 +12,4 @@ Issue one UPDATE per chunk (CASE WHEN / WHERE pk IN), split oversized JSON paylo
 
 - Ticket folder created.
 - `applyBatch` issues one `UPDATE ... CASE WHEN` per chunk, splits oversized payloads, and falls back to per-row on batch failure.
+- PR: https://github.com/ngramx/ngramx/pull/30
