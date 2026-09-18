@@ -12,3 +12,4 @@ Raise `MysqlRestorer` timeout to at least 3 hours. `fix:` commit for a release.
 
 - Ticket folder created.
 - `MysqlRestorer::RESTORE_TIMEOUT_SECONDS` is 10800 (3 hours).
+- PR: https://github.com/ngramx/ngramx/pull/33

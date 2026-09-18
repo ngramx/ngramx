@@ -1,7 +1,7 @@
 {
   "title": "GIG-3318: Raise MySQL Postmaclone Restore Timeout Past One Hour",
   "description": "Raises the mysql restore timeout from one hour to three so Hydra-sized dumps can finish on DigitalOcean managed MySQL after DEFINER sanitizing.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/33",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3318/raise-mysql-postmaclone-restore-timeout-past-one-hour",
   "test_urls": [
     {
