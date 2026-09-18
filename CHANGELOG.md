@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.46.0](https://github.com/ngramx/ngramx/compare/v2.45.4...v2.46.0) (2026-09-18)
+
+
+### Features
+
+* add AGENTS.md rule to sync postmaclone config when migrations add PII ([807271b](https://github.com/ngramx/ngramx/commit/807271b4e92a9949a5617924c898b488fba1c990))
+
 ## [2.45.4](https://github.com/ngramx/ngramx/compare/v2.45.3...v2.45.4) (2026-09-18)
 
 
