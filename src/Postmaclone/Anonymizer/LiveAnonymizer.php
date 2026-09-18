@@ -37,6 +37,7 @@ class LiveAnonymizer
         private readonly int $chunkSize = 500,
         private readonly bool $strict = false,
         ?callable $onProgress = null,
+        private readonly int $maxBoundBytes = 1_000_000,
     ) {
         $this->values = new AnonymizedValueFactory($faker, $testPassword);
         $this->onProgress = $onProgress;
@@ -187,57 +188,213 @@ class LiveAnonymizer
      */
     private function applyBatch(PDO $pdo, TableRule $table, string $pk, array $rows): void
     {
+        $prepared = [];
         foreach ($rows as $row) {
-            $sets = [];
-            $params = [];
-            $i = 0;
-            foreach ($table->columns as $column => $rule) {
-                if (!array_key_exists($column, $row)) {
-                    $this->failOrWarn("Column '{$table->table}.{$column}' missing; skipping column");
-                    continue;
-                }
-                $current = $row[$column];
-                if ($current === null && $rule->preserveNulls) {
-                    continue;
-                }
-
-                try {
-                    $replacement = $this->values->value($rule, $current);
-                } catch (Throwable $e) {
-                    $this->failOrWarn(
-                        "Could not anonymize {$table->table}.{$column}: {$e->getMessage()}"
-                    );
-                    $replacement = $rule->isJsonRewrite() ? '{}' : null;
-                    if ($replacement === null) {
-                        continue;
-                    }
-                }
-
-                $placeholder = ':v' . $i;
-                $sets[] = $this->dialect->quoteIdentifier($column) . ' = ' . $placeholder;
-                $params[$placeholder] = $replacement;
-                $i++;
+            if (!array_key_exists($pk, $row)) {
+                $this->failOrWarn("Primary key '{$table->table}.{$pk}' missing; skipping row");
+                continue;
             }
-
+            $sets = $this->replacementsForRow($table, $row);
             if ($sets === []) {
                 continue;
             }
+            $prepared[] = ['pk' => $row[$pk], 'sets' => $sets];
+        }
 
-            $sql = 'UPDATE ' . $this->dialect->quoteIdentifier($table->table)
-                . ' SET ' . implode(', ', $sets)
-                . ' WHERE ' . $this->dialect->quoteIdentifier($pk) . ' = :pk';
+        foreach ($this->splitByBoundBudget($prepared) as $chunk) {
             try {
-                $update = $pdo->prepare($sql);
-                foreach ($params as $key => $value) {
-                    $update->bindValue($key, $value);
-                }
-                $update->bindValue(':pk', $row[$pk]);
-                $update->execute();
+                $this->applyBatchedUpdate($pdo, $table, $pk, $chunk);
             } catch (Throwable $e) {
                 $this->failOrWarn(
-                    "UPDATE failed for {$table->table} {$pk}={$row[$pk]}: {$e->getMessage()}"
+                    "Batched UPDATE failed for {$table->table}; falling back to per-row: {$e->getMessage()}"
                 );
+                foreach ($chunk as $item) {
+                    $this->applySingleUpdate($pdo, $table, $pk, $item['pk'], $item['sets']);
+                }
             }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function replacementsForRow(TableRule $table, array $row): array
+    {
+        $sets = [];
+        foreach ($table->columns as $column => $rule) {
+            if (!array_key_exists($column, $row)) {
+                $this->failOrWarn("Column '{$table->table}.{$column}' missing; skipping column");
+                continue;
+            }
+            $current = $row[$column];
+            if ($current === null && $rule->preserveNulls) {
+                continue;
+            }
+
+            try {
+                $replacement = $this->values->value($rule, $current);
+            } catch (Throwable $e) {
+                $this->failOrWarn(
+                    "Could not anonymize {$table->table}.{$column}: {$e->getMessage()}"
+                );
+                $replacement = $rule->isJsonRewrite() ? '{}' : null;
+                if ($replacement === null) {
+                    continue;
+                }
+            }
+
+            $sets[$column] = $replacement;
+        }
+
+        return $sets;
+    }
+
+    /**
+     * @param list<array{pk: mixed, sets: array<string, mixed>}> $prepared
+     * @return list<list<array{pk: mixed, sets: array<string, mixed>}>>
+     */
+    private function splitByBoundBudget(array $prepared): array
+    {
+        $chunks = [];
+        $current = [];
+        $bytes = 0;
+        foreach ($prepared as $item) {
+            $rowBytes = $this->boundBytes($item['pk']);
+            foreach ($item['sets'] as $value) {
+                $rowBytes += $this->boundBytes($value);
+            }
+            if ($current !== [] && ($bytes + $rowBytes) > $this->maxBoundBytes) {
+                $chunks[] = $current;
+                $current = [];
+                $bytes = 0;
+            }
+            $current[] = $item;
+            $bytes += $rowBytes;
+        }
+        if ($current !== []) {
+            $chunks[] = $current;
+        }
+
+        return $chunks;
+    }
+
+    private function boundBytes(mixed $value): int
+    {
+        if ($value === null || is_bool($value) || is_int($value) || is_float($value)) {
+            return 16;
+        }
+
+        return strlen((string) $value);
+    }
+
+    /**
+     * @param list<array{pk: mixed, sets: array<string, mixed>}> $chunk
+     */
+    private function applyBatchedUpdate(PDO $pdo, TableRule $table, string $pk, array $chunk): void
+    {
+        if ($chunk === []) {
+            return;
+        }
+
+        $quotedTable = $this->dialect->quoteIdentifier($table->table);
+        $quotedPk = $this->dialect->quoteIdentifier($pk);
+        $columns = [];
+        foreach ($chunk as $item) {
+            foreach (array_keys($item['sets']) as $column) {
+                $columns[$column] = true;
+            }
+        }
+
+        $params = [];
+        $setSql = [];
+        foreach (array_keys($columns) as $column) {
+            $quotedCol = $this->dialect->quoteIdentifier($column);
+            $token = preg_replace('/[^A-Za-z0-9_]/', '_', $column) ?? $column;
+            $whens = [];
+            foreach ($chunk as $i => $item) {
+                if (!array_key_exists($column, $item['sets'])) {
+                    continue;
+                }
+                $pkName = ':k' . $i . '_' . $token;
+                $valName = ':v' . $i . '_' . $token;
+                $whens[] = 'WHEN ' . $pkName . ' THEN ' . $valName;
+                $params[$pkName] = $item['pk'];
+                $params[$valName] = $item['sets'][$column];
+            }
+            if ($whens === []) {
+                continue;
+            }
+            $setSql[] = $quotedCol . ' = CASE ' . $quotedPk . ' ' . implode(' ', $whens)
+                . ' ELSE ' . $quotedCol . ' END';
+        }
+
+        if ($setSql === []) {
+            return;
+        }
+
+        $in = [];
+        foreach ($chunk as $i => $item) {
+            $name = ':w' . $i;
+            $in[] = $name;
+            $params[$name] = $item['pk'];
+        }
+
+        $sql = 'UPDATE ' . $quotedTable
+            . ' SET ' . implode(', ', $setSql)
+            . ' WHERE ' . $quotedPk . ' IN (' . implode(', ', $in) . ')';
+
+        $started = $pdo->beginTransaction();
+        try {
+            $update = $pdo->prepare($sql);
+            foreach ($params as $key => $value) {
+                $update->bindValue($key, $value);
+            }
+            $update->execute();
+            if ($started) {
+                $pdo->commit();
+            }
+        } catch (Throwable $e) {
+            if ($started && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $sets
+     */
+    private function applySingleUpdate(PDO $pdo, TableRule $table, string $pk, mixed $pkValue, array $sets): void
+    {
+        if ($sets === []) {
+            return;
+        }
+
+        $assignments = [];
+        $params = [];
+        $i = 0;
+        foreach ($sets as $column => $value) {
+            $placeholder = ':v' . $i;
+            $assignments[] = $this->dialect->quoteIdentifier($column) . ' = ' . $placeholder;
+            $params[$placeholder] = $value;
+            $i++;
+        }
+
+        $sql = 'UPDATE ' . $this->dialect->quoteIdentifier($table->table)
+            . ' SET ' . implode(', ', $assignments)
+            . ' WHERE ' . $this->dialect->quoteIdentifier($pk) . ' = :pk';
+        try {
+            $update = $pdo->prepare($sql);
+            foreach ($params as $key => $value) {
+                $update->bindValue($key, $value);
+            }
+            $update->bindValue(':pk', $pkValue);
+            $update->execute();
+        } catch (Throwable $e) {
+            $this->failOrWarn(
+                "UPDATE failed for {$table->table} {$pk}={$pkValue}: {$e->getMessage()}"
+            );
         }
     }
 
