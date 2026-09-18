@@ -11,6 +11,7 @@ class MysqlRestorer implements RestorerInterface
 {
     public function __construct(
         private readonly MysqlRunner $mysql = new MysqlRunner(),
+        private readonly MysqlDumpSanitizer $sanitizer = new MysqlDumpSanitizer(),
     ) {
     }
 
@@ -20,8 +21,14 @@ class MysqlRestorer implements RestorerInterface
             throw new PostmacloneException("Dump not found: {$dumpPath}");
         }
 
+        $in = fopen($dumpPath, 'rb');
+        if ($in === false) {
+            throw new PostmacloneException("Failed to open dump: {$dumpPath}");
+        }
+
         try {
-            $this->mysql->runFile($target, $dumpPath, 3600);
+            $this->sanitizer->appendFilter($in);
+            $this->mysql->run($target, [], $in, 3600);
         } catch (PostmacloneException $e) {
             throw new PostmacloneException(
                 'mysql restore failed: ' . $e->getMessage()
@@ -29,6 +36,8 @@ class MysqlRestorer implements RestorerInterface
                 0,
                 $e
             );
+        } finally {
+            fclose($in);
         }
     }
 }
