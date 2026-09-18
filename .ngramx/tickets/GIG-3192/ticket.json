@@ -1,0 +1,18 @@
+{
+  "id": "GIG-3192",
+  "uuid": "b61decbc-97a8-447e-a263-c5e9ef937d2d",
+  "title": "Fix ngramx worktree creation: ensure main branch is updated before spinning up dev environment",
+  "url": "https://linear.app/gigabyte/issue/GIG-3192/fix-ngramx-worktree-creation-ensure-main-branch-is-updated-before",
+  "gitBranchName": "gig-3192-fix-ngramx-worktree-creation-ensure-main-branch-is-updated",
+  "status": "In Progress",
+  "priority": "High",
+  "estimate": "2 Points",
+  "team": "Gigabyte",
+  "assignee": "Cameron Smith",
+  "createdAt": "2026-09-11T10:58:45.329Z",
+  "createdBy": "Rob Corley",
+  "blockedBy": [],
+  "blocks": [],
+  "relatedTo": [],
+  "description": "Verify and finalize Cam's fix that updates the integration branch before worktree creation, so Codabyte / Cortex coder never starts from a stale main."
+}

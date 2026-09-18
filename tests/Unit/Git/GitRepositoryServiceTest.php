@@ -671,6 +671,21 @@ class GitRepositoryServiceTest extends TestCase
     }
 
     /**
+     * The configured upstream of a local branch, or an empty string when none is set.
+     */
+    private function upstreamOf(string $branch): string
+    {
+        $process = \Symfony\Component\Process\Process::fromShellCommandline(
+            'git rev-parse --abbrev-ref --symbolic-full-name ' . escapeshellarg($branch . '@{u}'),
+            $this->gitRepoPath
+        );
+        $process->setTimeout(10);
+        $process->run();
+
+        return $process->isSuccessful() ? trim($process->getOutput()) : '';
+    }
+
+    /**
      * Create a brand-new branch on origin via a separate clone, so the test repo
      * only learns about it after an explicit fetch.
      */
@@ -878,7 +893,7 @@ class GitRepositoryServiceTest extends TestCase
         $this->assertSame('main', $this->service->resolveDefaultIntegrationBranch($this->gitRepoPath));
     }
 
-    public function test_prepareIntegrationBranchForNewWorktree_fast_forwards_stale_main(): void
+    public function test_prepareIntegrationBranchForNewWorktree_leaves_parent_checkout_alone(): void
     {
         $this->runGitCommand('git checkout main');
         file_put_contents($this->gitRepoPath . '/new-on-main.txt', 'x');
@@ -886,23 +901,83 @@ class GitRepositoryServiceTest extends TestCase
         $this->runGitCommand('git commit -m "Advance main on origin"');
         $this->runGitCommand('git push origin main');
 
-        $originMain = trim((string) shell_exec('git -C ' . escapeshellarg($this->gitRepoPath) . ' rev-parse origin/main'));
+        $originMain = $this->revParse('origin/main');
 
         // Simulate a long-lived base checkout: local main left behind, HEAD on a feature branch.
         $this->runGitCommand('git reset --hard HEAD~1');
         $this->runGitCommand('git checkout feature/TICKET-456');
 
-        $this->assertNotSame(
-            $originMain,
-            trim((string) shell_exec('git -C ' . escapeshellarg($this->gitRepoPath) . ' rev-parse main'))
-        );
+        $staleMain = $this->revParse('main');
+        $this->assertNotSame($originMain, $staleMain);
 
         $this->assertTrue($this->service->prepareIntegrationBranchForNewWorktree($this->gitRepoPath));
-        $this->assertSame('main', $this->service->getCurrentBranch($this->gitRepoPath));
-        $this->assertSame(
-            $originMain,
-            trim((string) shell_exec('git -C ' . escapeshellarg($this->gitRepoPath) . ' rev-parse HEAD'))
-        );
+        $this->assertSame('feature/TICKET-456', $this->service->getCurrentBranch($this->gitRepoPath));
+        $this->assertSame($staleMain, $this->revParse('main'), 'Local main must not be rewritten');
+        $this->assertSame($originMain, $this->revParse('origin/main'));
+    }
+
+    public function test_prepareIntegrationBranchForNewWorktree_fails_when_fetch_fails(): void
+    {
+        $this->runGitCommand('git remote remove origin');
+
+        $this->assertFalse($this->service->prepareIntegrationBranchForNewWorktree($this->gitRepoPath));
+        $this->assertStringContainsString('git fetch --prune origin failed', $this->service->lastCheckoutError());
+    }
+
+    public function test_addWorktreeWithNewBranch_starts_from_origin_integration_not_head(): void
+    {
+        $this->runGitCommand('git checkout main');
+        file_put_contents($this->gitRepoPath . '/new-on-main.txt', 'from origin main');
+        $this->runGitCommand('git add new-on-main.txt');
+        $this->runGitCommand('git commit -m "Advance main on origin"');
+        $this->runGitCommand('git push origin main');
+        $originMain = $this->revParse('origin/main');
+
+        $this->runGitCommand('git reset --hard HEAD~1');
+        $this->runGitCommand('git checkout feature/TICKET-456');
+        file_put_contents($this->gitRepoPath . '/only-on-feature.txt', 'stale head');
+        $this->runGitCommand('git add only-on-feature.txt');
+        $this->runGitCommand('git commit -m "Feature-only commit that must not be the worktree base"');
+        file_put_contents($this->gitRepoPath . '/dirty.txt', 'uncommitted');
+
+        $worktreePath = $this->tempDir . '/wt-from-origin-main';
+        $this->assertTrue($this->service->addWorktreeWithNewBranch($this->gitRepoPath, $worktreePath, 'gig-3192'));
+
+        $this->assertSame($originMain, $this->revParse('gig-3192'));
+        $this->assertFileExists($worktreePath . '/new-on-main.txt');
+        $this->assertFileDoesNotExist($worktreePath . '/only-on-feature.txt');
+        $this->assertSame('feature/TICKET-456', $this->service->getCurrentBranch($this->gitRepoPath));
+        $this->assertFileExists($this->gitRepoPath . '/dirty.txt');
+        $this->assertSame('', $this->upstreamOf('gig-3192'), 'New ticket branches must not track origin/main');
+    }
+
+    public function test_addWorktreeWithNewBranch_does_not_set_upstream_to_origin_main(): void
+    {
+        $worktreePath = $this->tempDir . '/wt-no-upstream';
+
+        $this->assertTrue($this->service->addWorktreeWithNewBranch($this->gitRepoPath, $worktreePath, 'gig-3192-no-upstream'));
+        $this->assertSame($this->revParse('origin/main'), $this->revParse('gig-3192-no-upstream'));
+        $this->assertSame('', $this->upstreamOf('gig-3192-no-upstream'));
+    }
+
+    public function test_resolveDefaultIntegrationBranch_falls_back_to_origin_main_without_head(): void
+    {
+        $this->runGitCommand('git remote set-head origin --delete');
+
+        $this->assertSame('main', $this->service->resolveDefaultIntegrationBranch($this->gitRepoPath));
+        $this->assertSame('origin/main', $this->service->integrationStartPoint($this->gitRepoPath));
+    }
+
+    public function test_resolveDefaultIntegrationBranch_uses_origin_master_when_main_is_absent(): void
+    {
+        $this->runGitCommand('git branch -M master');
+        $this->runGitCommand('git push -u origin master');
+        $this->runGitCommand('git push origin --delete main');
+        $this->runGitCommand('git fetch --prune origin');
+        $this->runGitCommand('git remote set-head origin --delete');
+
+        $this->assertSame('master', $this->service->resolveDefaultIntegrationBranch($this->gitRepoPath));
+        $this->assertSame('origin/master', $this->service->integrationStartPoint($this->gitRepoPath));
     }
 
     public function test_hasUncommittedChanges_detects_dirty_working_tree(): void

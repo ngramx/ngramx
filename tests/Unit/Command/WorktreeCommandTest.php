@@ -278,7 +278,7 @@ class WorktreeCommandTest extends TestCase
 
         $this->assertSame(0, $exitCode, $tester->getDisplay());
         $this->assertStringContainsString("new branch 'gig-123' will be created", $tester->getDisplay());
-        $this->assertStringContainsString('Updating integration branch from origin', $tester->getDisplay());
+        $this->assertStringContainsString('Fetching the latest integration branch from origin', $tester->getDisplay());
     }
 
     public function test_it_prefixes_bare_numbers_with_the_configured_default_team(): void
