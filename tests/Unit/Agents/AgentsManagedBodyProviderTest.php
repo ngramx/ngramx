@@ -42,6 +42,8 @@ class AgentsManagedBodyProviderTest extends TestCase
         $this->assertStringContainsString('verify an issue exists and fix it', $markdown);
         $this->assertStringContainsString('Code style before opening a PR', $markdown);
         $this->assertStringContainsString('HasUuids', $markdown);
+        $this->assertStringContainsString('postmaclone.tables', $markdown);
+        $this->assertStringContainsString('post-clone anonymization', $markdown);
     }
 
     public function test_get_markdown_does_not_include_skill_content(): void

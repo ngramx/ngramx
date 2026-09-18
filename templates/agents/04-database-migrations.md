@@ -13,3 +13,5 @@ Do not assume every Ngramx project uses the same audit column names; copy the co
 When nearby models use UUID primary keys (often UUID v7 via Laravel's `HasUuids` trait), match that: `$table->uuid('id')->primary()`, `$incrementing = false`, `$keyType = 'string'`, and `foreignUuid()->constrained('explicit_table')` for prefixed tables.
 
 NEVER edit migrations. Always create new ones.
+
+When a migration adds a column containing PII, also add a matching column rule under `postmaclone.tables` in the project's `ngramx.yml` so post-clone anonymization stays in sync.
