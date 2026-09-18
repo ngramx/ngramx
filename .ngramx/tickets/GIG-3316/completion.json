@@ -1,7 +1,7 @@
 {
   "title": "GIG-3316: Strip NO_AUTO_CREATE_USER On MySQL Postmaclone Restore",
   "description": "Strips the removed MySQL 5.7 sql_mode NO_AUTO_CREATE_USER from dumps before restore so Hydra produce can load into MySQL 8 scratch.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/31",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3316/strip-no-auto-create-user-on-mysql-postmaclone-restore",
   "test_urls": [
     {

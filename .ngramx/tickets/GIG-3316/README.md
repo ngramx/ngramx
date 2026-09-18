@@ -15,3 +15,4 @@ Hydra produce restore into MySQL 8 scratch fails because 5.7-era dumps set `sql_
 
 - Ticket folder created.
 - `MysqlDumpSanitizer` strips `NO_AUTO_CREATE_USER` from `sql_mode` assignments; stream filter pipes the dump into `mysql` without a second copy.
+- PR: https://github.com/ngramx/ngramx/pull/31
