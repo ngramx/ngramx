@@ -7,9 +7,13 @@ namespace Ngramx\Postmaclone\Restore;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 
 /**
- * MySQL 8 rejects sql_mode values removed after 5.7. Hydra (and any
- * mysqldump-5.7) dumps set NO_AUTO_CREATE_USER on tables and 50003-style
- * routine/trigger blocks. Strip that token only; leave other modes alone.
+ * Managed MySQL 8 (DigitalOcean) rejects several mysqldump-5.7 / SUPER-only
+ * constructs. Rewrite on the restore stream; do not edit the Spaces dump.
+ *
+ * - NO_AUTO_CREATE_USER in sql_mode (removed after 5.7)
+ * - DEFINER=`user`@`host` on views, triggers, routines, events
+ * - SET ... SQL_LOG_BIN (needs SUPER)
+ * - SET ... GTID_PURGED / GTID_NEXT / GTID_EXECUTED (needs SUPER)
  */
 final class MysqlDumpSanitizer
 {
@@ -17,6 +21,19 @@ final class MysqlDumpSanitizer
 
     public function rewriteLine(string $line): string
     {
+        if ($this->isSetAssignment($line, 'SQL_LOG_BIN')) {
+            return $this->commented('SQL_LOG_BIN');
+        }
+        if ($this->isSetAssignment($line, 'GTID_PURGED')
+            || $this->isSetAssignment($line, 'GTID_NEXT')
+            || $this->isSetAssignment($line, 'GTID_EXECUTED')) {
+            return $this->commented('GTID assignment');
+        }
+
+        if ($this->looksLikeDefinerDdl($line)) {
+            $line = $this->stripDefiner($line);
+        }
+
         if (!str_contains($line, 'NO_AUTO_CREATE_USER') || !preg_match('/\bsql_mode\b/i', $line)) {
             return $line;
         }
@@ -50,5 +67,44 @@ final class MysqlDumpSanitizer
         }
 
         return $stream;
+    }
+
+    private function commented(string $reason): string
+    {
+        return '-- ngramx: stripped ' . $reason . "\n";
+    }
+
+    private function isSetAssignment(string $line, string $token): bool
+    {
+        if (preg_match('/^\s*(?:\/\*![0-9]*\s+)?SET\b/i', $line) !== 1) {
+            return false;
+        }
+
+        return preg_match(
+            '/(?:@@(?:SESSION|GLOBAL)\.)?' . preg_quote($token, '/') . '\s*=/i',
+            $line
+        ) === 1;
+    }
+
+    private function looksLikeDefinerDdl(string $line): bool
+    {
+        if (preg_match('/\bDEFINER\s*=/i', $line) !== 1) {
+            return false;
+        }
+
+        return preg_match('/^\s*(CREATE|ALTER|\/\*!)/i', $line) === 1
+            || preg_match('/\/\*![0-9]{5}\s*DEFINER\s*=/i', $line) === 1;
+    }
+
+    private function stripDefiner(string $line): string
+    {
+        $quoted = '(?:`[^`]+`|\'[^\']+\'|"[^"]+"|[A-Za-z0-9_.$%-]+)';
+        $rewritten = preg_replace(
+            '/\s*DEFINER\s*=\s*' . $quoted . '\s*@\s*' . $quoted . '/i',
+            '',
+            $line
+        );
+
+        return $rewritten ?? $line;
     }
 }
