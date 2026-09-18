@@ -12,13 +12,22 @@
   "test_plan": [
     {
       "description": "Sanitizer strips DEFINER, SQL_LOG_BIN, and GTID without touching INSERT text",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run vendor/bin/phpunit tests/Unit/Postmaclone/MysqlDumpSanitizerTest.php",
         "Confirm view/trigger/procedure DEFINER clauses are removed and SQL SECURITY DEFINER remains",
         "Confirm INSERT lines that mention DEFINER or SQL_LOG_BIN are unchanged",
         "Confirm SQL_LOG_BIN and GTID_PURGED SET lines become ngramx comments",
         "After release, dispatch factory produce and confirm Hydra restore passes line 7388"
+      ]
+    },
+    {
+      "description": "SET matcher only comments dump session assignments",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/MysqlDumpSanitizerTest.php --filter 'sql_log_bin|gtid|insert'",
+        "Confirm INSERT ... SET and INSERT VALUES lines that mention SQL_LOG_BIN are unchanged",
+        "Confirm /*!40000 SET @@SESSION.SQL_LOG_BIN=0 */ is still commented out"
       ]
     }
   ]

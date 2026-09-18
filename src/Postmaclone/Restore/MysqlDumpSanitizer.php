@@ -76,7 +76,14 @@ final class MysqlDumpSanitizer
 
     private function isSetAssignment(string $line, string $token): bool
     {
-        return stripos($line, $token) !== false && preg_match('/\bSET\b/i', $line) === 1;
+        if (preg_match('/^\s*(?:\/\*![0-9]*\s+)?SET\b/i', $line) !== 1) {
+            return false;
+        }
+
+        return preg_match(
+            '/(?:@@(?:SESSION|GLOBAL)\.)?' . preg_quote($token, '/') . '\s*=/i',
+            $line
+        ) === 1;
     }
 
     private function looksLikeDefinerDdl(string $line): bool

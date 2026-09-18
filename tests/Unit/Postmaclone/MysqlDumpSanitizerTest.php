@@ -161,9 +161,33 @@ final class MysqlDumpSanitizerTest extends TestCase
         );
     }
 
+    public function test_comments_versioned_sql_log_bin(): void
+    {
+        $line = "/*!40000 SET @@SESSION.SQL_LOG_BIN=0 */;\n";
+
+        self::assertSame(
+            "-- ngramx: stripped SQL_LOG_BIN\n",
+            (new MysqlDumpSanitizer())->rewriteLine($line)
+        );
+    }
+
     public function test_leaves_insert_mentioning_sql_log_bin_without_set(): void
     {
         $line = "INSERT INTO notes VALUES ('forgot SQL_LOG_BIN');\n";
+
+        self::assertSame($line, (new MysqlDumpSanitizer())->rewriteLine($line));
+    }
+
+    public function test_leaves_insert_set_row_mentioning_sql_log_bin(): void
+    {
+        $line = "INSERT INTO notes SET body='SET @@SESSION.SQL_LOG_BIN=0';\n";
+
+        self::assertSame($line, (new MysqlDumpSanitizer())->rewriteLine($line));
+    }
+
+    public function test_leaves_insert_values_containing_set_sql_log_bin(): void
+    {
+        $line = "INSERT INTO notes VALUES ('SET @@SESSION.SQL_LOG_BIN=0');\n";
 
         self::assertSame($line, (new MysqlDumpSanitizer())->rewriteLine($line));
     }
