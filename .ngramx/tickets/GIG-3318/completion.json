@@ -1,0 +1,22 @@
+{
+  "title": "GIG-3318: Raise MySQL Postmaclone Restore Timeout Past One Hour",
+  "description": "Raises the mysql restore timeout from one hour to three so Hydra-sized dumps can finish on DigitalOcean managed MySQL after DEFINER sanitizing.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/33",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-3318/raise-mysql-postmaclone-restore-timeout-past-one-hour",
+  "test_urls": [
+    {
+      "label": "ngramx repository",
+      "url": "https://github.com/ngramx/ngramx"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Hydra restore is allowed to run past 60 minutes",
+      "status": "active",
+      "steps": [
+        "Confirm MysqlRestorer::RESTORE_TIMEOUT_SECONDS is 10800 and is passed to MysqlRunner::run",
+        "After release, dispatch factory produce and confirm Hydra restore is still running after 61 minutes if it has not finished"
+      ]
+    }
+  ]
+}
