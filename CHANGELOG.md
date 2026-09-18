@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.47.1](https://github.com/ngramx/ngramx/compare/v2.47.0...v2.47.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* strip NO_AUTO_CREATE_USER from MySQL dump restores ([50884ba](https://github.com/ngramx/ngramx/commit/50884ba50f647b45460347108eee838e5f759af2))
+
 # [2.47.0](https://github.com/ngramx/ngramx/compare/v2.46.0...v2.47.0) (2026-09-18)
 
 
