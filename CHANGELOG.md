@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.47.0](https://github.com/ngramx/ngramx/compare/v2.46.0...v2.47.0) (2026-09-18)
+
+
+### Bug Fixes
+
+* fall back to per-row updates before strict failOrWarn ([1c8ee5a](https://github.com/ngramx/ngramx/commit/1c8ee5a3894818528e447fad00f59ddc5b4aa547))
+
+
+### Features
+
+* batch postmaclone anonymizer UPDATEs into one statement per chunk ([1fc8b89](https://github.com/ngramx/ngramx/commit/1fc8b894485ef0f716b277bfbcdfcb829d88d4ee))
+
 # [2.46.0](https://github.com/ngramx/ngramx/compare/v2.45.4...v2.46.0) (2026-09-18)
 
 
