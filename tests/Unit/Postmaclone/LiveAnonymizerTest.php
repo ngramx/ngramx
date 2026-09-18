@@ -8,6 +8,7 @@ use Ngramx\Config\Schema\Postmaclone\ColumnRule;
 use Ngramx\Config\Schema\Postmaclone\TableRule;
 use Ngramx\Postmaclone\Anonymizer\LiveAnonymizer;
 use Ngramx\Postmaclone\Anonymizer\SqlDialect;
+use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\FakerMethodResolver;
 use PDO;
 use PDOStatement;
@@ -136,12 +137,40 @@ class LiveAnonymizerTest extends TestCase
         $this->assertNotSame([], $anonymizer->warnings());
     }
 
-    private function anonymizer(CountingPdo $pdo, int $maxBoundBytes = 1_000_000): LiveAnonymizer
+    public function test_strict_batch_failure_falls_back_then_throws(): void
+    {
+        $pdo = $this->sqlite();
+        $pdo->exec('CREATE TABLE people (id INTEGER PRIMARY KEY, name TEXT)');
+        $pdo->exec("INSERT INTO people (id, name) VALUES (1, 'Ann')");
+        $pdo->exec("INSERT INTO people (id, name) VALUES (2, 'Bob')");
+
+        $pdo->failNextBatch = true;
+        $anonymizer = $this->anonymizer($pdo, strict: true);
+
+        try {
+            $anonymizer->anonymize($pdo, [
+                'people' => new TableRule('people', [
+                    'name' => new ColumnRule('name', 'clear'),
+                ], 'id'),
+            ]);
+            $this->fail('Expected PostmacloneException in strict mode');
+        } catch (PostmacloneException $e) {
+            $this->assertStringContainsString('fell back to per-row', $e->getMessage());
+        }
+
+        $selected = $pdo->query('SELECT name FROM people ORDER BY id');
+        $this->assertNotFalse($selected);
+        $names = $selected->fetchAll(PDO::FETCH_COLUMN);
+        $this->assertSame(['', ''], $names);
+    }
+
+    private function anonymizer(CountingPdo $pdo, int $maxBoundBytes = 1_000_000, bool $strict = false): LiveAnonymizer
     {
         return new LiveAnonymizer(
             new FakerMethodResolver('en_GB', 42),
             new SqlDialect('postgres'),
             chunkSize: 50,
+            strict: $strict,
             maxBoundBytes: $maxBoundBytes,
         );
     }

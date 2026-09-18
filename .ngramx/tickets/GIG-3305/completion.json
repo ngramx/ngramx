@@ -12,11 +12,19 @@
   "test_plan": [
     {
       "description": "Batched UPDATE covers a chunk, preserves nulls, and falls back per-row",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run vendor/bin/phpunit tests/Unit/Postmaclone/LiveAnonymizerTest.php with pdo_sqlite",
         "Confirm one UPDATE for a three-row clear, null emails stay null, JSON rewrite stays one statement",
         "Confirm a forced CASE failure falls back to per-row UPDATEs and still anonymizes"
+      ]
+    },
+    {
+      "description": "Strict mode falls back to per-row UPDATEs before throwing",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/LiveAnonymizerTest.php --filter test_strict_batch_failure_falls_back_then_throws",
+        "Confirm the two rows are cleared and PostmacloneException mentions fell back to per-row"
       ]
     }
   ]

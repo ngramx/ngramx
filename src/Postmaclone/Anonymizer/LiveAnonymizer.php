@@ -205,12 +205,12 @@ class LiveAnonymizer
             try {
                 $this->applyBatchedUpdate($pdo, $table, $pk, $chunk);
             } catch (Throwable $e) {
-                $this->failOrWarn(
-                    "Batched UPDATE failed for {$table->table}; falling back to per-row: {$e->getMessage()}"
-                );
                 foreach ($chunk as $item) {
                     $this->applySingleUpdate($pdo, $table, $pk, $item['pk'], $item['sets']);
                 }
+                $this->failOrWarn(
+                    "Batched UPDATE failed for {$table->table}; fell back to per-row: {$e->getMessage()}"
+                );
             }
         }
     }
