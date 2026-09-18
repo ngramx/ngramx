@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Ngramx\Postmaclone\Restore;
 
 /**
- * Line-buffered php_user_filter so NO_AUTO_CREATE_USER is not split across
+ * Line-buffered php_user_filter so sanitizer tokens are not split across
  * stream buckets. Huge INSERT lines stay in the carry buffer until newline.
  */
 final class MysqlDumpSanitizeFilter extends \php_user_filter

@@ -1,0 +1,25 @@
+{
+  "title": "GIG-3317: Strip DEFINER And Super Statements On MySQL Postmaclone Restore",
+  "description": "Extends the MySQL dump sanitizer to strip DEFINER clauses and SUPER-only SQL_LOG_BIN / GTID assignments so Hydra restore can finish on DigitalOcean managed MySQL 8.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-3317/strip-definer-and-super-statements-on-mysql-postmaclone-restore",
+  "test_urls": [
+    {
+      "label": "ngramx repository",
+      "url": "https://github.com/ngramx/ngramx"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Sanitizer strips DEFINER, SQL_LOG_BIN, and GTID without touching INSERT text",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/MysqlDumpSanitizerTest.php",
+        "Confirm view/trigger/procedure DEFINER clauses are removed and SQL SECURITY DEFINER remains",
+        "Confirm INSERT lines that mention DEFINER or SQL_LOG_BIN are unchanged",
+        "Confirm SQL_LOG_BIN and GTID_PURGED SET lines become ngramx comments",
+        "After release, dispatch factory produce and confirm Hydra restore passes line 7388"
+      ]
+    }
+  ]
+}

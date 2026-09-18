@@ -94,4 +94,102 @@ final class MysqlDumpSanitizerTest extends TestCase
         self::assertStringContainsString('INSERT INTO t VALUES (1);', $out);
         self::assertStringContainsString("sql_mode = 'NO_ENGINE_SUBSTITUTION'", $out);
     }
+
+    public function test_strips_backticked_definer_from_view(): void
+    {
+        $line = "CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS SELECT 1;\n";
+
+        self::assertSame(
+            "CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `v` AS SELECT 1;\n",
+            (new MysqlDumpSanitizer())->rewriteLine($line)
+        );
+    }
+
+    public function test_strips_50017_definer_from_trigger(): void
+    {
+        $line = "/*!50003 CREATE*/ /*!50017 DEFINER=`app`@`%`*/ /*!50003 TRIGGER t BEFORE INSERT ON u FOR EACH ROW SET NEW.id = 1 */;;\n";
+
+        self::assertSame(
+            "/*!50003 CREATE*/ /*!50017*/ /*!50003 TRIGGER t BEFORE INSERT ON u FOR EACH ROW SET NEW.id = 1 */;;\n",
+            (new MysqlDumpSanitizer())->rewriteLine($line)
+        );
+    }
+
+    public function test_strips_quoted_definer_from_procedure(): void
+    {
+        $line = "CREATE DEFINER='hydra'@'10.%' PROCEDURE `p`() BEGIN SELECT 1; END;\n";
+
+        self::assertSame(
+            "CREATE PROCEDURE `p`() BEGIN SELECT 1; END;\n",
+            (new MysqlDumpSanitizer())->rewriteLine($line)
+        );
+    }
+
+    public function test_leaves_insert_mentioning_definer_alone(): void
+    {
+        $line = "INSERT INTO notes VALUES ('CREATE VIEW DEFINER=`root`@`localhost`');\n";
+
+        self::assertSame($line, (new MysqlDumpSanitizer())->rewriteLine($line));
+    }
+
+    public function test_leaves_sql_security_definer_after_strip(): void
+    {
+        $line = "CREATE DEFINER=`x`@`y` SQL SECURITY DEFINER FUNCTION `f`() RETURNS INT RETURN 1;\n";
+
+        $out = (new MysqlDumpSanitizer())->rewriteLine($line);
+        self::assertStringNotContainsString('DEFINER=`x`', $out);
+        self::assertStringContainsString('SQL SECURITY DEFINER FUNCTION', $out);
+    }
+
+    public function test_comments_sql_log_bin(): void
+    {
+        $line = "SET @@SESSION.SQL_LOG_BIN= 0;\n";
+
+        self::assertSame(
+            "-- ngramx: stripped SQL_LOG_BIN\n",
+            (new MysqlDumpSanitizer())->rewriteLine($line)
+        );
+    }
+
+    public function test_comments_gtid_purged(): void
+    {
+        $line = "SET @@GLOBAL.GTID_PURGED=/*!80000 '+'*/ 'aaaa-bbbb:1-9';\n";
+
+        self::assertSame(
+            "-- ngramx: stripped GTID assignment\n",
+            (new MysqlDumpSanitizer())->rewriteLine($line)
+        );
+    }
+
+    public function test_leaves_insert_mentioning_sql_log_bin_without_set(): void
+    {
+        $line = "INSERT INTO notes VALUES ('forgot SQL_LOG_BIN');\n";
+
+        self::assertSame($line, (new MysqlDumpSanitizer())->rewriteLine($line));
+    }
+
+    public function test_stream_filter_strips_definer_across_bucket_boundaries(): void
+    {
+        $sanitizer = new MysqlDumpSanitizer();
+        $sanitizer->registerFilter();
+
+        $dump = "CREATE DEFINER=`root`@`localhost` VIEW `v` AS SELECT 1;\n"
+            . "SET @@SESSION.SQL_LOG_BIN=0;\n"
+            . "INSERT INTO t VALUES (1);\n";
+
+        $in = fopen('php://temp', 'r+');
+        self::assertIsResource($in);
+        fwrite($in, $dump);
+        rewind($in);
+        stream_set_chunk_size($in, 8);
+        $sanitizer->appendFilter($in);
+        $out = stream_get_contents($in);
+        fclose($in);
+
+        self::assertIsString($out);
+        self::assertStringNotContainsString('DEFINER=', $out);
+        self::assertStringContainsString('CREATE VIEW `v` AS SELECT 1;', $out);
+        self::assertStringContainsString('-- ngramx: stripped SQL_LOG_BIN', $out);
+        self::assertStringContainsString('INSERT INTO t VALUES (1);', $out);
+    }
 }
