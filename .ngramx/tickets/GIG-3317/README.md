@@ -12,3 +12,4 @@ Strip `DEFINER=` from view/trigger/routine DDL. Neutralize `SET ... SQL_LOG_BIN`
 
 - Ticket folder created.
 - `MysqlDumpSanitizer` strips `DEFINER=` on DDL, comments out `SQL_LOG_BIN` and `GTID_*` assignments, keeps the existing `NO_AUTO_CREATE_USER` rewrite.
+- PR: https://github.com/ngramx/ngramx/pull/32
