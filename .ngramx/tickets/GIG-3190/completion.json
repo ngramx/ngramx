@@ -1,7 +1,7 @@
 {
   "title": "GIG-3190: Add AGENTS.md Rule To Sync Postmaclone Config When Migrations Add PII",
   "description": "Adds a managed AGENTS.md rule requiring postmaclone.tables updates in ngramx.yml whenever migrations introduce PII columns, with regression tests and regenerated agent targets.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/29",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3190/add-agentsmd-rule-auto-update-ngramx-anonymization-config-when",
   "test_urls": [
     {
