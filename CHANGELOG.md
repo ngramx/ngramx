@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.47.2](https://github.com/ngramx/ngramx/compare/v2.47.1...v2.47.2) (2026-09-18)
+
+
+### Bug Fixes
+
+* only strip dump SET assignments for SQL_LOG_BIN and GTID ([04f9c9b](https://github.com/ngramx/ngramx/commit/04f9c9b1a53acf9502e037ff6efb28b18667e25e))
+* strip DEFINER and SUPER-only MySQL dump statements on restore ([bf2300a](https://github.com/ngramx/ngramx/commit/bf2300aea2a77bef833c566258ae0464191c0cb0))
+
 ## [2.47.1](https://github.com/ngramx/ngramx/compare/v2.47.0...v2.47.1) (2026-09-18)
 
 
