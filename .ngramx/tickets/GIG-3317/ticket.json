@@ -1,0 +1,13 @@
+{
+  "id": "GIG-3317",
+  "title": "Strip DEFINER and SUPER statements on MySQL postmaclone restore",
+  "url": "https://linear.app/gigabyte/issue/GIG-3317/strip-definer-and-super-statements-on-mysql-postmaclone-restore",
+  "status": "In Progress",
+  "priority": "High",
+  "estimate": 2,
+  "project": "Ad-Hoc Jobs",
+  "team": "Gigabyte",
+  "assignee": "Cameron Smith",
+  "labels": ["Warwick"],
+  "relatedTo": ["GIG-3316"]
+}
