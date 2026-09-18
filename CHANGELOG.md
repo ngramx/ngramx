@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.4](https://github.com/ngramx/ngramx/compare/v2.45.3...v2.45.4) (2026-09-18)
+
+
+### Bug Fixes
+
+* create new worktrees from origin integration branch ([542b4a7](https://github.com/ngramx/ngramx/commit/542b4a795f292ce6cf5185129cddcb7d355108a9))
+* do not set new worktree branch upstream to main ([9bbbf51](https://github.com/ngramx/ngramx/commit/9bbbf519bd22bef3bcd5f8811ddaee2ae34c5123))
+
 ## [2.45.3](https://github.com/ngramx/ngramx/compare/v2.45.2...v2.45.3) (2026-09-17)
 
 
