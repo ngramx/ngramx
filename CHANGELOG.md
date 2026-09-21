@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.47.3](https://github.com/ngramx/ngramx/compare/v2.47.2...v2.47.3) (2026-09-21)
+
+
+### Bug Fixes
+
+* allow MySQL dump restore to run for three hours ([6f00d3b](https://github.com/ngramx/ngramx/commit/6f00d3bc0940ac141099a4f35d6369bfedf03a85))
+
 ## [2.47.2](https://github.com/ngramx/ngramx/compare/v2.47.1...v2.47.2) (2026-09-18)
 
 
