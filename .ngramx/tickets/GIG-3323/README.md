@@ -12,3 +12,4 @@ Walk dated folders newest-first and use the newest folder that contains the name
 
 - Ticket folder created.
 - `S3KeyResolver` walks older stamps when the newest folder lacks the file.
+- PR: https://github.com/ngramx/ngramx/pull/34
