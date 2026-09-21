@@ -1,0 +1,22 @@
+{
+  "title": "GIG-3323: Resolve Hydra Dump From Older Stamp Folders",
+  "description": "Walks dated Spaces stamp folders newest-first so Hydra produce uses the latest dump that exists instead of failing when the newest Forge folder has no hydra_prod.sql.gz.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-3323/resolve-hydra-dump-from-older-stamp-folders",
+  "test_urls": [
+    {
+      "label": "ngramx repository",
+      "url": "https://github.com/ngramx/ngramx"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Resolver uses an older stamp when the newest folder lacks the dump",
+      "status": "active",
+      "steps": [
+        "Run phpunit tests/Unit/Postmaclone/S3KeyResolverTest.php",
+        "After release, dispatch factory produce and confirm Hydra starts from a dated folder that contains hydra_prod.sql.gz"
+      ]
+    }
+  ]
+}

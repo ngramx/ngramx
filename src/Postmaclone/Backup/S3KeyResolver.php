@@ -18,8 +18,10 @@ use Ngramx\Postmaclone\Exception\PostmacloneException;
  *   path with a single-star folder segment, then the dump basename
  *   path ending in "/" plus backup.file basename
  *
- * The star segment (or trailing "/" + file) selects the newest dated folder; the
- * dump basename is always project-specific and must be configured explicitly.
+ * The star segment (or trailing "/" + file) walks dated folders newest-first
+ * and uses the newest folder that contains the dump basename. Shared nightly
+ * folders do not always include every project's file (Hydra is written by
+ * boss01, not Forge). The dump basename is always project-specific.
  */
 class S3KeyResolver
 {
@@ -51,13 +53,10 @@ class S3KeyResolver
                     . '"…/database-backups/all/*/earl_kendrick_prod.sql.gz".'
                 );
             }
-            $folder = $this->latestCommonPrefix($key);
-            $objectKey = rtrim($folder, '/') . '/' . $file;
+            $objectKey = $this->newestObjectInDatedFolders($key, $file);
         } else {
             return $this->locator;
         }
-
-        $this->assertObjectExists($objectKey);
 
         return new S3ObjectLocator(
             bucket: $this->locator->bucket,
@@ -103,9 +102,8 @@ class S3KeyResolver
                     );
                 }
                 $prefix = rtrim($before, '/') . '/';
-                $folder = $this->latestCommonPrefix($prefix);
 
-                return rtrim($folder, '/') . '/' . $file;
+                return $this->newestObjectInDatedFolders($prefix, $file);
             }
 
             throw new PostmacloneException(
@@ -129,9 +127,7 @@ class S3KeyResolver
             );
         }
 
-        $folder = $this->latestCommonPrefix($prefix);
-
-        return rtrim($folder, '/') . '/' . $suffix;
+        return $this->newestObjectInDatedFolders($prefix, $suffix);
     }
 
     private function normalizeFile(?string $file): ?string
@@ -150,22 +146,35 @@ class S3KeyResolver
         return $file;
     }
 
-    private function latestCommonPrefix(string $prefix): string
+    private function newestObjectInDatedFolders(string $prefix, string $file): string
     {
         if (!str_ends_with($prefix, '/')) {
             $prefix .= '/';
         }
 
-        $prefixes = $this->listCommonPrefixes($prefix);
-        if ($prefixes === []) {
+        $folders = $this->listCommonPrefixes($prefix);
+        if ($folders === []) {
             throw new PostmacloneException(
                 "No daily backup folders found under s3://{$this->locator->bucket}/{$prefix}"
             );
         }
 
-        rsort($prefixes, SORT_STRING);
+        rsort($folders, SORT_STRING);
 
-        return $prefixes[0];
+        foreach ($folders as $folder) {
+            $objectKey = rtrim($folder, '/') . '/' . $file;
+            if ($this->objectExists($objectKey)) {
+                return $objectKey;
+            }
+        }
+
+        $newest = rtrim($folders[0], '/');
+        $count = count($folders);
+
+        throw new PostmacloneException(
+            "Backup object not found: s3://{$this->locator->bucket}/{$newest}/{$file}"
+            . " (searched {$count} daily folders, newest first)"
+        );
     }
 
     /**
@@ -192,7 +201,7 @@ class S3KeyResolver
         return $prefixes;
     }
 
-    private function assertObjectExists(string $objectKey): void
+    private function objectExists(string $objectKey): bool
     {
         $xml = $this->listObjectsXml([
             'list-type' => '2',
@@ -200,21 +209,17 @@ class S3KeyResolver
             'max-keys' => '1',
         ]);
 
-        $found = false;
-        if (isset($xml->Contents)) {
-            foreach ($xml->Contents as $content) {
-                if ((string) $content->Key === $objectKey) {
-                    $found = true;
-                    break;
-                }
+        if (!isset($xml->Contents)) {
+            return false;
+        }
+
+        foreach ($xml->Contents as $content) {
+            if ((string) $content->Key === $objectKey) {
+                return true;
             }
         }
 
-        if (!$found) {
-            throw new PostmacloneException(
-                "Backup object not found: s3://{$this->locator->bucket}/{$objectKey}"
-            );
-        }
+        return false;
     }
 
     /**

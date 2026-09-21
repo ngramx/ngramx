@@ -1,0 +1,13 @@
+{
+  "id": "GIG-3323",
+  "title": "Resolve Hydra dump from older stamp folders",
+  "url": "https://linear.app/gigabyte/issue/GIG-3323/resolve-hydra-dump-from-older-stamp-folders",
+  "status": "In Progress",
+  "priority": "High",
+  "estimate": 1,
+  "project": "Ad-Hoc Jobs",
+  "team": "Gigabyte",
+  "assignee": "Cameron Smith",
+  "labels": ["Warwick"],
+  "relatedTo": ["GIG-3318", "GIG-3319"]
+}

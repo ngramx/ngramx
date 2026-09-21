@@ -163,9 +163,99 @@ final class S3KeyResolverTest extends TestCase
         );
 
         $this->expectException(PostmacloneException::class);
-        $this->expectExceptionMessage('Backup object not found');
+        $this->expectExceptionMessage(
+            'Backup object not found: s3://weathered-brook-object-storage/database-backups/all/20260802000004/missing_prod.sql.gz (searched 1 daily folders, newest first)'
+        );
 
         (new S3KeyResolver($locator, $client, file: 'missing_prod.sql.gz'))->resolve();
+    }
+
+    public function testWalksOlderStampWhenNewestLacksFile(): void
+    {
+        $listFolders = <<<'XML'
+        <?xml version="1.0"?>
+        <ListBucketResult>
+          <CommonPrefixes><Prefix>database-backups/all/20260918000004/</Prefix></CommonPrefixes>
+          <CommonPrefixes><Prefix>database-backups/all/20260921000003/</Prefix></CommonPrefixes>
+        </ListBucketResult>
+        XML;
+
+        $empty = <<<'XML'
+        <?xml version="1.0"?>
+        <ListBucketResult></ListBucketResult>
+        XML;
+
+        $olderObject = <<<'XML'
+        <?xml version="1.0"?>
+        <ListBucketResult>
+          <Contents><Key>database-backups/all/20260918000004/hydra_prod.sql.gz</Key></Contents>
+        </ListBucketResult>
+        XML;
+
+        $client = $this->mockClient([
+            new Response(200, [], $listFolders),
+            new Response(200, [], $empty),
+            new Response(200, [], $olderObject),
+        ]);
+
+        $locator = new S3ObjectLocator(
+            bucket: 'weathered-brook-object-storage',
+            key: 'database-backups/all/',
+            region: 'lon1',
+            endpoint: 'https://lon1.digitaloceanspaces.com',
+            pathStyle: true,
+        );
+
+        $resolved = (new S3KeyResolver($locator, $client, file: 'hydra_prod.sql.gz'))->resolve();
+
+        self::assertSame(
+            'database-backups/all/20260918000004/hydra_prod.sql.gz',
+            $resolved->key
+        );
+    }
+
+    public function testGlobPathWalksOlderStampWhenNewestLacksFile(): void
+    {
+        $listFolders = <<<'XML'
+        <?xml version="1.0"?>
+        <ListBucketResult>
+          <CommonPrefixes><Prefix>database-backups/all/20260918000004/</Prefix></CommonPrefixes>
+          <CommonPrefixes><Prefix>database-backups/all/20260921000003/</Prefix></CommonPrefixes>
+        </ListBucketResult>
+        XML;
+
+        $empty = <<<'XML'
+        <?xml version="1.0"?>
+        <ListBucketResult></ListBucketResult>
+        XML;
+
+        $olderObject = <<<'XML'
+        <?xml version="1.0"?>
+        <ListBucketResult>
+          <Contents><Key>database-backups/all/20260918000004/hydra_prod.sql.gz</Key></Contents>
+        </ListBucketResult>
+        XML;
+
+        $client = $this->mockClient([
+            new Response(200, [], $listFolders),
+            new Response(200, [], $empty),
+            new Response(200, [], $olderObject),
+        ]);
+
+        $locator = new S3ObjectLocator(
+            bucket: 'weathered-brook-object-storage',
+            key: 'database-backups/all/*/hydra_prod.sql.gz',
+            region: 'lon1',
+            endpoint: 'https://lon1.digitaloceanspaces.com',
+            pathStyle: true,
+        );
+
+        $resolved = (new S3KeyResolver($locator, $client))->resolve();
+
+        self::assertSame(
+            'database-backups/all/20260918000004/hydra_prod.sql.gz',
+            $resolved->key
+        );
     }
 
     /**
