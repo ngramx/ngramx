@@ -1,7 +1,7 @@
 {
   "title": "GIG-3347: Stream Gzip Dumps Into MySQL Restore",
   "description": "Stops expanding Hydra-sized gzip dumps to a 39GB file on disk. Restorers decompress through a zlib stream so produce fits on the existing lon1 droplet.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/36",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3347/stream-gzip-dumps-into-mysql-restore",
   "test_urls": [
     {
