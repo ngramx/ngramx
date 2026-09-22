@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.47.4](https://github.com/ngramx/ngramx/compare/v2.47.3...v2.47.4) (2026-09-22)
+
+
+### Bug Fixes
+
+* estimate gzip size for auto remote threshold ([1bfbec0](https://github.com/ngramx/ngramx/commit/1bfbec0068b2f72b2f3eb211f1de1cff8bd09082))
+* stream gzip dumps into mysql restore ([f6cae58](https://github.com/ngramx/ngramx/commit/f6cae582d52e4bab2e045bcac66c6c6d8569a5d0))
+
 ## [2.47.3](https://github.com/ngramx/ngramx/compare/v2.47.2...v2.47.3) (2026-09-21)
 
 
