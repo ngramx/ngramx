@@ -1,0 +1,22 @@
+{
+  "title": "GIG-3345: Stop Killing Hydra MySQL Restore At Three Hours",
+  "description": "Removes the Symfony process timeout on MySQL dump restore, adds compress and session speed flags, and reports restore progress so Hydra produce is not killed at an arbitrary hour.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-3345/stop-killing-hydra-mysql-restore-at-three-hours",
+  "test_urls": [
+    {
+      "label": "Hydra produce workflow",
+      "url": "https://github.com/gigabyte-software/postmaclone-factory/actions/workflows/postmaclone-produce-hydra.yml"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Hydra restore is not killed at 3 hours",
+      "status": "active",
+      "steps": [
+        "Run phpunit tests/Unit/Postmaclone/MysqlRestorerTest.php",
+        "After release, dispatch Hydra produce and confirm restore logs percent progress and is still running after 181 minutes if it has not finished"
+      ]
+    }
+  ]
+}
