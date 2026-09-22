@@ -1,0 +1,23 @@
+{
+  "title": "GIG-3347: Stream Gzip Dumps Into MySQL Restore",
+  "description": "Stops expanding Hydra-sized gzip dumps to a 39GB file on disk. Restorers decompress through a zlib stream so produce fits on the existing lon1 droplet.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-3347/stream-gzip-dumps-into-mysql-restore",
+  "test_urls": [
+    {
+      "label": "ngramx repository",
+      "url": "https://github.com/ngramx/ngramx"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Gzip dumps stay compressed and restore reads decompressed SQL",
+      "status": "active",
+      "steps": [
+        "In the ngramx app container run vendor/bin/phpunit tests/Unit/Postmaclone/DumpStreamTest.php tests/Unit/Postmaclone/DumpDecompressorTest.php tests/Unit/Postmaclone/S3BackupSourceTest.php tests/Unit/Postmaclone/MysqlDumpSanitizerTest.php",
+        "Confirm S3 materialize of a .sql.gz object leaves no sibling .ungz and DumpStream::open returns the plaintext SQL",
+        "After release, delete the leftover 39G .ungz on lon1, merge factory PR 13, then dispatch Hydra produce and confirm disk usage stays near the 4GB gzip instead of climbing toward 43GB"
+      ]
+    }
+  ]
+}

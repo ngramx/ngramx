@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ngramx\Tests\Unit\Postmaclone;
 
+use Ngramx\Postmaclone\Restore\DumpStream;
 use Ngramx\Postmaclone\Restore\MysqlDumpSanitizer;
 use PHPUnit\Framework\TestCase;
 
@@ -215,5 +216,34 @@ final class MysqlDumpSanitizerTest extends TestCase
         self::assertStringContainsString('CREATE VIEW `v` AS SELECT 1;', $out);
         self::assertStringContainsString('-- ngramx: stripped SQL_LOG_BIN', $out);
         self::assertStringContainsString('INSERT INTO t VALUES (1);', $out);
+    }
+
+    public function test_stream_filter_rewrites_gzip_dump_without_expanding_file(): void
+    {
+        $dir = sys_get_temp_dir() . '/ngramx-mysql-gz-' . uniqid('', true);
+        mkdir($dir, 0700, true);
+        $path = $dir . '/postmaclone-abc.dump';
+        $dump = "CREATE DEFINER=`root`@`localhost` VIEW `v` AS SELECT 1;\n"
+            . "INSERT INTO t VALUES (1);\n";
+        $compressed = gzencode($dump, 6);
+        self::assertNotFalse($compressed);
+        file_put_contents($path, $compressed);
+
+        try {
+            $in = DumpStream::open($path);
+            (new MysqlDumpSanitizer())->appendFilter($in);
+            $out = stream_get_contents($in);
+            fclose($in);
+
+            self::assertIsString($out);
+            self::assertStringNotContainsString('DEFINER=', $out);
+            self::assertStringContainsString('CREATE VIEW `v` AS SELECT 1;', $out);
+            self::assertStringContainsString('INSERT INTO t VALUES (1);', $out);
+            self::assertFileDoesNotExist($path . '.ungz');
+            self::assertSame($compressed, file_get_contents($path));
+        } finally {
+            @unlink($path);
+            @rmdir($dir);
+        }
     }
 }
