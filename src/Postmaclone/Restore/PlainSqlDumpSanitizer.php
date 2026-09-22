@@ -22,10 +22,7 @@ final class PlainSqlDumpSanitizer
     public function forPsql(string $dumpPath, ?callable $onProgress = null): string
     {
         $outPath = $dumpPath . '.sanitized';
-        $in = fopen($dumpPath, 'rb');
-        if ($in === false) {
-            throw new PostmacloneException("Failed to read dump: {$dumpPath}");
-        }
+        $in = DumpStream::open($dumpPath);
         $out = fopen($outPath, 'wb');
         if ($out === false) {
             fclose($in);

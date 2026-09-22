@@ -53,36 +53,30 @@ class PostgresRestorer implements RestorerInterface
     private function restoreCustom(string $dumpPath, EphemeralTarget $target): void
     {
         $container = $target->meta['container_name'] ?? null;
-        if ($target->provider === 'docker' && is_string($container) && $container !== '') {
-            $in = fopen($dumpPath, 'rb');
-            if ($in === false) {
-                throw new PostmacloneException("Failed to open dump: {$dumpPath}");
-            }
-            try {
+        $in = DumpStream::open($dumpPath);
+        try {
+            if ($target->provider === 'docker' && is_string($container) && $container !== '') {
                 $process = new Process([
                     'docker', 'exec', '-i', $container,
                     'pg_restore', '-v', '-O', '--no-acl', '--no-owner',
                     '-U', $target->username,
                     '-d', $target->database,
                 ]);
-                $process->setTimeout(3600);
-                $process->setInput($in);
-                $process->run();
-            } finally {
-                fclose($in);
+            } else {
+                $process = new Process([
+                    'pg_restore',
+                    '-v',
+                    '-O',
+                    '--no-acl',
+                    '--no-owner',
+                    '-d', $target->databaseUrl,
+                ]);
             }
-        } else {
-            $process = new Process([
-                'pg_restore',
-                '-v',
-                '-O',
-                '--no-acl',
-                '--no-owner',
-                '-d', $target->databaseUrl,
-                $dumpPath,
-            ]);
             $process->setTimeout(3600);
+            $process->setInput($in);
             $process->run();
+        } finally {
+            fclose($in);
         }
 
         if (!$process->isSuccessful()) {
@@ -118,10 +112,7 @@ class PostgresRestorer implements RestorerInterface
 
     private function looksLikeCustomFormat(string $path): bool
     {
-        $fh = fopen($path, 'rb');
-        if ($fh === false) {
-            return false;
-        }
+        $fh = DumpStream::open($path);
         $magic = fread($fh, 5);
         fclose($fh);
 

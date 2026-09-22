@@ -24,10 +24,7 @@ class MysqlRestorer implements RestorerInterface
             throw new PostmacloneException("Dump not found: {$dumpPath}");
         }
 
-        $in = fopen($dumpPath, 'rb');
-        if ($in === false) {
-            throw new PostmacloneException("Failed to open dump: {$dumpPath}");
-        }
+        $in = DumpStream::open($dumpPath);
 
         try {
             $this->sanitizer->appendFilter($in);
