@@ -20,3 +20,4 @@ Stop expanding Hydra-sized `.gz` dumps to a 39GB `.ungz` on the lon1 droplet. Re
 - `DumpDecompressor::maybeDecompress` is now a no-op so SharedDbRefresher keeps gzip.
 - `MysqlRestorer`, `PlainSqlDumpSanitizer`, and `PostgresRestorer` (including custom-format peek and pg_restore stdin) use `DumpStream`.
 - PR: https://github.com/ngramx/ngramx/pull/36
+- Auto remote threshold uses `DumpStream::estimatedUncompressedBytes` (gzip ISIZE, unwrapped when smaller than the file) so a compressed dump under 2 GiB still prefers remote when the payload would exceed it.
