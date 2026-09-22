@@ -11,3 +11,5 @@ Hydra restore hit the 10800s Symfony timeout. Stop guessing hours: no process ti
 ## Changes
 
 - Ticket folder created.
+- No Symfony timeout on dump restore; compress + session flags; byte progress.
+- PR: https://github.com/ngramx/ngramx/pull/35

@@ -1,7 +1,7 @@
 {
   "title": "GIG-3345: Stop Killing Hydra MySQL Restore At Three Hours",
   "description": "Removes the Symfony process timeout on MySQL dump restore, adds compress and session speed flags, and reports restore progress so Hydra produce is not killed at an arbitrary hour.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/35",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3345/stop-killing-hydra-mysql-restore-at-three-hours",
   "test_urls": [
     {
