@@ -1398,6 +1398,15 @@ class ReviewCommand extends Command
         string $primaryService,
         ?string $namespace
     ): int {
+        if ((bool) $input->getOption('anon')) {
+            $formatter->info(
+                'Skipping database reset — shared hosted DB is in use (--anon). '
+                . 'Never run fresh/migrate against postmaclone.shared.'
+            );
+
+            return Command::SUCCESS;
+        }
+
         $resetCommand = $input->getOption('quick') ? 'clear' : 'fresh';
 
         if (isset($config->commands[$resetCommand]) && trim($config->commands[$resetCommand]->command) !== '') {

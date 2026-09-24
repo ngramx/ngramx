@@ -110,7 +110,7 @@ final class SshTunnelManager
         ];
     }
 
-    public function startBackground(int $localPort, string $remoteHost, int $remotePort): int
+    public function startBackground(int $localPort, string $remoteHost, int $remotePort): void
     {
         $args = $this->buildTunnelArgs($localPort, $remoteHost, $remotePort);
         $args[] = '-f';
@@ -127,16 +127,35 @@ final class SshTunnelManager
                 . '. Try `ssh-add` or `ngramx postmaclone connect --foreground`.'
             );
         }
+    }
 
-        $pid = $this->findTunnelPid($localPort);
-        if ($pid === null) {
-            throw new PostmacloneException(
-                'SSH tunnel started but could not determine its process id. '
-                . 'Check `ss -lntp | grep :' . $localPort . '` and run disconnect if needed.'
-            );
+    public function resolveTunnelPid(int $localPort): ?int
+    {
+        return $this->findTunnelPidFromSs($localPort) ?? $this->findTunnelPidFromLsof($localPort);
+    }
+
+    /**
+     * Stop a background tunnel by pid and/or listeners on the local forward port.
+     */
+    public function stopTunnel(?int $pid, ?int $localPort): bool
+    {
+        if ($pid !== null && $pid > 0 && $this->isRunning($pid)) {
+            $this->stop($pid);
         }
 
-        return $pid;
+        if ($localPort !== null) {
+            foreach ($this->findListenerPidsOnLocalPort($localPort) as $listenerPid) {
+                if ($this->isRunning($listenerPid)) {
+                    $this->stop($listenerPid);
+                }
+            }
+        }
+
+        if ($localPort !== null && $this->isLocalPortListening($localPort)) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -185,16 +204,25 @@ final class SshTunnelManager
     {
         $deadline = time() + $timeoutSeconds;
         while (time() < $deadline) {
-            $socket = @fsockopen('127.0.0.1', $localPort, $errno, $errstr, 1);
-            if ($socket !== false) {
-                fclose($socket);
-
+            if ($this->isLocalPortListening($localPort)) {
                 return true;
             }
             usleep(200_000);
         }
 
         return false;
+    }
+
+    public function isLocalPortListening(int $localPort): bool
+    {
+        $socket = @fsockopen('127.0.0.1', $localPort, $errno, $errstr, 1);
+        if ($socket === false) {
+            return false;
+        }
+
+        fclose($socket);
+
+        return true;
     }
 
     public function allocateLocalPort(?int $preferred = null): int
@@ -214,17 +242,37 @@ final class SshTunnelManager
 
     private function isPortFree(int $port): bool
     {
-        $socket = @fsockopen('127.0.0.1', $port, $errno, $errstr, 1);
-        if ($socket !== false) {
-            fclose($socket);
-
-            return false;
-        }
-
-        return true;
+        return !$this->isLocalPortListening($port);
     }
 
-    private function findTunnelPid(int $localPort): ?int
+    /**
+     * @return list<int>
+     */
+    private function findListenerPidsOnLocalPort(int $localPort): array
+    {
+        $pids = [];
+        $single = $this->resolveTunnelPid($localPort);
+        if ($single !== null) {
+            $pids[] = $single;
+        }
+
+        $process = new Process(['lsof', '-nP', '-iTCP:' . $localPort, '-sTCP:LISTEN', '-t']);
+        $process->run();
+        if (!$process->isSuccessful()) {
+            return array_values(array_unique($pids));
+        }
+
+        foreach (preg_split('/\R/', trim($process->getOutput())) ?: [] as $line) {
+            if ($line === '' || !ctype_digit($line)) {
+                continue;
+            }
+            $pids[] = (int) $line;
+        }
+
+        return array_values(array_unique($pids));
+    }
+
+    private function findTunnelPidFromSs(int $localPort): ?int
     {
         $process = new Process(['ss', '-lntp']);
         $process->run();
@@ -239,6 +287,23 @@ final class SshTunnelManager
             }
             if (preg_match('/pid=(\d+)/', $line, $matches) === 1) {
                 return (int) $matches[1];
+            }
+        }
+
+        return null;
+    }
+
+    private function findTunnelPidFromLsof(int $localPort): ?int
+    {
+        $process = new Process(['lsof', '-nP', '-iTCP:' . $localPort, '-sTCP:LISTEN', '-t']);
+        $process->run();
+        if (!$process->isSuccessful()) {
+            return null;
+        }
+
+        foreach (preg_split('/\R/', trim($process->getOutput())) ?: [] as $line) {
+            if ($line !== '' && ctype_digit($line)) {
+                return (int) $line;
             }
         }
 

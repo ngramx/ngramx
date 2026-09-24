@@ -13,3 +13,4 @@ Automate developer connection to shared anonymized hosted databases (COR-274 / p
 - Postmaclone connect service, SSH tunnel, compose override, lock file, Op session ensurer.
 - `ngramx up --anon`, auto-connect on Codabyte trusted egress, `down` disconnect when started with `--anon`.
 - Review fixes: Codabyte auto-connect bug, `--anon`/`--postmaclone` guard, docs and tests.
+- Bugbot PR #37: skip `fresh` on `review`/`worktree --anon`, tunnel rollback on failed connect, lsof PID fallback, dead-tunnel disconnect, direct-mode IDE host in status.

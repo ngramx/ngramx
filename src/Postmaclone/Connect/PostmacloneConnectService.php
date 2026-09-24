@@ -88,71 +88,81 @@ class PostmacloneConnectService
         $localPort = null;
         $envHost = $parsed->host;
         $envPort = $parsed->port;
-        $ideHost = '127.0.0.1';
+        $ideHost = $parsed->host;
         $idePort = $parsed->port;
         $mode = PostmacloneConnectLockData::MODE_DIRECT;
+        $tunnel = null;
 
-        if (!$direct) {
-            $mode = PostmacloneConnectLockData::MODE_TUNNEL;
-            $localPort = (new SshTunnelManager($this->resolveTunnelTarget($connectConfig)))->allocateLocalPort(
-                $connectConfig->localPort,
+        try {
+            if (!$direct) {
+                $mode = PostmacloneConnectLockData::MODE_TUNNEL;
+                $localPort = (new SshTunnelManager($this->resolveTunnelTarget($connectConfig)))->allocateLocalPort(
+                    $connectConfig->localPort,
+                );
+
+                $tunnel = new SshTunnelManager($this->resolveTunnelTarget($connectConfig));
+                $batch = $tunnel->probeBatchMode();
+                if (!$batch['ok']) {
+                    throw new PostmacloneException($batch['message']);
+                }
+
+                $tunnel->startBackground($localPort, $parsed->host, $parsed->port);
+                if (!$tunnel->waitForLocalPort($localPort)) {
+                    $tunnel->stopTunnel(null, $localPort);
+                    throw new PostmacloneException(
+                        "SSH tunnel did not bind 127.0.0.1:{$localPort} in time. Check Codabyte access and retry."
+                    );
+                }
+
+                $tunnelPid = $tunnel->resolveTunnelPid($localPort);
+
+                $envHost = $connectConfig->dockerHost;
+                $envPort = $localPort;
+                $ideHost = '127.0.0.1';
+                $idePort = $localPort;
+            }
+
+            $databaseUrl = $parsed->databaseUrl($envHost, $envPort);
+            $connectedAt = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('c');
+
+            $lock = new PostmacloneConnectLockData(
+                mode: $mode,
+                engine: $engine,
+                connectedAt: $connectedAt,
+                host: $envHost,
+                port: $envPort,
+                database: $parsed->database,
+                username: $parsed->username,
+                password: $parsed->password,
+                databaseUrl: $databaseUrl,
+                ideHost: $ideHost,
+                idePort: $idePort,
+                remoteHost: $direct ? null : $parsed->host,
+                remotePort: $direct ? null : $parsed->port,
+                localPort: $localPort,
+                tunnelPid: $tunnelPid,
             );
 
-            $tunnel = new SshTunnelManager($this->resolveTunnelTarget($connectConfig));
-            $batch = $tunnel->probeBatchMode();
-            if (!$batch['ok']) {
-                throw new PostmacloneException($batch['message']);
+            if ($probe) {
+                $this->probeConnection($parsed, $direct ? null : $localPort, $engine);
             }
 
-            $tunnelPid = $tunnel->startBackground($localPort, $parsed->host, $parsed->port);
-            if (!$tunnel->waitForLocalPort($localPort)) {
-                $tunnel->stop($tunnelPid);
-                throw new PostmacloneException(
-                    "SSH tunnel did not bind 127.0.0.1:{$localPort} in time. Check Codabyte access and retry."
-                );
+            if ($bindEnv) {
+                $lock = $lock->withEnvBackupPath($this->bindEnv($projectRoot, $lock));
             }
 
-            $envHost = $connectConfig->dockerHost;
-            $envPort = $localPort;
-            $ideHost = '127.0.0.1';
-            $idePort = $localPort;
+            $connectLock->write($lock);
+            $this->applyComposeOverrides($config, $lock);
+            $refreshed = $this->refreshDatabaseContainers($config, $projectRoot, $warnings);
+
+            return ['lock' => $lock, 'warnings' => $warnings, 'refreshed_services' => $refreshed];
+        } catch (\Throwable $e) {
+            if ($tunnel !== null) {
+                $tunnel->stopTunnel($tunnelPid, $localPort);
+            }
+
+            throw $e;
         }
-
-        $databaseUrl = $parsed->databaseUrl($envHost, $envPort);
-        $connectedAt = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('c');
-
-        $lock = new PostmacloneConnectLockData(
-            mode: $mode,
-            engine: $engine,
-            connectedAt: $connectedAt,
-            host: $envHost,
-            port: $envPort,
-            database: $parsed->database,
-            username: $parsed->username,
-            password: $parsed->password,
-            databaseUrl: $databaseUrl,
-            ideHost: $ideHost,
-            idePort: $idePort,
-            remoteHost: $direct ? null : $parsed->host,
-            remotePort: $direct ? null : $parsed->port,
-            localPort: $localPort,
-            tunnelPid: $tunnelPid,
-        );
-
-        if ($probe) {
-            $this->probeConnection($parsed, $direct ? null : $localPort, $engine);
-        }
-
-        $envBackupPath = null;
-        if ($bindEnv) {
-            $lock = $lock->withEnvBackupPath($this->bindEnv($projectRoot, $lock));
-        }
-
-        $connectLock->write($lock);
-        $this->applyComposeOverrides($config, $lock);
-        $refreshed = $this->refreshDatabaseContainers($config, $projectRoot, $warnings);
-
-        return ['lock' => $lock, 'warnings' => $warnings, 'refreshed_services' => $refreshed];
     }
 
     /**
@@ -256,11 +266,13 @@ class PostmacloneConnectService
             return false;
         }
 
-        $tunnel = new SshTunnelManager();
-        if ($lock->tunnelPid !== null) {
-            if (!$tunnel->stop($lock->tunnelPid) && !$force) {
+        if ($lock->mode === PostmacloneConnectLockData::MODE_TUNNEL) {
+            $tunnel = new SshTunnelManager();
+            if (!$tunnel->stopTunnel($lock->tunnelPid, $lock->localPort) && !$force) {
                 throw new PostmacloneException(
-                    'Failed to stop SSH tunnel (pid ' . $lock->tunnelPid . '). Re-run with --force to clear local state.'
+                    'Failed to stop SSH tunnel'
+                    . ($lock->tunnelPid !== null ? ' (pid ' . $lock->tunnelPid . ')' : '')
+                    . '. Re-run with --force to clear local state.'
                 );
             }
         }

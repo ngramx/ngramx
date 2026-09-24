@@ -86,6 +86,8 @@ YAML);
 
             $this->assertSame('direct', $result['lock']->mode);
             $this->assertSame('private-db.example.com', $result['lock']->host);
+            $this->assertSame('private-db.example.com', $result['lock']->ideHost);
+            $this->assertSame(25060, $result['lock']->idePort);
             $env = file_get_contents($this->dir . '/.env');
             $this->assertIsString($env);
             $this->assertStringContainsString('DB_HOST=private-db.example.com', $env);
