@@ -13,9 +13,9 @@ use Symfony\Component\Process\Process;
  * targets so restore does not use the compose-network alias (unreachable from
  * the host) or flaky host-port forwarding.
  */
-final class MysqlRunner
+class MysqlRunner
 {
-    public function runFile(EphemeralTarget $target, string $sqlFile, int $timeout = 3600): void
+    public function runFile(EphemeralTarget $target, string $sqlFile, ?int $timeout = 3600): void
     {
         if (!is_file($sqlFile)) {
             throw new PostmacloneException("SQL file not found: {$sqlFile}");
@@ -37,7 +37,7 @@ final class MysqlRunner
      * @param list<string> $mysqlArgs Arguments after `mysql` (excluding connection target)
      * @param resource|null $stdin
      */
-    public function run(EphemeralTarget $target, array $mysqlArgs, $stdin = null, int $timeout = 3600): void
+    public function run(EphemeralTarget $target, array $mysqlArgs, $stdin = null, ?int $timeout = 3600): void
     {
         $cmd = array_merge($this->command($target), $mysqlArgs);
 

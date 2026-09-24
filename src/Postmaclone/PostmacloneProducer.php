@@ -89,7 +89,7 @@ class PostmacloneProducer
             $this->progress($onProgress, 'Restoring dump into scratch');
             $restorer = $engine === PostmacloneConfig::ENGINE_POSTGRES
                 ? new PostgresRestorer(onProgress: $onProgress)
-                : new MysqlRestorer();
+                : new MysqlRestorer(onProgress: $onProgress);
             $restorer->restore($dumpPath, $target);
 
             $pdoHost = (string) ($target->meta['host_bind_host'] ?? $target->host);

@@ -1,0 +1,13 @@
+{
+  "id": "GIG-3345",
+  "title": "Stop killing Hydra MySQL restore at three hours",
+  "url": "https://linear.app/gigabyte/issue/GIG-3345/stop-killing-hydra-mysql-restore-at-three-hours",
+  "status": "In Progress",
+  "priority": "High",
+  "estimate": 2,
+  "project": "Ad-Hoc Jobs",
+  "team": "Gigabyte",
+  "assignee": "Cameron Smith",
+  "labels": ["Warwick"],
+  "relatedTo": ["GIG-3318", "GIG-3324"]
+}
