@@ -41,6 +41,7 @@ class WorktreeCommand extends ReviewCommand
             ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. The argument can be a list index, a ticket, a namespace, or any fragment of a worktree or branch name; ambiguous matches ask which one. With no argument you pick from a list (including "all").')
             ->addOption('list', 'l', InputOption::VALUE_NONE, 'Show the project overview: the main checkout and every worktree, with branch, running state and URL. Same as `ngramx status`.')
             ->addOption('no-host-mapping', null, InputOption::VALUE_NONE, 'Do not expose container ports to the host. Use on shared or headless machines where host ports may already be taken; reach the app over the Docker network instead.')
+            ->addOption('anon', null, InputOption::VALUE_NONE, 'Connect to the shared anonymized hosted DB (postmaclone.shared) when bringing the worktree up; cleanup runs postmaclone disconnect automatically')
             ->addOption('branch', 'b', InputOption::VALUE_REQUIRED, 'Use this exact branch instead of searching for one matching the ticket. Created from origin/<integration> if it does not exist yet.');
     }
 

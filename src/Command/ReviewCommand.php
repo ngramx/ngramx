@@ -124,7 +124,8 @@ class ReviewCommand extends Command
             ->addOption('cursor', 'c', InputOption::VALUE_NONE, 'Open the worktree in a new Cursor window once it is ready (implies --worktree)')
             ->addOption('all', null, InputOption::VALUE_NONE, 'With --cleanup: target every worktree, without asking.')
             ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. The argument can be a ticket, a list index, a namespace, or any fragment of a worktree or branch name; ambiguous matches ask which one. With no argument you pick from a list (including "all").')
-            ->addOption('no-host-mapping', null, InputOption::VALUE_NONE, 'Do not expose container ports to the host. Use on shared or headless machines where host ports may already be taken; reach the app over the Docker network instead.');
+            ->addOption('no-host-mapping', null, InputOption::VALUE_NONE, 'Do not expose container ports to the host. Use on shared or headless machines where host ports may already be taken; reach the app over the Docker network instead.')
+            ->addOption('anon', null, InputOption::VALUE_NONE, 'Connect to the shared anonymized hosted DB (postmaclone.shared) when bringing the environment up; worktree cleanup runs postmaclone disconnect automatically');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -204,7 +205,8 @@ class ReviewCommand extends Command
                         $output,
                         $namespace,
                         $portOffset,
-                        (bool) $input->getOption('no-host-mapping')
+                        (bool) $input->getOption('no-host-mapping'),
+                        (bool) $input->getOption('anon'),
                     );
                     if ($upExit !== Command::SUCCESS) {
                         $formatter->error('Failed to start the environment. Run `ngramx up` manually to see the full output.');
@@ -564,7 +566,13 @@ class ReviewCommand extends Command
                     }
                 }
 
-                $upExit = $this->runUpCommand($output, $namespace, $portOffset, $noHostMapping);
+                $upExit = $this->runUpCommand(
+                    $output,
+                    $namespace,
+                    $portOffset,
+                    $noHostMapping,
+                    (bool) $input->getOption('anon'),
+                );
                 if ($upExit !== Command::SUCCESS) {
                     $formatter->error('Failed to start the worktree environment.');
                     return $upExit;
@@ -1447,7 +1455,8 @@ class ReviewCommand extends Command
         OutputInterface $output,
         ?string $namespace,
         int $portOffset,
-        bool $noHostMapping = false
+        bool $noHostMapping = false,
+        bool $anon = false,
     ): int {
         $application = $this->getApplication();
         if ($application === null) {
@@ -1473,6 +1482,10 @@ class ReviewCommand extends Command
         // `up` ignores --port-offset in this mode and empties every published port.
         if ($noHostMapping) {
             $arguments['--no-host-mapping'] = true;
+        }
+
+        if ($anon) {
+            $arguments['--anon'] = true;
         }
 
         $upInput = new ArrayInput($arguments);
