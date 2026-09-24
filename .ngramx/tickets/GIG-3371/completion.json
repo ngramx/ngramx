@@ -1,0 +1,23 @@
+{
+  "title": "GIG-3371: Install Worktree Dependencies From The Lockfile",
+  "description": "Stops copying vendor and node_modules into a new worktree so the project's startup install builds them from the lockfile.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/38",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-3371/codabyte-troubleshooting",
+  "test_urls": [
+    {
+      "label": "Worktree dependency primer test",
+      "url": "https://github.com/ngramx/ngramx/blob/gig-3371-install-worktree-dependencies/tests/Unit/Worktree/WorktreeDependencyPrimerTest.php"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "A new worktree does not receive a copied vendor or node_modules",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Worktree/WorktreeDependencyPrimerTest.php",
+        "Confirm vendor and node_modules stay absent in the worktree after start and await",
+        "Run vendor/bin/phpunit tests/Unit/Command/ReviewCommandTest.php and confirm priming is still awaited before the reset step"
+      ]
+    }
+  ]
+}

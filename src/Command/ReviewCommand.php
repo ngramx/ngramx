@@ -420,10 +420,10 @@ class ReviewCommand extends Command
             $this->httpsEndpointHosts($config->docker, $folderName),
         );
 
-        // Start the dependency copies but don't wait: image reuse and `up` only
-        // need the worktree directory, .env and ngramx.yml (seeded above), so
-        // the copy latency hides behind the (typically slower) Docker startup.
-        // The copies use absolute paths, so starting before chdir is safe.
+        // Dependencies are installed by the project on startup, from the lockfile
+        // into an empty tree. A copied vendor or node_modules is not a complete
+        // install, and npm will not repair a package directory that is already
+        // present but missing files.
         $this->dependencyPrimer->start($repositoryPath, $worktreePath, $formatter);
 
         $originalCwd = getcwd();
@@ -667,8 +667,6 @@ class ReviewCommand extends Command
             // from config alone.
             $this->recordWorktreeUrl($worktreeLock, $worktreeUrls);
 
-            // The reset/install step is the first thing that reads vendor and
-            // node_modules, so the priming copies must have landed by now.
             $this->dependencyPrimer->await($formatter);
 
             $resetResult = $this->runReset(
@@ -718,8 +716,6 @@ class ReviewCommand extends Command
 
             $this->reconcileWorktreeOwnership($worktreePath, $formatter);
         } finally {
-            // Idempotent re-await covering the early-return paths (`up` failure
-            // etc.), so a still-running copy is never leaked or torn down under.
             $this->dependencyPrimer->await($formatter);
             chdir($originalCwd);
         }
