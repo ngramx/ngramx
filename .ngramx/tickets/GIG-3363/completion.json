@@ -1,7 +1,7 @@
 {
   "title": "GIG-3363: Postmaclone Shared DB Connect",
   "description": "Adds postmaclone connect/disconnect for the nightly shared anonymized DB (SSH tunnel or direct egress), wires ngramx up --anon and Codabyte auto-connect, and fixes review follow-ups for UpCommand and docs.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/37",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3363/update-ngramx-to-automate-connection-to-anon-databases",
   "test_urls": [
     {

@@ -1,0 +1,13 @@
+{
+  "id": "GIG-3316",
+  "uuid": "d35448f7-9941-4ea2-84fa-48697c7b41a3",
+  "title": "Strip NO_AUTO_CREATE_USER on MySQL postmaclone restore",
+  "url": "https://linear.app/gigabyte/issue/GIG-3316/strip-no-auto-create-user-on-mysql-postmaclone-restore",
+  "status": "In Progress",
+  "priority": 2,
+  "estimate": 2,
+  "assignee": "Cameron Smith",
+  "project": "Ad-Hoc Jobs",
+  "team": "Gigabyte",
+  "gitBranchName": "gig-3316-strip-no_auto_create_user-on-mysql-postmaclone-restore"
+}

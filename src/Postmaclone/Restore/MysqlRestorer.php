@@ -9,8 +9,12 @@ use Ngramx\Postmaclone\Target\EphemeralTarget;
 
 class MysqlRestorer implements RestorerInterface
 {
+    /** Hydra-sized dumps into managed MySQL regularly exceed one hour. */
+    public const RESTORE_TIMEOUT_SECONDS = 10800;
+
     public function __construct(
         private readonly MysqlRunner $mysql = new MysqlRunner(),
+        private readonly MysqlDumpSanitizer $sanitizer = new MysqlDumpSanitizer(),
     ) {
     }
 
@@ -20,8 +24,11 @@ class MysqlRestorer implements RestorerInterface
             throw new PostmacloneException("Dump not found: {$dumpPath}");
         }
 
+        $in = DumpStream::open($dumpPath);
+
         try {
-            $this->mysql->runFile($target, $dumpPath, 3600);
+            $this->sanitizer->appendFilter($in);
+            $this->mysql->run($target, [], $in, self::RESTORE_TIMEOUT_SECONDS);
         } catch (PostmacloneException $e) {
             throw new PostmacloneException(
                 'mysql restore failed: ' . $e->getMessage()
@@ -29,6 +36,8 @@ class MysqlRestorer implements RestorerInterface
                 0,
                 $e
             );
+        } finally {
+            fclose($in);
         }
     }
 }
