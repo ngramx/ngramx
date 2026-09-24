@@ -17,18 +17,6 @@ final class OpAuthProbe
 {
     public const SIGNIN_ADDRESS = 'gigabytesoftware.1password.com';
 
-    /**
-     * @return array{
-     *   installed: bool,
-     *   service_account: bool,
-     *   account_configured: bool,
-     *   signed_in: bool,
-     *   wsl: bool,
-     *   account_shorthands: list<string>,
-     *   checks: list<array{ok: bool, message: string}>,
-     *   next_steps: list<string>
-     * }
-     */
     public function isSignedIn(): bool
     {
         return $this->runOp(['whoami'])['ok'];
@@ -42,6 +30,18 @@ final class OpAuthProbe
         return $this->listAccountShorthandsInternal();
     }
 
+    /**
+     * @return array{
+     *   installed: bool,
+     *   service_account: bool,
+     *   account_configured: bool,
+     *   signed_in: bool,
+     *   wsl: bool,
+     *   account_shorthands: list<string>,
+     *   checks: list<array{ok: bool, message: string}>,
+     *   next_steps: list<string>
+     * }
+     */
     public function probe(): array
     {
         $installed = S3Credentials::isOpAvailable();

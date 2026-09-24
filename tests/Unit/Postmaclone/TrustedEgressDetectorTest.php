@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 
 class TrustedEgressDetectorTest extends TestCase
 {
+    /** @var array<string, string|false> */
     private array $originalEnv = [];
 
     protected function setUp(): void

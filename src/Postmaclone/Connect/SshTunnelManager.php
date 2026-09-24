@@ -165,7 +165,7 @@ final class SshTunnelManager
 
     public function stop(?int $pid): bool
     {
-        if (!$this->isRunning($pid)) {
+        if ($pid === null || $pid <= 0 || !$this->isRunning($pid)) {
             return false;
         }
 

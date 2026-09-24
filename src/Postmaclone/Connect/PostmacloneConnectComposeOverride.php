@@ -39,8 +39,8 @@ final class PostmacloneConnectComposeOverride
             ? $this->parseOverrideFile($overridePath)
             : ['services' => []];
 
-        if (!is_array($override) || !isset($override['services']) || !is_array($override['services'])) {
-            $override = ['services' => []];
+        if (!isset($override['services']) || !is_array($override['services'])) {
+            $override['services'] = [];
         }
 
         foreach ($serviceNames as $serviceName) {
@@ -259,9 +259,6 @@ final class PostmacloneConnectComposeOverride
         $header = $this->resolveOverrideHeader($overridePath, $preserveExistingHeader);
 
         $encoded = Yaml::dump($override, 10, 2);
-        if ($encoded === false) {
-            throw new PostmacloneException('Failed to encode docker-compose override for Post Maclone connect');
-        }
 
         // Match ComposeOverrideGenerator: plain ports arrays need an explicit tag.
         $encoded = preg_replace('/^(\s+ports:)$/m', '$1 !override', $encoded) ?? $encoded;

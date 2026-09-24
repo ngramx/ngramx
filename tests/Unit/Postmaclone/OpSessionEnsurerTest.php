@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 
 class OpSessionEnsurerTest extends TestCase
 {
+    /** @var array<string, string|false> */
     private array $originalEnv = [];
 
     protected function setUp(): void

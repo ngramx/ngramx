@@ -68,9 +68,11 @@ final class OpSessionEnsurer
             );
         } else {
             $this->runInteractiveSignIn(['op', 'signin', '--account', $account, '--force']);
-            if ($this->probe->isSignedIn()) {
-                return;
-            }
+        }
+
+        // Interactive sign-in can establish a session without needing --raw capture.
+        if ($this->probe->isSignedIn()) { // @phpstan-ignore if.alwaysFalse (op updates auth state after sign-in)
+            return;
         }
 
         $token = $this->captureRawSessionToken($account);

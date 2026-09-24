@@ -151,14 +151,7 @@ class UpCommandTest extends TestCase
             ->willReturn(true);
         $connectService->expects($this->once())
             ->method('connect')
-            ->with(
-                config: $config,
-                projectRoot: '/path/to',
-                bindEnv: true,
-                strict: false,
-                replace: true,
-                probe: true,
-            )
+            ->with($config, '/path/to', true, false, true, true)
             ->willReturn([
                 'lock' => $connectLock,
                 'warnings' => [],

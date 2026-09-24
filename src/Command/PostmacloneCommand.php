@@ -239,7 +239,8 @@ class PostmacloneCommand extends Command
 
         $direct = (new TrustedEgressDetector())->isDirectMode();
         $formatter->info('Mode: ' . ($direct ? 'direct (trusted egress)' : 'SSH tunnel via Codabyte'));
-        $formatter->info('Shared database: ' . ($pm->shared?->connection?->database ?? '(from url)'));
+        $database = $pm->shared->connection->database ?? '(from url)';
+        $formatter->info('Shared database: ' . $database);
         $formatter->info('No connection was made (--dry-run).');
 
         return Command::SUCCESS;
@@ -282,7 +283,7 @@ class PostmacloneCommand extends Command
             $formatter->warning($warning);
         }
 
-        $refreshed = $result['refreshed_services'] ?? [];
+        $refreshed = $result['refreshed_services'];
         if ($refreshed !== []) {
             $formatter->info('Recreated containers: ' . implode(', ', $refreshed));
         }
