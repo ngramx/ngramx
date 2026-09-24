@@ -1,0 +1,40 @@
+{
+  "title": "GIG-3363: Postmaclone Shared DB Connect",
+  "description": "Adds postmaclone connect/disconnect for the nightly shared anonymized DB (SSH tunnel or direct egress), wires ngramx up --anon and Codabyte auto-connect, and fixes review follow-ups for UpCommand and docs.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-3363/update-ngramx-to-automate-connection-to-anon-databases",
+  "test_urls": [
+    {
+      "label": "ngramx repository",
+      "url": "https://github.com/ngramx/ngramx"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Unit tests for connect service, UpCommand anon/trusted egress, and SSH tunnel helpers",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Command/UpCommandTest.php tests/Unit/Postmaclone/PostmacloneConnectServiceTest.php tests/Unit/Postmaclone/PostmacloneConnectComposeOverrideTest.php",
+        "Confirm tests pass including test_it_connects_shared_db_on_trusted_egress_without_anon_flag and test_it_rejects_anon_with_postmaclone"
+      ]
+    },
+    {
+      "description": "Local postmaclone connect dry-run and status",
+      "status": "active",
+      "steps": [
+        "In an app with postmaclone.shared configured, run ngramx postmaclone connect --dry-run",
+        "Run ngramx postmaclone doctor and confirm shared DB checks appear",
+        "After a successful connect, run ngramx postmaclone status and confirm IDE host/port and disconnect hint"
+      ]
+    },
+    {
+      "description": "ngramx up --anon lifecycle",
+      "status": "active",
+      "steps": [
+        "Run ngramx up --anon in a project with postmaclone.shared configured",
+        "Confirm .env DB_* and docker-compose.override.yml point at the shared DB before containers start",
+        "Run ngramx down and confirm shared DB disconnect runs when the stack was started with --anon"
+      ]
+    }
+  ]
+}

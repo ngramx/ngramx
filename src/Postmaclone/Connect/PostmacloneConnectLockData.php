@@ -29,6 +29,28 @@ readonly class PostmacloneConnectLockData
     ) {
     }
 
+    public function withEnvBackupPath(?string $envBackupPath): self
+    {
+        return new self(
+            mode: $this->mode,
+            engine: $this->engine,
+            connectedAt: $this->connectedAt,
+            host: $this->host,
+            port: $this->port,
+            database: $this->database,
+            username: $this->username,
+            password: $this->password,
+            databaseUrl: $this->databaseUrl,
+            ideHost: $this->ideHost,
+            idePort: $this->idePort,
+            remoteHost: $this->remoteHost,
+            remotePort: $this->remotePort,
+            localPort: $this->localPort,
+            tunnelPid: $this->tunnelPid,
+            envBackupPath: $envBackupPath,
+        );
+    }
+
     /**
      * @return array<string, mixed>
      */

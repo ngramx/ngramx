@@ -47,23 +47,15 @@ final class SshTunnelManager
      */
     public function probeReachability(): array
     {
-        $args = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5'];
-        if ($this->target->port !== null) {
-            $args[] = '-p';
-            $args[] = (string) $this->target->port;
-        }
-        $args[] = $this->target->sshDestination();
-        $args[] = 'true';
-
-        $process = new Process($args);
-        $process->setTimeout(15);
-        $process->run();
-
-        if ($process->isSuccessful()) {
-            return ['ok' => true, 'message' => 'SSH to ' . $this->target->sshDestination() . ' reachable'];
+        $result = $this->runBatchModeSshProbe();
+        if ($result['ok']) {
+            return [
+                'ok' => true,
+                'message' => 'SSH to ' . $this->target->sshDestination() . ' reachable',
+            ];
         }
 
-        $detail = trim($process->getErrorOutput() ?: $process->getOutput());
+        $detail = $result['detail'];
 
         return [
             'ok' => false,
@@ -76,6 +68,25 @@ final class SshTunnelManager
      * @return array{ok: bool, message: string}
      */
     public function probeBatchMode(): array
+    {
+        $result = $this->runBatchModeSshProbe();
+        if ($result['ok']) {
+            return [
+                'ok' => true,
+                'message' => 'SSH key available without passphrase prompt (ssh-agent or unencrypted key)',
+            ];
+        }
+
+        return [
+            'ok' => false,
+            'message' => 'SSH key requires a passphrase or is not loaded — run `ssh-add` or use `ngramx postmaclone connect --foreground`',
+        ];
+    }
+
+    /**
+     * @return array{ok: bool, detail: string}
+     */
+    private function runBatchModeSshProbe(): array
     {
         $args = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5'];
         if ($this->target->port !== null) {
@@ -90,12 +101,12 @@ final class SshTunnelManager
         $process->run();
 
         if ($process->isSuccessful()) {
-            return ['ok' => true, 'message' => 'SSH key available without passphrase prompt (ssh-agent or unencrypted key)'];
+            return ['ok' => true, 'detail' => ''];
         }
 
         return [
             'ok' => false,
-            'message' => 'SSH key requires a passphrase or is not loaded — run `ssh-add` or use `ngramx postmaclone connect --foreground`',
+            'detail' => trim($process->getErrorOutput() ?: $process->getOutput()),
         ];
     }
 

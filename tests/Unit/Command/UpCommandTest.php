@@ -20,6 +20,8 @@ use Ngramx\Docker\NamespaceResolver;
 use Ngramx\Docker\PortOffsetManager;
 use Ngramx\Herd\HerdService;
 use Ngramx\Orchestrator\SetupOrchestrator;
+use Ngramx\Postmaclone\Connect\PostmacloneConnectLockData;
+use Ngramx\Postmaclone\Connect\PostmacloneConnectService;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
@@ -96,6 +98,99 @@ class UpCommandTest extends TestCase
 
         $this->assertSame(1, $exitCode);
         $this->assertStringContainsString('already running', $tester->getDisplay());
+    }
+
+    public function test_it_rejects_anon_with_postmaclone(): void
+    {
+        $config = $this->createMockConfig();
+
+        $this->lockFile->expects($this->once())
+            ->method('exists')
+            ->willReturn(false);
+
+        $this->configLoader->expects($this->once())
+            ->method('findConfigFile')
+            ->willReturn('/path/to/ngramx.yml');
+
+        $this->configLoader->expects($this->once())
+            ->method('load')
+            ->willReturn($config);
+
+        $this->setupOrchestrator->expects($this->never())
+            ->method('setup');
+
+        $command = $this->createCommand();
+        $tester = new CommandTester($command);
+        $exitCode = $tester->execute(['--anon' => true, '--postmaclone' => true]);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('--anon and --postmaclone', $tester->getDisplay());
+    }
+
+    public function test_it_connects_shared_db_on_trusted_egress_without_anon_flag(): void
+    {
+        $config = $this->createMockConfig();
+        $connectLock = new PostmacloneConnectLockData(
+            mode: PostmacloneConnectLockData::MODE_DIRECT,
+            engine: 'postgres',
+            connectedAt: '2026-01-01T00:00:00+00:00',
+            host: 'db.example.com',
+            port: 25060,
+            database: 'demo_anon',
+            username: 'anon',
+            password: 'secret',
+            databaseUrl: 'postgresql://anon:secret@db.example.com:25060/demo_anon',
+            ideHost: 'db.example.com',
+            idePort: 25060,
+        );
+
+        $connectService = $this->createMock(PostmacloneConnectService::class);
+        $connectService->expects($this->once())
+            ->method('shouldAutoConnectOnUp')
+            ->with($config, false)
+            ->willReturn(true);
+        $connectService->expects($this->once())
+            ->method('connect')
+            ->with(
+                config: $config,
+                projectRoot: '/path/to',
+                bindEnv: true,
+                strict: false,
+                replace: true,
+                probe: true,
+            )
+            ->willReturn([
+                'lock' => $connectLock,
+                'warnings' => [],
+                'refreshed_services' => [],
+            ]);
+
+        $this->lockFile->expects($this->once())
+            ->method('exists')
+            ->willReturn(false);
+
+        $this->configLoader->expects($this->once())
+            ->method('findConfigFile')
+            ->willReturn('/path/to/ngramx.yml');
+
+        $this->configLoader->expects($this->once())
+            ->method('load')
+            ->willReturn($config);
+
+        $this->setupOrchestrator->expects($this->once())
+            ->method('setup')
+            ->willReturn([
+                'time' => 1.0,
+                'namespace' => '',
+                'port_offset' => 0,
+            ]);
+
+        $command = $this->createCommand(connectService: $connectService);
+        $tester = new CommandTester($command);
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('Connected to shared anonymized database', $tester->getDisplay());
     }
 
     public function test_it_runs_default_mode_without_namespace_or_offset(): void
@@ -817,7 +912,7 @@ class UpCommandTest extends TestCase
         $this->assertStringContainsString('HTTP 502', $tester->getDisplay());
     }
 
-    private function createCommand(): UpCommand
+    private function createCommand(?PostmacloneConnectService $connectService = null): UpCommand
     {
         return new UpCommand(
             $this->configLoader,
@@ -830,6 +925,7 @@ class UpCommandTest extends TestCase
             $this->herdService,
             $this->caddyService,
             $this->dockerLauncher,
+            postmacloneConnectService: $connectService ?? new PostmacloneConnectService(),
             hooksConfigLoader: new \Ngramx\Config\HooksConfigLoader(
                 homeDirectory: sys_get_temp_dir() . '/ngramx-test-home-empty',
             ),

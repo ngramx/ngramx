@@ -90,7 +90,7 @@ class UpCommand extends Command
             ->addOption('no-verify', null, InputOption::VALUE_NONE, 'Skip post-start verification (HTTP probe of docker.app_url and other sanity checks)')
             ->addOption('no-prompt-secure', null, InputOption::VALUE_NONE, 'Do not offer to run `ngramx secure` when a self-signed dev cert is detected')
             ->addOption('postmaclone', null, InputOption::VALUE_NONE, 'After the stack is up, create a Postmaclone clone (stops compose db, aliases network name db; runs doctor first; skips on blocking failures without failing up)')
-            ->addOption('anon', null, InputOption::VALUE_NONE, 'After the stack is up, connect to the shared anonymized hosted DB (postmaclone.shared); on Codabyte this also runs automatically when shared is configured');
+            ->addOption('anon', null, InputOption::VALUE_NONE, 'Connect to the shared anonymized hosted DB (postmaclone.shared) before compose starts; ngramx down disconnects automatically; on Codabyte this also runs when shared is configured and NGRAMX_TRUSTED_DB_EGRESS=1');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -134,6 +134,16 @@ class UpCommand extends Command
                 }
             }
 
+            $anonRequested = (bool) $input->getOption('anon');
+            if ($anonRequested && $input->getOption('postmaclone')) {
+                $formatter->error(
+                    'The --anon and --postmaclone options cannot be used together. '
+                    . 'Use --anon for the shared hosted DB, or --postmaclone for a local ephemeral clone.'
+                );
+
+                return Command::FAILURE;
+            }
+
             // Gate --postmaclone before starting Docker so a broken op/S3 setup
             // skips the clone instead of failing the whole up (lock still written).
             $runPostmaclone = false;
@@ -141,15 +151,14 @@ class UpCommand extends Command
                 $runPostmaclone = $this->postmacloneDoctorAllowsClone($formatter, $config, $projectRoot);
             }
 
-            $anonRequested = (bool) $input->getOption('anon');
             $runSharedConnect = $this->postmacloneConnectService->shouldAutoConnectOnUp(
                 $config,
                 $anonRequested,
             );
             $sharedAnonConnectOnUp = false;
             if ($runSharedConnect) {
-                $sharedAnonConnectOnUp = $anonRequested
-                    && $this->runSharedConnectBeforeUp($formatter, $config, $projectRoot);
+                $connected = $this->runSharedConnectBeforeUp($formatter, $config, $projectRoot);
+                $sharedAnonConnectOnUp = $anonRequested && $connected;
             }
 
             // Determine namespace early (needed for stale container detection)

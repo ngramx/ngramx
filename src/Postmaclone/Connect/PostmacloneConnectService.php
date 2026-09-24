@@ -43,7 +43,7 @@ class PostmacloneConnectService
     }
 
     /**
-     * @return array{lock: PostmacloneConnectLockData, warnings: list<string>}
+     * @return array{lock: PostmacloneConnectLockData, warnings: list<string>, refreshed_services: list<string>}
      */
     public function connect(
         NgramxConfig $config,
@@ -145,25 +145,7 @@ class PostmacloneConnectService
 
         $envBackupPath = null;
         if ($bindEnv) {
-            $envBackupPath = $this->bindEnv($projectRoot, $lock);
-            $lock = new PostmacloneConnectLockData(
-                mode: $lock->mode,
-                engine: $lock->engine,
-                connectedAt: $lock->connectedAt,
-                host: $lock->host,
-                port: $lock->port,
-                database: $lock->database,
-                username: $lock->username,
-                password: $lock->password,
-                databaseUrl: $lock->databaseUrl,
-                ideHost: $lock->ideHost,
-                idePort: $lock->idePort,
-                remoteHost: $lock->remoteHost,
-                remotePort: $lock->remotePort,
-                localPort: $lock->localPort,
-                tunnelPid: $lock->tunnelPid,
-                envBackupPath: $envBackupPath,
-            );
+            $lock = $lock->withEnvBackupPath($this->bindEnv($projectRoot, $lock));
         }
 
         $connectLock->write($lock);
@@ -253,26 +235,8 @@ class PostmacloneConnectService
 
         $envBackupPath = null;
         if ($bindEnv) {
-            $envBackupPath = $this->bindEnv($projectRoot, $lock);
+            $lock = $lock->withEnvBackupPath($this->bindEnv($projectRoot, $lock));
         }
-
-        $lock = new PostmacloneConnectLockData(
-            mode: $lock->mode,
-            engine: $lock->engine,
-            connectedAt: $lock->connectedAt,
-            host: $lock->host,
-            port: $lock->port,
-            database: $lock->database,
-            username: $lock->username,
-            password: $lock->password,
-            databaseUrl: $lock->databaseUrl,
-            ideHost: $lock->ideHost,
-            idePort: $lock->idePort,
-            remoteHost: $lock->remoteHost,
-            remotePort: $lock->remotePort,
-            localPort: $lock->localPort,
-            envBackupPath: $envBackupPath,
-        );
 
         (new PostmacloneConnectLock($projectRoot))->write($lock);
         $this->applyComposeOverrides($config, $lock);
@@ -409,6 +373,8 @@ class PostmacloneConnectService
             return;
         }
 
+        // Written before `ngramx up` runs ComposeOverrideGenerator; the generator
+        // re-reads postmaclone-connect.lock and merges the same DB_* overrides.
         $this->composeOverride->apply($composeFile, $lock);
     }
 
