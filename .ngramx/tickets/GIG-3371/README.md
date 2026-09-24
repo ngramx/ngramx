@@ -12,3 +12,4 @@ Stop copying dependency directories from the parent checkout into a worktree. Th
 
 - `WorktreeDependencyPrimer` no longer copies `vendor` or `node_modules`.
 - README worktree section describes the lockfile install.
+- PR: https://github.com/ngramx/ngramx/pull/38
