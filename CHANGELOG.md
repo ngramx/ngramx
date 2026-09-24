@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.48.0](https://github.com/ngramx/ngramx/compare/v2.47.5...v2.48.0) (2026-09-24)
+
+
+### Bug Fixes
+
+* address Bugbot review on shared DB connect ([6d9b047](https://github.com/ngramx/ngramx/commit/6d9b047b5dde47c2cbc771b09f47e2024fd3c725))
+* **postmaclone:** codabyte auto-connect and connect review follow-ups ([26ac462](https://github.com/ngramx/ngramx/commit/26ac462f7332d2bf43036545d95c4d3152284c76))
+* resolve PHPStan errors for shared connect CI ([fe7b5dc](https://github.com/ngramx/ngramx/commit/fe7b5dc00b027c4c2186e1f73b678c2692463112))
+* wait for SSH tunnel port to close on disconnect ([247878f](https://github.com/ngramx/ngramx/commit/247878f569cc9e1fda628a3e94af7a7b83317db1))
+
+
+### Features
+
+* **commands:** add postmaclone connect and disconnect actions ([436ca97](https://github.com/ngramx/ngramx/commit/436ca97e2f5b1af79ae1bc677f32b4e1f2c6d952))
+* **commands:** respect connect lock in review and worktree commands ([9590d00](https://github.com/ngramx/ngramx/commit/9590d004af02751965795d28d86f4daea3999ea9))
+* **commands:** wire shared DB connect into up --anon and down ([c3a2a59](https://github.com/ngramx/ngramx/commit/c3a2a590fe1ab7b30b528e7ed41056278bb63cc2))
+* **config:** add postmaclone connect config schema and loader support ([81efbf7](https://github.com/ngramx/ngramx/commit/81efbf7cacfc99d6721b86cec53f17b73f811a05))
+* **postmaclone:** add connect service for shared hosted DB ([06c88b2](https://github.com/ngramx/ngramx/commit/06c88b2fb1ac7e4e0a0d725bd95d1abe4d6fc6c2))
+* **postmaclone:** add SSH tunnel, lock, and compose override for shared connect ([cee85d1](https://github.com/ngramx/ngramx/commit/cee85d1355e9f90566fb63b43d8adbe7432a278e))
+* **postmaclone:** ensure 1Password session before reading op:// secrets ([29fa5bf](https://github.com/ngramx/ngramx/commit/29fa5bfbf12ed0be653e5199711911d1ff679883))
+* **postmaclone:** parse connection URLs for shared DB tunnel rebinding ([5f36daa](https://github.com/ngramx/ngramx/commit/5f36daa7dc2011760b3cfbd383ac94c522065efc))
+
 ## [2.47.5](https://github.com/ngramx/ngramx/compare/v2.47.4...v2.47.5) (2026-09-24)
 
 
