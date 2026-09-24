@@ -80,7 +80,7 @@ YAML);
             $tester = new CommandTester($command);
             $exit = $tester->execute(['action' => 'status']);
             $this->assertSame(0, $exit);
-            $this->assertStringContainsString('No active Post Maclone clone', $tester->getDisplay());
+            $this->assertStringContainsString('No active Post Maclone clone or shared DB connection', $tester->getDisplay());
         } finally {
             if (is_string($cwd)) {
                 chdir($cwd);

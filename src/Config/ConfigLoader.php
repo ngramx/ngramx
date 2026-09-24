@@ -22,6 +22,7 @@ use Ngramx\Config\Schema\Postmaclone\FactoryDatasetConfig;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
 use Ngramx\Config\Schema\Postmaclone\PrebuiltConfig;
 use Ngramx\Config\Schema\Postmaclone\PublishConfig;
+use Ngramx\Config\Schema\Postmaclone\ConnectConfig;
 use Ngramx\Config\Schema\Postmaclone\SharedDbConfig;
 use Ngramx\Config\Schema\Postmaclone\TableRule;
 use Ngramx\Config\Schema\Postmaclone\TargetConfig;
@@ -341,6 +342,7 @@ class ConfigLoader
         $prebuiltRaw = is_array($config['prebuilt'] ?? null) ? $config['prebuilt'] : null;
         $targetRaw = is_array($config['target'] ?? null) ? $config['target'] : [];
         $sharedRaw = is_array($config['shared'] ?? null) ? $config['shared'] : null;
+        $connectRaw = is_array($config['connect'] ?? null) ? $config['connect'] : null;
         $engines = $this->buildEngineConnections(is_array($config['engines'] ?? null) ? $config['engines'] : []);
         $engine = isset($config['engine']) && is_string($config['engine'])
             ? $config['engine']
@@ -381,6 +383,7 @@ class ConfigLoader
             backup: $this->buildBackupConfig($backupRaw),
             prebuilt: $prebuilt,
             shared: $this->buildSharedDbConfig($sharedRaw, $engineConnections?->anon),
+            connect: $this->buildConnectConfig($connectRaw),
             target: $this->buildTargetConfig($targetRaw, TargetConfig::PROVIDER_AUTO, $engineConnections?->scratch),
             tables: $this->buildTables(is_array($config['tables'] ?? null) ? $config['tables'] : []),
             testPassword: isset($config['test_password']) && is_string($config['test_password'])
@@ -437,6 +440,28 @@ class ConfigLoader
             file: isset($backupRaw['file']) && is_string($backupRaw['file']) ? $backupRaw['file'] : null,
             credentials: $this->loadBackupCredentials($backupRaw['credentials'] ?? null),
             roles: $this->loadBackupRoles($backupRaw['roles'] ?? null),
+        );
+    }
+
+    /**
+     * @param array<string, mixed>|null $connectRaw
+     */
+    private function buildConnectConfig(?array $connectRaw): ?ConnectConfig
+    {
+        if ($connectRaw === null) {
+            return null;
+        }
+
+        $dockerHost = isset($connectRaw['docker_host']) && is_string($connectRaw['docker_host']) && $connectRaw['docker_host'] !== ''
+            ? $connectRaw['docker_host']
+            : ConnectConfig::DEFAULT_DOCKER_HOST;
+
+        return new ConnectConfig(
+            tunnelHost: isset($connectRaw['tunnel_host']) && is_string($connectRaw['tunnel_host']) ? $connectRaw['tunnel_host'] : null,
+            tunnelUser: isset($connectRaw['tunnel_user']) && is_string($connectRaw['tunnel_user']) ? $connectRaw['tunnel_user'] : null,
+            tunnelPort: isset($connectRaw['tunnel_port']) && is_int($connectRaw['tunnel_port']) ? $connectRaw['tunnel_port'] : null,
+            localPort: isset($connectRaw['local_port']) && is_int($connectRaw['local_port']) ? $connectRaw['local_port'] : null,
+            dockerHost: $dockerHost,
         );
     }
 

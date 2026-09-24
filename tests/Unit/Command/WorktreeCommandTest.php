@@ -76,6 +76,7 @@ class WorktreeCommandTest extends TestCase
         $this->assertSame('l', $definition->getOption('list')->getShortcut());
         $this->assertTrue($definition->hasOption('no-host-mapping'));
         $this->assertFalse($definition->getOption('no-host-mapping')->acceptValue());
+        $this->assertTrue($definition->hasOption('anon'));
         $this->assertTrue($definition->hasOption('branch'));
         $this->assertTrue($definition->getOption('branch')->isValueRequired());
         $this->assertSame('b', $definition->getOption('branch')->getShortcut());

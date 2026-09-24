@@ -17,6 +17,19 @@ final class OpAuthProbe
 {
     public const SIGNIN_ADDRESS = 'gigabytesoftware.1password.com';
 
+    public function isSignedIn(): bool
+    {
+        return $this->runOp(['whoami'])['ok'];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function listAccountShorthands(): array
+    {
+        return $this->listAccountShorthandsInternal();
+    }
+
     /**
      * @return array{
      *   installed: bool,
@@ -83,7 +96,7 @@ final class OpAuthProbe
             return $this->result($installed, $serviceAccount, $accountConfigured, $signedIn, $wsl, $shorthands, $checks, $next);
         }
 
-        $shorthands = $this->listAccountShorthands();
+        $shorthands = $this->listAccountShorthandsInternal();
         $accountConfigured = $shorthands !== [];
 
         $checks[] = [
@@ -139,7 +152,7 @@ final class OpAuthProbe
         if (str_contains($lower, 'no active session') || str_contains($lower, 'not currently signed in')) {
             $lines[] = '1Password CLI has no active session.';
             if ($wsl) {
-                $lines[] = '  WSL: eval $(op signin)   # then retry; ngramx does not accept your 1Password password';
+                $lines[] = '  WSL: retry in an interactive shell — ngramx will run `op signin` for you, or run: eval $(op signin)';
             } else {
                 $lines[] = '  Human: unlock the desktop app (CLI integration) or run: eval $(op signin)';
             }
@@ -195,7 +208,7 @@ final class OpAuthProbe
     /**
      * @return list<string>
      */
-    private function listAccountShorthands(): array
+    private function listAccountShorthandsInternal(): array
     {
         $json = $this->runOp(['account', 'list', '--format=json']);
         if ($json['ok'] && $json['stdout'] !== '') {

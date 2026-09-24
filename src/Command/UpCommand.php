@@ -24,6 +24,8 @@ use Ngramx\Host\EtcHostsHint;
 use Ngramx\Http\EndpointUrls;
 use Ngramx\Orchestrator\SetupOrchestrator;
 use Ngramx\Output\OutputFormatter;
+use Ngramx\Postmaclone\Connect\PostmacloneConnectLock;
+use Ngramx\Postmaclone\Connect\PostmacloneConnectService;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\PostmacloneDoctor;
 use Ngramx\Postmaclone\PostmacloneService;
@@ -60,6 +62,7 @@ class UpCommand extends Command
         ?CertInspector $certInspector = null,
         ?WorktreeOwnershipReconciler $ownershipReconciler = null,
         private readonly PostmacloneService $postmacloneService = new PostmacloneService(),
+        private readonly PostmacloneConnectService $postmacloneConnectService = new PostmacloneConnectService(),
         ?HooksConfigLoader $hooksConfigLoader = null,
         ?HookRunner $hookRunner = null,
     ) {
@@ -86,7 +89,8 @@ class UpCommand extends Command
             ->addOption('timeout', null, InputOption::VALUE_REQUIRED, 'Timeout in seconds for Docker Compose operations')
             ->addOption('no-verify', null, InputOption::VALUE_NONE, 'Skip post-start verification (HTTP probe of docker.app_url and other sanity checks)')
             ->addOption('no-prompt-secure', null, InputOption::VALUE_NONE, 'Do not offer to run `ngramx secure` when a self-signed dev cert is detected')
-            ->addOption('postmaclone', null, InputOption::VALUE_NONE, 'After the stack is up, create a Postmaclone clone (stops compose db, aliases network name db; runs doctor first; skips on blocking failures without failing up)');
+            ->addOption('postmaclone', null, InputOption::VALUE_NONE, 'After the stack is up, create a Postmaclone clone (stops compose db, aliases network name db; runs doctor first; skips on blocking failures without failing up)')
+            ->addOption('anon', null, InputOption::VALUE_NONE, 'Connect to the shared anonymized hosted DB (postmaclone.shared) before compose starts; ngramx down disconnects automatically; on Codabyte this also runs when shared is configured and NGRAMX_TRUSTED_DB_EGRESS=1');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -130,11 +134,31 @@ class UpCommand extends Command
                 }
             }
 
+            $anonRequested = (bool) $input->getOption('anon');
+            if ($anonRequested && $input->getOption('postmaclone')) {
+                $formatter->error(
+                    'The --anon and --postmaclone options cannot be used together. '
+                    . 'Use --anon for the shared hosted DB, or --postmaclone for a local ephemeral clone.'
+                );
+
+                return Command::FAILURE;
+            }
+
             // Gate --postmaclone before starting Docker so a broken op/S3 setup
             // skips the clone instead of failing the whole up (lock still written).
             $runPostmaclone = false;
             if ($input->getOption('postmaclone')) {
                 $runPostmaclone = $this->postmacloneDoctorAllowsClone($formatter, $config, $projectRoot);
+            }
+
+            $runSharedConnect = $this->postmacloneConnectService->shouldAutoConnectOnUp(
+                $config,
+                $anonRequested,
+            );
+            $sharedAnonConnectOnUp = false;
+            if ($runSharedConnect) {
+                $connected = $this->runSharedConnectBeforeUp($formatter, $config, $projectRoot);
+                $sharedAnonConnectOnUp = $anonRequested && $connected;
             }
 
             // Determine namespace early (needed for stale container detection)
@@ -168,7 +192,12 @@ class UpCommand extends Command
             // repo's git dir bind-mounted in so git resolves inside containers).
             $worktreeRoot = dirname($configPath);
             $inWorktree = (new WorktreeGitMount())->resolve($worktreeRoot) !== null;
-            $needsOverride = $portOffset > 0 || $namespace !== null || $noHostMapping || $inWorktree || $portMap !== [];
+            $needsOverride = $portOffset > 0
+                || $namespace !== null
+                || $noHostMapping
+                || $inWorktree
+                || $portMap !== []
+                || (new PostmacloneConnectLock($projectRoot))->exists();
             if ($needsOverride) {
                 $this->overrideGenerator->generate($config->docker->composeFile, $portOffset, $namespace, $noHostMapping, $portMap);
             }
@@ -215,6 +244,7 @@ class UpCommand extends Command
                 $needsOverride,
                 $herdStopped,
                 $caddyStopped,
+                $sharedAnonConnectOnUp,
                 $namespace,
                 $portOffset,
                 $noHostMapping,
@@ -222,7 +252,7 @@ class UpCommand extends Command
                 $formatter,
                 $output,
             ): void {
-                if ($lockWritten || (!$needsOverride && !$herdStopped && !$caddyStopped)) {
+                if ($lockWritten || (!$needsOverride && !$herdStopped && !$caddyStopped && !$sharedAnonConnectOnUp)) {
                     return;
                 }
 
@@ -234,6 +264,7 @@ class UpCommand extends Command
                     herdStopped: $herdStopped,
                     caddyStopped: $caddyStopped,
                     portMap: $portMap,
+                    sharedAnonConnectOnUp: $sharedAnonConnectOnUp,
                 ));
                 $lockWritten = true;
                 $output->writeln('');
@@ -410,6 +441,56 @@ class UpCommand extends Command
             $formatter->info('  .env DB_* updated (backup: ' . $lock->envBackupPath . ')');
         }
         $formatter->info('  Tear down when finished: ngramx postmaclone down');
+    }
+
+    /**
+     * Connect to the shared hosted anonymized DB before compose starts so
+     * docker-compose.override.yml can add host.docker.internal for tunnel mode.
+     *
+     * Failures are warnings only — they must not fail `ngramx up`.
+     */
+    private function runSharedConnectBeforeUp(
+        OutputFormatter $formatter,
+        \Ngramx\Config\Schema\NgramxConfig $config,
+        string $projectRoot,
+    ): bool {
+        $formatter->getOutput()->writeln('');
+        $formatter->welcome('Post Maclone shared DB');
+
+        try {
+            $result = $this->postmacloneConnectService->connect(
+                config: $config,
+                projectRoot: $projectRoot,
+                bindEnv: true,
+                strict: false,
+                replace: true,
+                probe: true,
+            );
+        } catch (PostmacloneException $e) {
+            $formatter->warning('Shared DB connect failed (stack is still up): ' . $e->getMessage());
+            $formatter->info('Retry with: ngramx postmaclone connect');
+
+            return false;
+        } catch (\Throwable $e) {
+            $formatter->warning('Shared DB connect failed (stack is still up): ' . $e->getMessage());
+            $formatter->info('Retry with: ngramx postmaclone connect');
+
+            return false;
+        }
+
+        foreach ($result['warnings'] as $warning) {
+            $formatter->warning($warning);
+        }
+
+        $lock = $result['lock'];
+        $formatter->success('Connected to shared anonymized database');
+        $formatter->info('  IDE: ' . $lock->ideHost . ':' . $lock->idePort . ' / ' . $lock->database);
+        if ($lock->envBackupPath) {
+            $formatter->info('  .env DB_* updated (backup: ' . $lock->envBackupPath . ')');
+        }
+        $formatter->info('  Disconnect: ngramx postmaclone disconnect');
+
+        return true;
     }
 
     /**

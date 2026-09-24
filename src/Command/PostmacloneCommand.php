@@ -7,7 +7,11 @@ namespace Ngramx\Command;
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Output\OutputFormatter;
+use Ngramx\Codabyte\SshRunner;
 use Ngramx\Postmaclone\Backup\S3Credentials;
+use Ngramx\Postmaclone\Connect\PostmacloneConnectLockData;
+use Ngramx\Postmaclone\Connect\PostmacloneConnectService;
+use Ngramx\Postmaclone\Connect\TrustedEgressDetector;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\PostmacloneDoctor;
 use Ngramx\Postmaclone\PostmacloneProducer;
@@ -24,6 +28,8 @@ class PostmacloneCommand extends Command
         private readonly ConfigLoader $configLoader,
         private readonly PostmacloneService $service = new PostmacloneService(),
         private readonly PostmacloneProducer $producer = new PostmacloneProducer(),
+        private readonly PostmacloneConnectService $connectService = new PostmacloneConnectService(),
+        private readonly SshRunner $sshRunner = new SshRunner(),
     ) {
         parent::__construct();
     }
@@ -36,7 +42,7 @@ class PostmacloneCommand extends Command
             ->addArgument(
                 'action',
                 InputArgument::OPTIONAL,
-                'Optional lifecycle action: down | status | doctor | produce (omit to create a clone)',
+                'Optional lifecycle action: down | disconnect | status | doctor | connect | produce (omit to create a clone)',
                 null
             )
             ->addOption('from', null, InputOption::VALUE_REQUIRED, 'Dump path, connection URL, or s3:// / spaces:// URI')
@@ -53,7 +59,9 @@ class PostmacloneCommand extends Command
             ->addOption('no-prebuilt', null, InputOption::VALUE_NONE, 'Alias for --from-prod')
             ->addOption('all', null, InputOption::VALUE_NONE, 'With produce: process every dataset in factory postmaclone.yml')
             ->addOption('dataset', null, InputOption::VALUE_REQUIRED, 'With produce: process a single dataset name')
-            ->addOption('config', 'c', InputOption::VALUE_REQUIRED, 'With produce: path to factory postmaclone.yml');
+            ->addOption('config', 'c', InputOption::VALUE_REQUIRED, 'With produce: path to factory postmaclone.yml')
+            ->addOption('foreground', null, InputOption::VALUE_NONE, 'With connect: run SSH tunnel in foreground (passphrase-friendly)')
+            ->addOption('no-probe', null, InputOption::VALUE_NONE, 'With connect: skip SELECT 1 connection probe');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -81,6 +89,16 @@ class PostmacloneCommand extends Command
             if ($action === 'down') {
                 return $this->runDown($formatter, $config, $projectRoot, (bool) $input->getOption('force'));
             }
+            if ($action === 'disconnect') {
+                return $this->runDisconnect($formatter, $projectRoot, (bool) $input->getOption('force'));
+            }
+            if ($action === 'connect') {
+                if ((bool) $input->getOption('dry-run')) {
+                    return $this->runConnectDryRun($formatter, $config, $projectRoot);
+                }
+
+                return $this->runConnect($formatter, $input, $config, $projectRoot);
+            }
             if ($action === 'status') {
                 return $this->runStatus($formatter, $projectRoot);
             }
@@ -88,7 +106,7 @@ class PostmacloneCommand extends Command
                 return $this->runDoctor($formatter, $config, $projectRoot, $input);
             }
             if ($action !== null && $action !== '') {
-                $formatter->error("Unknown action '{$action}'. Use: ngramx postmaclone [|down|status|doctor|produce]");
+                $formatter->error("Unknown action '{$action}'. Use: ngramx postmaclone [|down|disconnect|connect|status|doctor|produce]");
 
                 return Command::FAILURE;
             }
@@ -125,27 +143,212 @@ class PostmacloneCommand extends Command
 
     private function runStatus(OutputFormatter $formatter, string $projectRoot): int
     {
-        $lock = $this->service->status($projectRoot);
-        if ($lock === null) {
-            $formatter->info('No active Post Maclone clone.');
+        $cloneLock = $this->service->status($projectRoot);
+        $connectLock = $this->connectService->status($projectRoot);
+
+        if ($cloneLock === null && $connectLock === null) {
+            $formatter->info('No active Post Maclone clone or shared DB connection.');
 
             return Command::SUCCESS;
         }
 
-        $formatter->welcome('Post Maclone status');
-        $formatter->info("Provider:  {$lock->provider}");
-        $formatter->info("Engine:    {$lock->engine}");
-        $formatter->info("Created:   {$lock->createdAt}");
-        $formatter->info("Expires:   {$lock->expiresAt}");
-        $formatter->info("Host:      {$lock->host}:{$lock->port}");
-        $formatter->info("Database:  {$lock->database}");
-        $formatter->info("User:      {$lock->username}");
-        if ($lock->label) {
-            $formatter->info("Label:     {$lock->label}");
+        if ($connectLock !== null) {
+            $this->printConnectStatus($formatter, $connectLock);
         }
-        $formatter->info('Tear down: ngramx postmaclone down');
+
+        if ($cloneLock !== null) {
+            if ($connectLock !== null) {
+                $formatter->getOutput()->writeln('');
+            }
+            $formatter->welcome('Post Maclone clone');
+            $formatter->info("Provider:  {$cloneLock->provider}");
+            $formatter->info("Engine:    {$cloneLock->engine}");
+            $formatter->info("Created:   {$cloneLock->createdAt}");
+            $formatter->info("Expires:   {$cloneLock->expiresAt}");
+            $formatter->info("Host:      {$cloneLock->host}:{$cloneLock->port}");
+            $formatter->info("Database:  {$cloneLock->database}");
+            $formatter->info("User:      {$cloneLock->username}");
+            if ($cloneLock->label) {
+                $formatter->info("Label:     {$cloneLock->label}");
+            }
+            $formatter->info('Tear down: ngramx postmaclone down');
+        }
 
         return Command::SUCCESS;
+    }
+
+    private function printConnectStatus(OutputFormatter $formatter, PostmacloneConnectLockData $lock): void
+    {
+        $formatter->welcome('Post Maclone shared DB connection');
+        $formatter->info('Mode:      ' . $lock->mode);
+        $formatter->info("Engine:    {$lock->engine}");
+        $formatter->info("Connected: {$lock->connectedAt}");
+        $formatter->info("App .env:  {$lock->host}:{$lock->port} / {$lock->database}");
+        $formatter->info("IDE:       {$lock->ideHost}:{$lock->idePort} (user {$lock->username})");
+        if ($lock->mode === PostmacloneConnectLockData::MODE_TUNNEL) {
+            $formatter->info("Remote:    {$lock->remoteHost}:{$lock->remotePort} via Codabyte");
+            if ($lock->tunnelPid !== null) {
+                $formatter->info("Tunnel:    pid {$lock->tunnelPid} → 127.0.0.1:{$lock->localPort}");
+            } else {
+                $formatter->info('Tunnel:    foreground (no pid recorded)');
+            }
+        }
+        $formatter->info('Disconnect: ngramx postmaclone disconnect');
+    }
+
+    private function runDisconnect(OutputFormatter $formatter, string $projectRoot, bool $force): int
+    {
+        $formatter->welcome('Post Maclone disconnect');
+        try {
+            $disconnected = $this->connectService->disconnect($projectRoot, $force);
+        } catch (PostmacloneException $e) {
+            $formatter->error($e->getMessage());
+
+            return Command::FAILURE;
+        }
+
+        if (!$disconnected) {
+            $formatter->info('Nothing to disconnect (no active shared DB connection).');
+
+            return Command::SUCCESS;
+        }
+
+        $formatter->success('Shared DB disconnected, SSH tunnel stopped, .env restored (if backed up).');
+
+        return Command::SUCCESS;
+    }
+
+    private function runConnectDryRun(OutputFormatter $formatter, NgramxConfig $config, string $projectRoot): int
+    {
+        $formatter->welcome('Post Maclone connect (dry-run)');
+        $pm = $config->postmaclone;
+        if ($pm === null) {
+            $message = 'Missing or invalid postmaclone: section in ngramx.yml';
+            if ($config->postmacloneError !== null && $config->postmacloneError !== '') {
+                $message .= ': ' . $config->postmacloneError;
+            }
+            $formatter->error($message);
+
+            return Command::FAILURE;
+        }
+        if (!$pm->hasShared()) {
+            $formatter->error('postmaclone.shared is required for connect');
+
+            return Command::FAILURE;
+        }
+
+        $direct = (new TrustedEgressDetector())->isDirectMode();
+        $formatter->info('Mode: ' . ($direct ? 'direct (trusted egress)' : 'SSH tunnel via Codabyte'));
+        $database = $pm->shared->connection->database ?? '(from url)';
+        $formatter->info('Shared database: ' . $database);
+        $formatter->info('No connection was made (--dry-run).');
+
+        return Command::SUCCESS;
+    }
+
+    private function runConnect(
+        OutputFormatter $formatter,
+        InputInterface $input,
+        NgramxConfig $config,
+        string $projectRoot,
+    ): int {
+        $formatter->welcome('Post Maclone connect');
+        $formatter->info('Connecting to the nightly refreshed shared anonymized database.');
+
+        $bindEnv = !(bool) $input->getOption('no-env');
+        $strict = (bool) $input->getOption('strict');
+        $replace = (bool) $input->getOption('replace');
+        $probe = !(bool) $input->getOption('no-probe');
+
+        try {
+            if ((bool) $input->getOption('foreground')) {
+                return $this->runConnectForeground($formatter, $config, $projectRoot, $bindEnv, $strict);
+            }
+
+            $result = $this->connectService->connect(
+                config: $config,
+                projectRoot: $projectRoot,
+                bindEnv: $bindEnv,
+                strict: $strict,
+                replace: $replace,
+                probe: $probe,
+            );
+        } catch (PostmacloneException $e) {
+            $formatter->error($e->getMessage());
+
+            return Command::FAILURE;
+        }
+
+        foreach ($result['warnings'] as $warning) {
+            $formatter->warning($warning);
+        }
+
+        $refreshed = $result['refreshed_services'];
+        if ($refreshed !== []) {
+            $formatter->info('Recreated containers: ' . implode(', ', $refreshed));
+        }
+
+        $this->printConnectSuccess($formatter, $result['lock'], $bindEnv, $refreshed);
+
+        return Command::SUCCESS;
+    }
+
+    private function runConnectForeground(
+        OutputFormatter $formatter,
+        NgramxConfig $config,
+        string $projectRoot,
+        bool $bindEnv,
+        bool $strict,
+    ): int {
+        try {
+            $staged = $this->connectService->stageForegroundConnect($config, $projectRoot, $bindEnv, $strict);
+        } catch (PostmacloneException $e) {
+            $formatter->error($e->getMessage());
+
+            return Command::FAILURE;
+        }
+
+        foreach ($staged['warnings'] as $warning) {
+            $formatter->warning($warning);
+        }
+
+        $lock = $staged['lock'];
+        $formatter->info("Starting SSH tunnel on 127.0.0.1:{$lock->localPort} (Ctrl-C to disconnect)…");
+        if ($bindEnv) {
+            $formatter->info('IDE / TablePlus: ' . $lock->ideHost . ':' . $lock->idePort);
+            $formatter->info('Docker app DB_HOST: ' . $lock->host . ' (re-run `ngramx up` if the stack is already running)');
+        }
+
+        $exit = $this->sshRunner->run($staged['tunnel_args']);
+        try {
+            $this->connectService->disconnect($projectRoot, force: true);
+        } catch (PostmacloneException) {
+            // Best-effort cleanup after foreground tunnel ends.
+        }
+
+        return $exit === 0 ? Command::SUCCESS : Command::FAILURE;
+    }
+
+    /**
+     * @param list<string> $refreshedServices
+     */
+    private function printConnectSuccess(
+        OutputFormatter $formatter,
+        PostmacloneConnectLockData $lock,
+        bool $bindEnv,
+        array $refreshedServices = [],
+    ): void {
+        $formatter->success('Connected to shared anonymized database');
+        $formatter->info('  IDE: ' . $lock->ideHost . ':' . $lock->idePort . ' / ' . $lock->database);
+        if ($bindEnv) {
+            $formatter->info('  .env DB_* updated (backup: ' . ($lock->envBackupPath ?? 'none') . ')');
+        }
+        if ($refreshedServices === []) {
+            $formatter->info(
+                '  Recreate app containers if the stack was already running: `docker compose up -d --force-recreate app reverb`'
+            );
+        }
+        $formatter->info('  Disconnect: ngramx postmaclone disconnect');
     }
 
     private function runDoctor(

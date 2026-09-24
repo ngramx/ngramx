@@ -87,6 +87,7 @@ class ReviewCommandTest extends TestCase
 
         $this->assertTrue($definition->hasOption('worktree'));
         $this->assertTrue($definition->hasOption('cursor'));
+        $this->assertTrue($definition->hasOption('anon'));
         $this->assertSame('w', $definition->getOption('worktree')->getShortcut());
         $this->assertSame('c', $definition->getOption('cursor')->getShortcut());
     }

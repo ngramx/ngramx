@@ -72,6 +72,7 @@ class LockFile
             portMap: $portMap,
             url: $data['url'] ?? null,
             urls: $urls,
+            sharedAnonConnectOnUp: (bool) ($data['shared_anon_connect_on_up'] ?? false),
         );
     }
 
@@ -90,6 +91,7 @@ class LockFile
             'port_map' => $data->portMap === [] ? null : $data->portMap,
             'url' => $data->url,
             'urls' => $data->urls === [] ? null : $data->urls,
+            'shared_anon_connect_on_up' => $data->sharedAnonConnectOnUp ? true : null,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         file_put_contents($this->getLockFilePath(), $content);

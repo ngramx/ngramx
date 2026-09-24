@@ -1,0 +1,9 @@
+version: "1.0"
+docker:
+  compose_file: "tests/fixtures/postmaclone/compose-postgres.yml"
+  primary_service: "app"
+  app_url: "http://localhost"
+postmaclone:
+  engine: postgres
+  shared:
+    url: "postgresql://anon_user:anon_pass@private-db.example.com:25060/demo_anon?sslmode=require"

@@ -4,10 +4,17 @@ declare(strict_types=1);
 
 namespace Ngramx\Postmaclone;
 
+use Ngramx\Codabyte\ServerTargetResolver;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Schema\Postmaclone\BackupConfig;
+use Ngramx\Config\Schema\Postmaclone\ConnectConfig;
 use Ngramx\Postmaclone\Backup\OpAuthProbe;
 use Ngramx\Postmaclone\Backup\S3Credentials;
+use Ngramx\Postmaclone\Connect\SharedDbFreshnessChecker;
+use Ngramx\Postmaclone\Connect\SshTunnelManager;
+use Ngramx\Postmaclone\Connect\TrustedEgressDetector;
+use Ngramx\Postmaclone\Connection\RemoteDbConnectionResolver;
+use Ngramx\Postmaclone\EngineDetector;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\Restore\RestoreDoctor;
 
@@ -90,6 +97,12 @@ final class PostmacloneDoctor
             ];
         }
 
+        if ($pm->hasShared()) {
+            foreach ($this->connectChecks($config, $projectRoot) as $check) {
+                $checks[] = $check;
+            }
+        }
+
         $ok = true;
         foreach ($checks as $check) {
             if ($check['blocking']) {
@@ -141,5 +154,89 @@ final class PostmacloneDoctor
             str_starts_with($uri, 's3://')
             || str_starts_with($uri, 'spaces://')
         );
+    }
+
+    /**
+     * @return list<DoctorCheck>
+     */
+    private function connectChecks(NgramxConfig $config, string $projectRoot): array
+    {
+        $pm = $config->postmaclone;
+        if ($pm === null || !$pm->hasShared()) {
+            return [];
+        }
+
+        $checks = [];
+        $direct = (new TrustedEgressDetector())->isDirectMode();
+        $checks[] = [
+            'ok' => true,
+            'message' => 'Shared hosted DB configured'
+                . ($direct ? ' (direct egress — Codabyte/trusted host)' : ' (SSH tunnel via Codabyte)'),
+            'blocking' => false,
+        ];
+
+        $auth = (new OpAuthProbe())->probe();
+        if (!$auth['signed_in']) {
+            $checks[] = [
+                'ok' => false,
+                'message' => '1Password not ready for shared DB credentials',
+                'blocking' => true,
+            ];
+            foreach ($auth['next_steps'] as $step) {
+                $checks[] = ['ok' => false, 'message' => $step, 'blocking' => false];
+            }
+
+            return $checks;
+        }
+
+        try {
+            $engine = (new EngineDetector())->detect($pm->engine, $config->docker->composeFile);
+            (new RemoteDbConnectionResolver())->resolve($pm->shared?->connection, $engine);
+            $checks[] = [
+                'ok' => true,
+                'message' => 'Resolved shared DB credentials via `op read` (values not printed)',
+                'blocking' => false,
+            ];
+        } catch (PostmacloneException $e) {
+            $checks[] = [
+                'ok' => false,
+                'message' => 'Could not resolve shared DB connection: ' . $e->getMessage(),
+                'blocking' => true,
+            ];
+        }
+
+        if (!$direct) {
+            $connectConfig = $pm->connect ?? new ConnectConfig();
+            $target = ServerTargetResolver::fromEnvironment()->resolve([
+                'host' => $connectConfig->tunnelHost,
+                'ssh-user' => $connectConfig->tunnelUser,
+                'port' => $connectConfig->tunnelPort !== null ? (string) $connectConfig->tunnelPort : null,
+            ]);
+            $tunnel = new SshTunnelManager($target);
+            $reach = $tunnel->probeReachability();
+            $checks[] = [
+                'ok' => $reach['ok'],
+                'message' => $reach['message'],
+                'blocking' => !$reach['ok'],
+            ];
+            $batch = $tunnel->probeBatchMode();
+            $checks[] = [
+                'ok' => $batch['ok'],
+                'message' => $batch['message'],
+                'blocking' => false,
+            ];
+        }
+
+        foreach ((new SharedDbFreshnessChecker())->check($pm->prebuilt, $pm->shared?->maxAgeHours, false) as $warning) {
+            $checks[] = ['ok' => false, 'message' => $warning, 'blocking' => false];
+        }
+
+        $checks[] = [
+            'ok' => true,
+            'message' => 'Connect with: ngramx postmaclone connect',
+            'blocking' => false,
+        ];
+
+        return $checks;
     }
 }
