@@ -15,16 +15,15 @@ final class StreamByteProgressFilter extends \php_user_filter
 
     public function filter($in, $out, &$consumed, $closing): int
     {
-        $reporter = $this->params instanceof PercentReporter ? $this->params : null;
+        $params = $this->params;
+        $reporter = is_array($params) && ($params['reporter'] ?? null) instanceof PercentReporter
+            ? $params['reporter']
+            : null;
 
         while ($bucket = stream_bucket_make_writeable($in)) {
             $consumed += (int) $bucket->datalen;
             $reporter?->add((int) $bucket->datalen);
             stream_bucket_append($out, $bucket);
-        }
-
-        if ($closing) {
-            $reporter?->finish();
         }
 
         return PSFS_PASS_ON;

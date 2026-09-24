@@ -91,7 +91,7 @@ class MysqlRestorer implements RestorerInterface
             $stream,
             StreamByteProgressFilter::FILTER_NAME,
             STREAM_FILTER_READ,
-            $reporter
+            ['reporter' => $reporter]
         );
         if ($filter === false) {
             throw new PostmacloneException('Failed to attach MySQL dump progress filter');

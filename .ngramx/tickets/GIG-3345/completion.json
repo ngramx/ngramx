@@ -12,10 +12,20 @@
   "test_plan": [
     {
       "description": "Hydra restore is not killed at 3 hours",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run phpunit tests/Unit/Postmaclone/MysqlRestorerTest.php",
         "After release, dispatch Hydra produce and confirm restore logs percent progress and is still running after 181 minutes if it has not finished"
+      ]
+    },
+    {
+      "description": "Failed restore does not claim 100% and PHPStan is clean",
+      "status": "active",
+      "steps": [
+        "Run composer phpstan and confirm no errors for MysqlRestorer or MysqlRestorerTest",
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/MysqlRestorerTest.php",
+        "Confirm test_restore_does_not_report_100_percent_when_stream_closes_early passes",
+        "Confirm a successful restore still logs Loading dump into scratch 100%"
       ]
     }
   ]

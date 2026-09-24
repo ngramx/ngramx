@@ -13,3 +13,6 @@ Hydra restore hit the 10800s Symfony timeout. Stop guessing hours: no process ti
 - Ticket folder created.
 - No Symfony timeout on dump restore; compress + session flags; byte progress.
 - PR: https://github.com/ngramx/ngramx/pull/35
+- Do not call PercentReporter::finish() on stream close; fclose always closes the dump, including mid-restore failures.
+- Pass the progress reporter as stream_filter_append array params so PHPStan accepts the call.
+- Drop the tautological assertNull(RESTORE_TIMEOUT_SECONDS) that failed PHPStan.
