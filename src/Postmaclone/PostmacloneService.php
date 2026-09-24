@@ -32,6 +32,7 @@ use Ngramx\Postmaclone\Target\ComposeDbServiceSwitcher;
 use Ngramx\Postmaclone\Target\DockerDbTarget;
 use Ngramx\Postmaclone\Target\EphemeralTargetInterface;
 use Ngramx\Postmaclone\Target\NeonTarget;
+use Ngramx\Postmaclone\Connect\PostmacloneConnectLock;
 use Ngramx\Postmaclone\Target\RemoteDbTarget;
 
 class PostmacloneService
@@ -284,6 +285,12 @@ class PostmacloneService
         $pm = $this->requireConfig($config);
         $lockFile = new PostmacloneLock($projectRoot);
         $envBinder = new EnvBinder($projectRoot);
+
+        if ((new PostmacloneConnectLock($projectRoot))->exists()) {
+            throw new PostmacloneException(
+                'Connected to the shared hosted DB. Run `ngramx postmaclone disconnect` before creating an ephemeral clone.'
+            );
+        }
 
         if ($lockFile->exists()) {
             if (!$replace) {
