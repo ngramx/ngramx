@@ -149,10 +149,12 @@ final class SshTunnelManager
                     $this->stop($listenerPid);
                 }
             }
+
+            return $this->waitForLocalPortClosed($localPort);
         }
 
-        if ($localPort !== null && $this->isLocalPortListening($localPort)) {
-            return false;
+        if ($pid !== null && $pid > 0) {
+            return $this->waitForProcessExit($pid);
         }
 
         return true;
@@ -211,6 +213,53 @@ final class SshTunnelManager
         }
 
         return false;
+    }
+
+    public function waitForLocalPortClosed(int $localPort, int $timeoutSeconds = 5): bool
+    {
+        $deadline = time() + $timeoutSeconds;
+        while (time() < $deadline) {
+            if (!$this->isLocalPortListening($localPort)) {
+                return true;
+            }
+            usleep(200_000);
+        }
+
+        foreach ($this->findListenerPidsOnLocalPort($localPort) as $listenerPid) {
+            if (!$this->isRunning($listenerPid)) {
+                continue;
+            }
+            if (function_exists('posix_kill')) {
+                posix_kill($listenerPid, SIGKILL);
+            } else {
+                (new Process(['kill', '-9', (string) $listenerPid]))->run();
+            }
+        }
+
+        usleep(200_000);
+
+        return !$this->isLocalPortListening($localPort);
+    }
+
+    public function waitForProcessExit(int $pid, int $timeoutSeconds = 5): bool
+    {
+        $deadline = time() + $timeoutSeconds;
+        while (time() < $deadline) {
+            if (!$this->isRunning($pid)) {
+                return true;
+            }
+            usleep(200_000);
+        }
+
+        if (function_exists('posix_kill')) {
+            posix_kill($pid, SIGKILL);
+        } else {
+            (new Process(['kill', '-9', (string) $pid]))->run();
+        }
+
+        usleep(200_000);
+
+        return !$this->isRunning($pid);
     }
 
     public function isLocalPortListening(int $localPort): bool

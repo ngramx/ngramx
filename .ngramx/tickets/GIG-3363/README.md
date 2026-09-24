@@ -14,3 +14,4 @@ Automate developer connection to shared anonymized hosted databases (COR-274 / p
 - `ngramx up --anon`, auto-connect on Codabyte trusted egress, `down` disconnect when started with `--anon`.
 - Review fixes: Codabyte auto-connect bug, `--anon`/`--postmaclone` guard, docs and tests.
 - Bugbot PR #37: skip `fresh` on `review`/`worktree --anon`, tunnel rollback on failed connect, lsof PID fallback, dead-tunnel disconnect, direct-mode IDE host in status.
+- Bugbot follow-up: `stopTunnel` waits for local port to close (SIGKILL fallback) so live disconnect does not race SIGTERM.

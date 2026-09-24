@@ -38,11 +38,19 @@
     },
     {
       "description": "Bugbot fixes: review --anon safety, tunnel lifecycle, direct IDE endpoints",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run vendor/bin/phpunit tests/Unit/Postmaclone/PostmacloneConnectServiceTest.php tests/Unit/Postmaclone/SshTunnelManagerTest.php",
         "Run ngramx review GIG-xxxx --worktree --anon (or worktree --anon) and confirm no fresh/migrate runs against the shared DB",
         "Run ngramx postmaclone connect on macOS or Linux and confirm background tunnel succeeds or falls back to lsof PID lookup; disconnect restores .env even if the tunnel process already exited"
+      ]
+    },
+    {
+      "description": "Live tunnel disconnect waits for port release after SIGTERM",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/SshTunnelManagerTest.php tests/Unit/Postmaclone/PostmacloneConnectServiceTest.php",
+        "Run ngramx postmaclone connect then ngramx postmaclone disconnect without --force and confirm .env restores and lock clears while the tunnel is still up"
       ]
     }
   ]
