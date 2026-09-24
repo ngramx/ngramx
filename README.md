@@ -181,6 +181,7 @@ Options:
 - `--skip-init` - Skip initialize commands
 - `--avoid-conflicts` - Automatically avoid container name and port conflicts by generating a unique namespace and port offset
 - `--postmaclone` - Run Postmaclone doctor first; if it passes, create a clone after the stack is up (same as `ngramx postmaclone --replace`). Blocking doctor failures or a later clone error only skip/warn — `up` still finishes and always writes `.ngramx.lock`
+- `--anon` - Connect to the shared anonymized hosted DB (`postmaclone.shared`) before compose starts; on Codabyte this also runs automatically when `NGRAMX_TRUSTED_DB_EGRESS=1` is set
 - `--no-host-mapping` - Do not expose container ports to the host (useful for running multiple instances)
 - `--namespace <name>` - Use a custom container namespace prefix
 - `--port-offset <n>` - Add offset to all exposed ports (e.g., `--port-offset 100` maps port 80 to 180)
@@ -239,6 +240,7 @@ Prepare the environment for reviewing a ticket by checking out its branch and re
 ngramx review GIG-1234           # Checks out the branch and runs `fresh`
 ngramx review GIG-1234 --quick   # Checks out the branch and runs `clear` instead
 ngramx review GIG-1234 --worktree # Reviews in an isolated worktree + parallel env
+ngramx review GIG-1234 --worktree --anon  # Worktree against the shared anonymized hosted DB
 ngramx review GIG-1234 --cursor   # Same as --worktree, then opens a new Cursor window
 ngramx review GIG-1234 -c         # Shorthand for --cursor
 ngramx review GIG-1234 --cleanup  # Tears down + removes that ticket's worktree env
@@ -292,6 +294,7 @@ Start (or continue) your own work on a ticket in an isolated git worktree with i
 ngramx worktree 2345              # Bare number — prefixed with default_team from ngramx.yml
 ngramx worktree gig-1234          # Full ticket reference
 ngramx worktree gig-1234 --quick  # Skips database reset (same semantics as review --quick)
+ngramx worktree gig-1234 --anon   # Worktree against the shared anonymized hosted DB
 ngramx worktree gig-1234 --cursor # Opens the worktree in a new Cursor window once ready
 ngramx worktree gig-1234 -c       # Shorthand for --cursor
 ngramx worktree gig-1234 --cleanup  # Tears down + removes that ticket's worktree env
@@ -647,9 +650,11 @@ ngramx postmaclone --replace          # destroy existing clone, then create fres
 # Emit anonymization SQL only (no provision)
 ngramx postmaclone --sql --from ./backups/prod.dump -o anonymize.sql
 
+ngramx postmaclone connect            # shared hosted DB (SSH tunnel + .env on laptops)
+ngramx postmaclone disconnect         # stop tunnel, restore .env
 ngramx postmaclone status
 ngramx postmaclone doctor             # check op CLI + S3 env (no auto-install)
-ngramx postmaclone down               # destroy now (do not rely on TTL)
+ngramx postmaclone down               # destroy ephemeral clone (do not rely on TTL)
 
 # Factory (separate postmaclone.yml — no app checkout):
 ngramx postmaclone produce --all
@@ -666,6 +671,21 @@ Downloading and anonymizing multi‑GB Forge dumps on every laptop is untenable.
 
 1. Job: `ngramx postmaclone produce --all` — refuse if the raw backup prefix has no object newer than 24 hours → pull prod dump → restore **remote scratch DB** (DO Managed Database; not the ~14GB GHA runner disk) → anonymize → dump (optional `include_tables` / `exclude_tables`) → upload to a **separate anonymized bucket** + `latest.json` → refresh **shared hosted DB**. Produce logs each stage and ~10% ticks on download, sanitize, anonymize (per table), and gzip so GitHub Actions is not silent for hours.
 2. App `ngramx.yml`: `postmaclone.shared` (hosted DB, primary) and/or `postmaclone.prebuilt` (artifact escape hatch) — consumer restores locally when needed, **skips anonymize**
+
+#### Shared hosted DB: `postmaclone connect`
+
+For day-to-day dev against the nightly anonymized database on the DO Managed cluster (no local restore):
+
+```bash
+ngramx postmaclone connect              # resolve op:// creds, SSH tunnel via Codabyte, patch .env
+ngramx postmaclone connect --foreground  # passphrase-protected SSH keys (blocks until Ctrl-C)
+ngramx postmaclone disconnect           # stop tunnel, restore .env
+ngramx up --anon                        # connect during bring-up; ngramx down disconnects automatically
+```
+
+- **Local developers** without a static IP: traffic goes `localhost → SSH (Codabyte) → DO Managed DB`. TablePlus/DBeaver use `127.0.0.1:<local-port>` from `ngramx postmaclone status`. Run `ssh-add` once per session if your key has a passphrase.
+- **Codabyte / cortex-coder**: set `NGRAMX_TRUSTED_DB_EGRESS=1` and `OP_SERVICE_ACCOUNT_TOKEN` on the `coding-agent` container; `ngramx up` connects directly (droplet IP whitelisted on the cluster).
+- **Config**: per-app `postmaclone.shared.database` plus shared `engines.postgres.anon.credentials` op refs (see `ngramx.example.yml`). Factory `postmaclone.yml` holds the same engine credentials for produce.
 
 Bootstrap the workflow in a factory repo:
 
@@ -779,7 +799,7 @@ ngramx postmaclone          # resolves refs via `op read` when a session (or ser
 
 | Who | How to authenticate |
 |-----|---------------------|
-| Human on **WSL** (typical for us) | Install [op](https://developer.1password.com/docs/cli/get-started/) **inside the distro**. Once: `op account add` (sign-in address `gigabytesoftware.1password.com`). Each shell: `eval $(op signin)`. `ngramx postmaclone doctor` detects WSL and prints these steps — it will **not** collect your password or assume Windows desktop-app CLI integration. |
+| Human on **WSL** (typical for us) | Install [op](https://developer.1password.com/docs/cli/get-started/) **inside the distro**. Once: `op account add` (sign-in address `gigabytesoftware.1password.com`). Each new shell/tmux pane: ngramx runs `op signin` for you on interactive commands (connect, doctor reads, etc.), or run `eval $(op signin)` yourself. ngramx **never** reads your 1Password password — op prompts on `/dev/tty` directly. |
 | Human on macOS / native Linux | Prefer **1Password app → Developer → Integrate with 1Password CLI**, or the same `op account add` / `eval $(op signin)` flow. |
 | Agent / CI | Ask an admin for a [service account](https://developer.1password.com/docs/service-accounts/) with **read and write** on Tech Team Vault (write required for nightly shared DB password rotation), then `export OP_SERVICE_ACCOUNT_TOKEN=…` (non-interactive; no `op signin`). |
 | Skip 1Password | Export `POSTMACLONE_S3_KEY` / `POSTMACLONE_S3_SECRET` (or `AWS_*`), or use `--from ./local.dump` / a connection URL. |
