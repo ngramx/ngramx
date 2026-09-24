@@ -12,6 +12,11 @@ use Symfony\Component\Process\Process;
  */
 class OpSecretReader
 {
+    public function __construct(
+        private readonly OpSessionEnsurer $sessionEnsurer = new OpSessionEnsurer(),
+    ) {
+    }
+
     public function read(string $reference): string
     {
         if (!str_starts_with($reference, 'op://')) {
@@ -27,6 +32,8 @@ class OpSecretReader
                 . ' and unlock/integrate with the 1Password app.'
             );
         }
+
+        $this->sessionEnsurer->ensureSignedIn();
 
         $process = new Process(['op', 'read', $reference]);
         $process->setTimeout(60);
