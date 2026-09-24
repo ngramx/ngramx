@@ -15,6 +15,7 @@ use Ngramx\Config\Schema\SetupConfig;
 use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Herd\HerdService;
+use Ngramx\Postmaclone\Connect\PostmacloneConnectService;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
@@ -44,6 +45,59 @@ class DownCommandTest extends TestCase
 
         $definition = $command->getDefinition();
         $this->assertTrue($definition->hasOption('volumes'));
+    }
+
+    public function test_it_disconnects_shared_anon_when_up_was_started_with_anon_flag(): void
+    {
+        $config = $this->createMockConfig();
+        $connectService = $this->createMock(PostmacloneConnectService::class);
+
+        $lockData = new LockFileData(
+            namespace: 'ngramx-agent-1-project',
+            portOffset: null,
+            startedAt: '2025-11-08T10:30:00+00:00',
+            sharedAnonConnectOnUp: true,
+        );
+
+        $this->configLoader->expects($this->once())
+            ->method('findConfigFile')
+            ->willReturn('/path/to/ngramx.yml');
+
+        $this->configLoader->expects($this->once())
+            ->method('load')
+            ->willReturn($config);
+
+        $this->lockFile->expects($this->once())
+            ->method('exists')
+            ->willReturn(true);
+
+        $this->lockFile->expects($this->once())
+            ->method('read')
+            ->willReturn($lockData);
+
+        $connectService->expects($this->once())
+            ->method('disconnect')
+            ->with('/path/to', false, false)
+            ->willReturn(true);
+
+        $this->dockerCompose->expects($this->once())
+            ->method('down');
+
+        $this->dockerCompose->expects($this->once())
+            ->method('downProject');
+
+        $this->overrideGenerator->expects($this->once())
+            ->method('cleanup');
+
+        $this->lockFile->expects($this->once())
+            ->method('delete');
+
+        $command = $this->createCommand(connectService: $connectService);
+        $tester = new CommandTester($command);
+        $exitCode = $tester->execute([]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('Disconnecting shared anonymized database', $tester->getDisplay());
     }
 
     public function test_it_stops_services_with_namespace_from_lock_file(): void
@@ -373,14 +427,15 @@ class DownCommandTest extends TestCase
         $this->assertStringContainsString('Caddy was stopped', $tester->getDisplay());
     }
 
-    private function createCommand(): DownCommand
+    private function createCommand(?PostmacloneConnectService $connectService = null): DownCommand
     {
         return new DownCommand(
-            $this->configLoader,
-            $this->dockerCompose,
-            $this->lockFile,
-            $this->overrideGenerator,
-            $this->herdService
+            configLoader: $this->configLoader,
+            dockerCompose: $this->dockerCompose,
+            lockFile: $this->lockFile,
+            overrideGenerator: $this->overrideGenerator,
+            herdService: $this->herdService,
+            postmacloneConnectService: $connectService ?? new PostmacloneConnectService(),
         );
     }
 

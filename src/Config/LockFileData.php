@@ -20,6 +20,8 @@ readonly class LockFileData
      * @param array<string,string> $urls Every additional endpoint's advertised
      *        URL keyed by name (`docker.endpoints.*`), for the same reason. The
      *        primary lives in $url, not here.
+     * @param bool $sharedAnonConnectOnUp Set when `ngramx up --anon` connected
+     *        to the shared hosted DB so `ngramx down` can disconnect automatically.
      */
     public function __construct(
         public ?string $namespace,
@@ -31,6 +33,7 @@ readonly class LockFileData
         public array $portMap = [],
         public ?string $url = null,
         public array $urls = [],
+        public bool $sharedAnonConnectOnUp = false,
     ) {
     }
 }

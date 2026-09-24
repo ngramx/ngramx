@@ -3,3 +3,6 @@ services:
     image: postgres:16-alpine
   app:
     image: php:8.2-cli
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432

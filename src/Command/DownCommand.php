@@ -11,6 +11,8 @@ use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Herd\HerdService;
 use Ngramx\Output\OutputFormatter;
+use Ngramx\Postmaclone\Connect\PostmacloneConnectService;
+use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\PostmacloneLock;
 use Ngramx\Postmaclone\PostmacloneService;
 use Symfony\Component\Console\Command\Command;
@@ -28,6 +30,7 @@ class DownCommand extends Command
         private readonly ComposeOverrideGenerator $overrideGenerator,
         private readonly HerdService $herdService,
         private readonly PostmacloneService $postmacloneService = new PostmacloneService(),
+        private readonly PostmacloneConnectService $postmacloneConnectService = new PostmacloneConnectService(),
     ) {
         parent::__construct();
     }
@@ -54,12 +57,25 @@ class DownCommand extends Command
             $namespace = null;
             $herdStopped = false;
             $caddyStopped = false;
+            $sharedAnonConnectOnUp = false;
             if ($this->lockFile->exists()) {
                 $lockData = $this->lockFile->read();
                 if ($lockData !== null) {
                     $namespace = $lockData->namespace;
                     $herdStopped = $lockData->herdStopped;
                     $caddyStopped = $lockData->caddyStopped;
+                    $sharedAnonConnectOnUp = $lockData->sharedAnonConnectOnUp;
+                }
+            }
+
+            if ($sharedAnonConnectOnUp) {
+                $formatter->info('Disconnecting shared anonymized database (started with ngramx up --anon)…');
+                try {
+                    if ($this->postmacloneConnectService->disconnect($projectRoot, refreshContainers: false)) {
+                        $formatter->info('Shared DB disconnected and .env restored');
+                    }
+                } catch (PostmacloneException $e) {
+                    $formatter->warning('Shared DB disconnect: ' . $e->getMessage());
                 }
             }
 

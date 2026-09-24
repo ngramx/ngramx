@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Ngramx\Docker;
 
+use Ngramx\Postmaclone\Connect\PostmacloneConnectComposeOverride;
+use Ngramx\Postmaclone\Connect\PostmacloneConnectLock;
+use Ngramx\Postmaclone\Connect\PostmacloneConnectLockData;
 use Ngramx\Worktree\WorktreeGitMount;
 use Ngramx\Worktree\WorktreeSiblingMounts;
 use Symfony\Component\Yaml\Yaml;
@@ -77,6 +80,9 @@ YAML;
         // mount and the sibling-mount rewrite below.
         $composeDir = $this->projectDir($composeFile);
         $projectRoot = $this->projectRoot($composeDir);
+        $connectLock = (new PostmacloneConnectLock($projectRoot))->read();
+        $needsHostGateway = $connectLock !== null;
+        $connectOverride = new PostmacloneConnectComposeOverride();
         $gitCommonDir = $this->gitMount->resolve($projectRoot);
 
         // The same compose file's directory as seen from the base checkout,
@@ -91,7 +97,7 @@ YAML;
         // the historic "return quietly" behaviour for those.
         $needsFingerprint = $this->hasFingerprintableServices($composeFile);
 
-        if ($portOffset === 0 && $namespacePrefix === null && !$noHostMapping && $gitCommonDir === null && $portMap === [] && !$needsFingerprint) {
+        if ($portOffset === 0 && $namespacePrefix === null && !$noHostMapping && $gitCommonDir === null && $portMap === [] && !$needsFingerprint && !$needsHostGateway) {
             // No override needed
             return;
         }
@@ -182,6 +188,10 @@ YAML;
             $buildOverride = $this->buildFingerprintOverride($composeFile, $service);
             if ($buildOverride !== null) {
                 $serviceOverride['build'] = $buildOverride;
+            }
+
+            if ($connectLock instanceof PostmacloneConnectLockData && $connectOverride->serviceUsesDatabase($service)) {
+                $serviceOverride = $connectOverride->mergeServiceOverride($serviceOverride, $connectLock);
             }
 
             if (!empty($serviceOverride)) {

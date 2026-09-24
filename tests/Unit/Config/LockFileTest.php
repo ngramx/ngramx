@@ -282,4 +282,32 @@ class LockFileTest extends TestCase
         $this->assertNull($json['urls']);
         $this->assertSame([], $this->lockFile->read()?->urls);
     }
+
+    public function test_it_round_trips_shared_anon_connect_on_up_flag(): void
+    {
+        $this->lockFile->write(new LockFileData(
+            namespace: null,
+            portOffset: null,
+            startedAt: '2025-11-08T10:30:00+00:00',
+            sharedAnonConnectOnUp: true,
+        ));
+
+        $readData = $this->lockFile->read();
+        $this->assertNotNull($readData);
+        $this->assertTrue($readData->sharedAnonConnectOnUp);
+
+        $json = json_decode((string) file_get_contents($this->tempDir . '/.ngramx.lock'), true);
+        $this->assertTrue($json['shared_anon_connect_on_up']);
+    }
+
+    public function test_it_defaults_shared_anon_connect_on_up_for_legacy_lock_files(): void
+    {
+        file_put_contents($this->tempDir . '/.ngramx.lock', json_encode([
+            'namespace' => null,
+            'port_offset' => null,
+            'started_at' => '2025-11-08T10:30:00+00:00',
+        ], JSON_PRETTY_PRINT));
+
+        $this->assertFalse($this->lockFile->read()?->sharedAnonConnectOnUp);
+    }
 }
