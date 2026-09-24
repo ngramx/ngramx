@@ -88,6 +88,10 @@ class S3BackupSource implements BackupSourceInterface
 
         $this->captureLastModified($response);
 
+        if (str_ends_with(strtolower($locator->key), '.gz')) {
+            $path = $this->gunzip($path);
+        }
+
         return $path;
     }
 
@@ -166,10 +170,13 @@ class S3BackupSource implements BackupSourceInterface
         if (is_file($this->localPath)) {
             unlink($this->localPath);
         }
-        $ungz = $this->localPath . '.ungz';
-        if (is_file($ungz)) {
-            unlink($ungz);
+        $gz = $this->localPath . '.gz';
+        // also remove uncompressed sibling if we gunzipped
+        $plain = preg_replace('/\.gz$/i', '', $this->localPath);
+        if (is_string($plain) && $plain !== $this->localPath && is_file($plain)) {
+            // already handled via localPath reassignment
         }
+        unset($gz);
     }
 
     private function captureLastModified(ResponseInterface $response): void
@@ -210,5 +217,78 @@ class S3BackupSource implements BackupSourceInterface
         }
 
         return "https://{$bucket}.s3.{$locator->region}.amazonaws.com/{$key}";
+    }
+
+    private function gunzip(string $path): string
+    {
+        $dest = preg_replace('/\.gz$/i', '', $path);
+        if (!is_string($dest) || $dest === $path) {
+            $dest = $path . '.ungz';
+        }
+
+        $in = gzopen($path, 'rb');
+        if ($in === false) {
+            throw new PostmacloneException("Failed to open gzip dump: {$path}");
+        }
+        $out = fopen($dest, 'wb');
+        if ($out === false) {
+            gzclose($in);
+            throw new PostmacloneException("Failed to write decompressed dump: {$dest}");
+        }
+
+        $uncompressed = $this->gzipUncompressedSize($path);
+        $reporter = $this->onProgress !== null && $uncompressed !== null
+            ? new PercentReporter($uncompressed, 'Decompressing dump', $this->onProgress)
+            : null;
+        if ($this->onProgress !== null && $reporter === null) {
+            ($this->onProgress)('Decompressing dump');
+        }
+
+        $written = 0;
+        while (!gzeof($in)) {
+            $chunk = gzread($in, 1024 * 1024);
+            if ($chunk === false) {
+                break;
+            }
+            fwrite($out, $chunk);
+            $written += strlen($chunk);
+            $reporter?->set($written);
+        }
+        $reporter?->finish();
+        gzclose($in);
+        fclose($out);
+        unlink($path);
+        $this->localPath = $dest;
+
+        return $dest;
+    }
+
+    /**
+     * gzip ISIZE is the uncompressed size modulo 2^32. Good enough for progress
+     * on dumps under 4 GiB; larger files still finish at 100% when the stream ends.
+     */
+    private function gzipUncompressedSize(string $path): ?int
+    {
+        $size = filesize($path);
+        if ($size === false || $size < 4) {
+            return null;
+        }
+        $fh = fopen($path, 'rb');
+        if ($fh === false) {
+            return null;
+        }
+        fseek($fh, -4, SEEK_END);
+        $raw = fread($fh, 4);
+        fclose($fh);
+        if (!is_string($raw) || strlen($raw) !== 4) {
+            return null;
+        }
+        $unpacked = unpack('Vsize', $raw);
+        if (!is_array($unpacked)) {
+            return null;
+        }
+        $n = (int) $unpacked['size'];
+
+        return $n > 0 ? $n : null;
     }
 }

@@ -5,55 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.47.4](https://github.com/ngramx/ngramx/compare/v2.47.3...v2.47.4) (2026-09-22)
-
-
-### Bug Fixes
-
-* estimate gzip size for auto remote threshold ([1bfbec0](https://github.com/ngramx/ngramx/commit/1bfbec0068b2f72b2f3eb211f1de1cff8bd09082))
-* stream gzip dumps into mysql restore ([f6cae58](https://github.com/ngramx/ngramx/commit/f6cae582d52e4bab2e045bcac66c6c6d8569a5d0))
-
-## [2.47.3](https://github.com/ngramx/ngramx/compare/v2.47.2...v2.47.3) (2026-09-21)
-
-
-### Bug Fixes
-
-* allow MySQL dump restore to run for three hours ([6f00d3b](https://github.com/ngramx/ngramx/commit/6f00d3bc0940ac141099a4f35d6369bfedf03a85))
-
-## [2.47.2](https://github.com/ngramx/ngramx/compare/v2.47.1...v2.47.2) (2026-09-18)
-
-
-### Bug Fixes
-
-* only strip dump SET assignments for SQL_LOG_BIN and GTID ([04f9c9b](https://github.com/ngramx/ngramx/commit/04f9c9b1a53acf9502e037ff6efb28b18667e25e))
-* strip DEFINER and SUPER-only MySQL dump statements on restore ([bf2300a](https://github.com/ngramx/ngramx/commit/bf2300aea2a77bef833c566258ae0464191c0cb0))
-
-## [2.47.1](https://github.com/ngramx/ngramx/compare/v2.47.0...v2.47.1) (2026-09-18)
-
-
-### Bug Fixes
-
-* strip NO_AUTO_CREATE_USER from MySQL dump restores ([50884ba](https://github.com/ngramx/ngramx/commit/50884ba50f647b45460347108eee838e5f759af2))
-
-# [2.47.0](https://github.com/ngramx/ngramx/compare/v2.46.0...v2.47.0) (2026-09-18)
-
-
-### Bug Fixes
-
-* fall back to per-row updates before strict failOrWarn ([1c8ee5a](https://github.com/ngramx/ngramx/commit/1c8ee5a3894818528e447fad00f59ddc5b4aa547))
-
-
-### Features
-
-* batch postmaclone anonymizer UPDATEs into one statement per chunk ([1fc8b89](https://github.com/ngramx/ngramx/commit/1fc8b894485ef0f716b277bfbcdfcb829d88d4ee))
-
-# [2.46.0](https://github.com/ngramx/ngramx/compare/v2.45.4...v2.46.0) (2026-09-18)
-
-
-### Features
-
-* add AGENTS.md rule to sync postmaclone config when migrations add PII ([807271b](https://github.com/ngramx/ngramx/commit/807271b4e92a9949a5617924c898b488fba1c990))
-
 ## [2.45.4](https://github.com/ngramx/ngramx/compare/v2.45.3...v2.45.4) (2026-09-18)
 
 

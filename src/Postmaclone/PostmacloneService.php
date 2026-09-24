@@ -26,7 +26,6 @@ use Ngramx\Postmaclone\Connection\ConnectionFactory;
 use Ngramx\Postmaclone\Connection\PdoDriverGuard;
 use Ngramx\Postmaclone\Connection\RemoteDbConnectionResolver;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
-use Ngramx\Postmaclone\Restore\DumpStream;
 use Ngramx\Postmaclone\Restore\MysqlRestorer;
 use Ngramx\Postmaclone\Restore\PostgresRestorer;
 use Ngramx\Postmaclone\Target\ComposeDbServiceSwitcher;
@@ -323,7 +322,7 @@ class PostmacloneService
         }
 
         $dumpPath = $source->materialize();
-        $artifactSize = DumpStream::estimatedUncompressedBytes($dumpPath);
+        $artifactSize = is_file($dumpPath) ? (int) filesize($dumpPath) : null;
 
         $target = $this->buildTarget($config, $pm, $engine, $projectRoot, $artifactSize)
             ->provision($engine, $pm->target->ttlHours);

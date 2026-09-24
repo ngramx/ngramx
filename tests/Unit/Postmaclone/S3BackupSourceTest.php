@@ -107,23 +107,6 @@ final class S3BackupSourceTest extends TestCase
         $source->lastModified();
     }
 
-    public function test_gzip_object_stays_compressed_on_disk(): void
-    {
-        $payload = "INSERT INTO users VALUES (1);\n";
-        $compressed = gzencode($payload, 6);
-        self::assertNotFalse($compressed);
-
-        $source = $this->source([
-            new Response(200, ['Last-Modified' => 'Wed, 01 Jan 2020 00:00:00 GMT'], $compressed),
-        ], 'hydra/hydra.sql.gz');
-
-        $path = $source->materialize();
-        self::assertFileExists($path);
-        self::assertFileDoesNotExist($path . '.ungz');
-        self::assertSame($compressed, file_get_contents($path));
-        self::assertSame("\x1f\x8b", substr((string) file_get_contents($path), 0, 2));
-    }
-
     public function test_resolve_failure_throws_instead_of_returning_null(): void
     {
         $source = $this->source([], 'database-backups/all/');

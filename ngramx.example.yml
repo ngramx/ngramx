@@ -161,15 +161,26 @@ commands:
 #   #     key: "op://Tech Team Vault/ngramx-anon-backup-read/username"
 #   #     secret: "op://Tech Team Vault/ngramx-anon-backup-read/password"
 #
-#   # Primary: connect to the nightly refreshed hosted DB (COR-274 wires this into dev envs).
+#   # Primary: connect to the nightly refreshed hosted DB (no local restore).
+#   #   ngramx postmaclone connect          # SSH tunnel + patch .env (local dev)
+#   #   ngramx up --anon                    # same, during stack bring-up (opt-in)
+#   # Codabyte agents auto-connect when NGRAMX_TRUSTED_DB_EGRESS=1 is set.
+#   # engines:
+#   #   postgres:
+#   #     anon:
+#   #       credentials:
+#   #         server: "op://Tech Team Vault/postmaclone-anon-psql/server"
+#   #         port: "op://Tech Team Vault/postmaclone-anon-psql/port"
+#   #         username: "op://Tech Team Vault/postmaclone-anon-psql/username"
+#   #         password: "op://Tech Team Vault/postmaclone-anon-psql/password"
+#   #         connection_options: "op://Tech Team Vault/postmaclone-anon-psql/connection options"
 #   # shared:
-#   #   host: "private-db-postgresql-xxxxx-do-user-xxxxx-0.db.ondigitalocean.com"
-#   #   port: 25060
 #   #   database: earl_kendrick_core_prod_anon
-#   #   credentials:
-#   #     username: "op://Tech Team Vault/postmaclone-anon/username"
-#   #     password: "op://Tech Team Vault/postmaclone-anon/password"
 #   #   max_age_hours: 36
+#   # connect:                      # optional overrides (defaults: Codabyte SSH hop)
+#   #   tunnel_host: codabyte.gigabyte.software
+#   #   tunnel_user: forge
+#   #   local_port: 15432
 #
 #   target:
 #     provider: auto              # neon | docker | remote | auto (Postgres: Neon if NEON_API_KEY is set, else Docker)

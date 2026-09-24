@@ -1,8 +1,0 @@
-{
-  "id": "GIG-3190",
-  "uuid": "85fafd77-d2b5-4674-87fc-200a7adf15d8",
-  "title": "Add AGENTS.md rule: auto-update ngramx anonymization config when migrations create PII columns",
-  "url": "https://linear.app/gigabyte/issue/GIG-3190/add-agentsmd-rule-auto-update-ngramx-anonymization-config-when",
-  "status": "In Progress",
-  "gitBranchName": "gig-3190-add-agentsmd-rule-auto-update-ngramx-anonymization-config"
-}

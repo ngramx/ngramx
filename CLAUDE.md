@@ -7,7 +7,7 @@ When this repository uses Ngramx, bring up the local stack with:
 ngramx up
 ```
 
-Use the project’s documented URL or `ngramx show-url` (if available) to open the app. Projects with several front-ends (a PWA, an API host, supplier/customer sites) list them with `ngramx show-url --all`; write completion.json `test_urls` against each endpoint’s canonical host so they are rewritten onto the right one in worktrees. Prefer automated checks defined in the project (for example Playwright, PHPUnit, or npm test) over manual-only verification when they are already wired in.
+Use the project’s documented URL or `ngramx show-url` (if available) to open the app. Prefer automated checks defined in the project (for example Playwright, PHPUnit, or npm test) over manual-only verification when they are already wired in.
 
 ---
 
@@ -47,8 +47,6 @@ Do not assume every Ngramx project uses the same audit column names; copy the co
 When nearby models use UUID primary keys (often UUID v7 via Laravel's `HasUuids` trait), match that: `$table->uuid('id')->primary()`, `$incrementing = false`, `$keyType = 'string'`, and `foreignUuid()->constrained('explicit_table')` for prefixed tables.
 
 NEVER edit migrations. Always create new ones.
-
-When a migration adds a column containing PII, also add a matching column rule under `postmaclone.tables` in the project's `ngramx.yml` so post-clone anonymization stays in sync.
 
 ---
 

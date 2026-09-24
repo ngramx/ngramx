@@ -20,7 +20,7 @@ jobs:
       uses: shivammathur/setup-php@v2
       with:
         php-version: ${{ matrix.php-version }}
-        extensions: mbstring, xml, ctype, json, pdo_sqlite
+        extensions: mbstring, xml, ctype, json
         coverage: xdebug
     
     - name: Validate composer.json and composer.lock

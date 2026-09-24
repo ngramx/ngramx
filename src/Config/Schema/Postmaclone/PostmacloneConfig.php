@@ -25,6 +25,7 @@ readonly class PostmacloneConfig
         public BackupConfig $backup = new BackupConfig(),
         public ?PrebuiltConfig $prebuilt = null,
         public ?SharedDbConfig $shared = null,
+        public ?ConnectConfig $connect = null,
         public TargetConfig $target = new TargetConfig(),
         public array $tables = [],
         public string $testPassword = self::DEFAULT_TEST_PASSWORD,
