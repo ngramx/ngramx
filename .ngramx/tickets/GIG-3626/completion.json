@@ -1,7 +1,7 @@
 {
     "title": "GIG-3626: Update Ngramx CLI To Tidy Up Skills And AGENTS.md",
     "description": "Stops dumping generated agent instructions into AGENTS.md and CLAUDE.md. Writes a short skill index under .cursor and .claude and gitignores only those generated files.",
-    "pr_url": "",
+    "pr_url": "https://github.com/ngramx/ngramx/pull/39",
     "linear_url": "https://linear.app/gigabyte/issue/GIG-3626/update-ngramx-cli-to-tidy-up-skills-and-agentsmd",
     "test_urls": [
         {
