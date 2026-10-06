@@ -1,3 +1,9 @@
+---
+name: git-and-review
+description: >-
+  Create feature branches without tracking main, and follow the project's review and formatting workflow. Use when branching, responding to review, or opening a pull request.
+---
+
 # Git, review, and pull requests
 
 ## Feature branch upstream

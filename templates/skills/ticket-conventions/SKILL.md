@@ -1,3 +1,9 @@
+---
+name: ticket-conventions
+description: >-
+  Record ticket work in .ngramx/tickets and commit completion.json before opening a pull request. Use when working a tracked issue or preparing its completion record.
+---
+
 # Ticket and PR conventions
 
 ## Linear issue status

@@ -1,3 +1,9 @@
+---
+name: development-environment
+description: >-
+  Bring the local stack up with ngramx and prefer this project's own automated checks. Use when starting the app, finding its URL, or deciding how to verify a change.
+---
+
 # Development environment
 
 When this repository uses Ngramx, bring up the local stack with:

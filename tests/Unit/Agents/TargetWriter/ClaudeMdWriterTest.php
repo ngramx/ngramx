@@ -29,9 +29,10 @@ class ClaudeMdWriterTest extends TestCase
         $changed = $writer->write($this->projectDir, '# Test content');
 
         $this->assertTrue($changed);
-        $this->assertFileExists($this->projectDir . '/CLAUDE.md');
+        $this->assertFileExists($this->projectDir . '/.claude/rules/ngramx.md');
+        $this->assertFileDoesNotExist($this->projectDir . '/CLAUDE.md');
 
-        $content = file_get_contents($this->projectDir . '/CLAUDE.md');
+        $content = file_get_contents($this->projectDir . '/.claude/rules/ngramx.md');
         $this->assertIsString($content);
         assert(is_string($content));
         $this->assertStringContainsString('<!-- NGRAMX_CLAUDE_MANAGED_BEGIN -->', $content);
@@ -50,12 +51,13 @@ class ClaudeMdWriterTest extends TestCase
 
     public function test_write_preserves_existing_content(): void
     {
-        file_put_contents($this->projectDir . '/CLAUDE.md', "# My Project\n\nUser notes here.");
+        mkdir($this->projectDir . '/.claude/rules', 0755, true);
+        file_put_contents($this->projectDir . '/.claude/rules/ngramx.md', "# My Project\n\nUser notes here.");
 
         $writer = new ClaudeMdWriter();
         $writer->write($this->projectDir, '# Ngramx content');
 
-        $content = file_get_contents($this->projectDir . '/CLAUDE.md');
+        $content = file_get_contents($this->projectDir . '/.claude/rules/ngramx.md');
         $this->assertIsString($content);
         assert(is_string($content));
         $this->assertStringContainsString('# My Project', $content);
@@ -71,11 +73,54 @@ class ClaudeMdWriterTest extends TestCase
         $changed = $writer->write($this->projectDir, '# Updated');
         $this->assertTrue($changed);
 
-        $content = file_get_contents($this->projectDir . '/CLAUDE.md');
+        $content = file_get_contents($this->projectDir . '/.claude/rules/ngramx.md');
         $this->assertIsString($content);
         assert(is_string($content));
         $this->assertStringContainsString('# Updated', $content);
         $this->assertStringNotContainsString('# Original', $content);
+    }
+
+    public function test_write_deletes_root_claude_md_when_it_is_only_a_generated_block(): void
+    {
+        file_put_contents(
+            $this->projectDir . '/CLAUDE.md',
+            "<!-- NGRAMX_CLAUDE_MANAGED_BEGIN -->\n# Old dump\n<!-- NGRAMX_CLAUDE_MANAGED_END -->\n"
+        );
+
+        $writer = new ClaudeMdWriter();
+        $this->assertTrue($writer->write($this->projectDir, '# Fresh index'));
+        $this->assertFileDoesNotExist($this->projectDir . '/CLAUDE.md');
+        $this->assertFileExists($this->projectDir . '/.claude/rules/ngramx.md');
+    }
+
+    public function test_write_leaves_project_owned_claude_md_untouched(): void
+    {
+        mkdir($this->projectDir . '/.claude', 0755, true);
+        $owned = "<!-- CORTEX START -->\nUse cortex up.\n<!-- CORTEX END -->\n";
+        file_put_contents($this->projectDir . '/.claude/CLAUDE.md', $owned);
+
+        $writer = new ClaudeMdWriter();
+        $writer->write($this->projectDir, '# Fresh index');
+
+        $this->assertSame($owned, file_get_contents($this->projectDir . '/.claude/CLAUDE.md'));
+        $this->assertFileExists($this->projectDir . '/.claude/rules/ngramx.md');
+    }
+
+    public function test_write_keeps_project_notes_on_root_claude_md(): void
+    {
+        file_put_contents(
+            $this->projectDir . '/CLAUDE.md',
+            "# Keep me\n\n<!-- NGRAMX_CLAUDE_MANAGED_BEGIN -->\n# Old dump\n<!-- NGRAMX_CLAUDE_MANAGED_END -->\n"
+        );
+
+        $writer = new ClaudeMdWriter();
+        $writer->write($this->projectDir, '# Fresh index');
+
+        $root = file_get_contents($this->projectDir . '/CLAUDE.md');
+        $this->assertIsString($root);
+        $this->assertStringContainsString('# Keep me', $root);
+        $this->assertStringNotContainsString('Old dump', $root);
+        $this->assertStringNotContainsString('Fresh index', $root);
     }
 
     private function recursiveRemove(string $dir): void

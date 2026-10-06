@@ -158,6 +158,40 @@ class AgentsMdSynchronizerTest extends TestCase
         $this->assertFalse($sync->hasMalformedManagedMarkers($this->projectDir));
     }
 
+    public function testRetireDeletesFileThatIsOnlyTheStockIntro(): void
+    {
+        $sync = new AgentsMdSynchronizer();
+        $sync->sync($this->projectDir, 'DUMP');
+
+        $this->assertTrue($sync->retireManagedBlock($this->projectDir));
+        $this->assertFileDoesNotExist($this->projectDir . '/AGENTS.md');
+    }
+
+    public function testRetireKeepsProjectNotesAboveTheManagedBlock(): void
+    {
+        file_put_contents(
+            $this->projectDir . '/AGENTS.md',
+            "# Notes\n\nShip from main.\n\n<!-- NGRAMX_AGENTS_MANAGED_BEGIN -->\n\nDUMP\n<!-- NGRAMX_AGENTS_MANAGED_END -->\n"
+        );
+
+        $sync = new AgentsMdSynchronizer();
+        $this->assertTrue($sync->retireManagedBlock($this->projectDir));
+
+        $content = file_get_contents($this->projectDir . '/AGENTS.md');
+        $this->assertIsString($content);
+        $this->assertStringContainsString('Ship from main.', $content);
+        $this->assertStringNotContainsString('DUMP', $content);
+    }
+
+    public function testRetireIsANoOpWhenFileHasNoMarkers(): void
+    {
+        file_put_contents($this->projectDir . '/AGENTS.md', "# Notes\n");
+
+        $sync = new AgentsMdSynchronizer();
+        $this->assertFalse($sync->retireManagedBlock($this->projectDir));
+        $this->assertSame("# Notes\n", file_get_contents($this->projectDir . '/AGENTS.md'));
+    }
+
     public function testRespectsNgramxSkipAgentsSync(): void
     {
         putenv('NGRAMX_SKIP_AGENTS_SYNC=1');

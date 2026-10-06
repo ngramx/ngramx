@@ -37,11 +37,12 @@ class SkillsSynchronizerTest extends TestCase
         $changed = $sync->sync($this->projectDir, ['cursor']);
 
         $this->assertTrue($changed);
-        $this->assertFileExists($this->projectDir . '/.cursor/skills/test-skill/SKILL.md');
+        $this->assertFileExists($this->projectDir . '/.cursor/skills/ngramx-test-skill/SKILL.md');
 
-        $content = file_get_contents($this->projectDir . '/.cursor/skills/test-skill/SKILL.md');
+        $content = file_get_contents($this->projectDir . '/.cursor/skills/ngramx-test-skill/SKILL.md');
         $this->assertIsString($content);
         assert(is_string($content));
+        $this->assertStringContainsString('name: ngramx-test-skill', $content);
         $this->assertStringContainsString('test-skill', $content);
     }
 
@@ -51,7 +52,7 @@ class SkillsSynchronizerTest extends TestCase
         $changed = $sync->sync($this->projectDir, ['claude']);
 
         $this->assertTrue($changed);
-        $this->assertFileExists($this->projectDir . '/.claude/skills/test-skill/SKILL.md');
+        $this->assertFileExists($this->projectDir . '/.claude/skills/ngramx-test-skill/SKILL.md');
     }
 
     public function test_sync_copies_to_multiple_targets(): void
@@ -60,8 +61,8 @@ class SkillsSynchronizerTest extends TestCase
         $changed = $sync->sync($this->projectDir, ['cursor', 'claude']);
 
         $this->assertTrue($changed);
-        $this->assertFileExists($this->projectDir . '/.cursor/skills/test-skill/SKILL.md');
-        $this->assertFileExists($this->projectDir . '/.claude/skills/test-skill/SKILL.md');
+        $this->assertFileExists($this->projectDir . '/.cursor/skills/ngramx-test-skill/SKILL.md');
+        $this->assertFileExists($this->projectDir . '/.claude/skills/ngramx-test-skill/SKILL.md');
     }
 
     public function test_sync_is_idempotent(): void
@@ -89,7 +90,7 @@ class SkillsSynchronizerTest extends TestCase
         $changed = $sync->sync($this->projectDir, ['cursor']);
         $this->assertTrue($changed);
 
-        $content = file_get_contents($this->projectDir . '/.cursor/skills/test-skill/SKILL.md');
+        $content = file_get_contents($this->projectDir . '/.cursor/skills/ngramx-test-skill/SKILL.md');
         $this->assertIsString($content);
         assert(is_string($content));
         $this->assertStringContainsString('Updated', $content);
@@ -127,8 +128,26 @@ class SkillsSynchronizerTest extends TestCase
         $sync = new SkillsSynchronizer($this->templatesRoot);
         $sync->sync($this->projectDir, ['cursor']);
 
-        $this->assertFileExists($this->projectDir . '/.cursor/skills/test-skill/SKILL.md');
-        $this->assertFileExists($this->projectDir . '/.cursor/skills/second-skill/SKILL.md');
+        $this->assertFileExists($this->projectDir . '/.cursor/skills/ngramx-test-skill/SKILL.md');
+        $this->assertFileExists($this->projectDir . '/.cursor/skills/ngramx-second-skill/SKILL.md');
+    }
+
+    public function test_sync_removes_legacy_unprefixed_skill_and_keeps_hand_written_skills(): void
+    {
+        $legacy = $this->projectDir . '/.cursor/skills/test-skill';
+        mkdir($legacy, 0755, true);
+        file_put_contents($legacy . '/SKILL.md', "old generated copy\n");
+
+        $custom = $this->projectDir . '/.cursor/skills/custom-skill';
+        mkdir($custom, 0755, true);
+        file_put_contents($custom . '/SKILL.md', "hand written\n");
+
+        $sync = new SkillsSynchronizer($this->templatesRoot);
+        $sync->sync($this->projectDir, ['cursor']);
+
+        $this->assertFileDoesNotExist($legacy . '/SKILL.md');
+        $this->assertFileExists($custom . '/SKILL.md');
+        $this->assertFileExists($this->projectDir . '/.cursor/skills/ngramx-test-skill/SKILL.md');
     }
 
     private function recursiveRemove(string $dir): void

@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Ngramx\Agents\TargetWriter;
 
 /**
- * Writes a CLAUDE.md file at the project root with a Ngramx-managed section.
+ * Writes .claude/rules/ngramx.md with a Ngramx-managed section.
+ *
+ * Root CLAUDE.md and an existing .claude/CLAUDE.md are left alone when they
+ * contain project notes. A file that is only a previously generated managed
+ * section is deleted.
  */
 final class ClaudeMdWriter implements TargetWriterInterface
 {
@@ -15,7 +19,21 @@ final class ClaudeMdWriter implements TargetWriterInterface
 
     public function write(string $projectRoot, string $markdown): bool
     {
-        $path = $projectRoot . '/CLAUDE.md';
+        $projectRoot = rtrim($projectRoot, '/');
+        $retiredRoot = $this->retireGeneratedFile($projectRoot . '/CLAUDE.md');
+        $retiredClaude = $this->retireGeneratedFile($projectRoot . '/.claude/CLAUDE.md');
+        $retired = $retiredRoot || $retiredClaude;
+
+        $dir = $projectRoot . '/.claude/rules';
+        if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
+            return $retired;
+        }
+
+        return $this->writeManaged($dir . '/ngramx.md', $markdown) || $retired;
+    }
+
+    private function writeManaged(string $path, string $markdown): bool
+    {
         $managedSection = self::MARKER_BEGIN . "\n" . rtrim($markdown) . "\n" . self::MARKER_END;
 
         $existing = is_file($path) ? file_get_contents($path) : false;
@@ -46,6 +64,35 @@ final class ClaudeMdWriter implements TargetWriterInterface
         }
 
         return $this->writeAtomic($path, $managedSection);
+    }
+
+    /**
+     * Drop a generated managed section. Delete the file when nothing
+     * project-owned remains.
+     */
+    private function retireGeneratedFile(string $path): bool
+    {
+        if (!is_file($path)) {
+            return false;
+        }
+
+        $existing = file_get_contents($path);
+        if ($existing === false || !$this->hasAnyMarker($existing)) {
+            return false;
+        }
+
+        $region = $this->findManagedRegion($existing);
+        if ($region === null) {
+            return false;
+        }
+
+        [$beginPos, $endClose] = $region;
+        $remaining = trim(rtrim(substr($existing, 0, $beginPos)) . "\n\n" . ltrim(substr($existing, $endClose)));
+        if ($remaining === '') {
+            return unlink($path);
+        }
+
+        return $this->writeAtomic($path, $remaining . "\n");
     }
 
     private function hasAnyMarker(string $contents): bool

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Ngramx;
 
 use GuzzleHttp\Client;
-use Ngramx\Agents\AgentsMdSynchronizer;
 use Ngramx\Agents\AgentsSyncOrchestrator;
 use Ngramx\Caddy\CaddyService;
 use Ngramx\Codabyte\ServerTargetResolver;
@@ -408,15 +407,8 @@ class Application extends BaseApplication
             $config = $configLoader->load($configPath);
             (new AgentsSyncOrchestrator())->sync($projectRoot, $config->agents);
         } catch (ConfigException) {
-            // No ngramx.yml in cwd or parents — fall back to AGENTS.md only
-            try {
-                $cwd = getcwd();
-                if ($cwd !== false) {
-                    (new AgentsMdSynchronizer())->sync($cwd);
-                }
-            } catch (\Throwable) {
-                // Silently skip
-            }
+            // No ngramx.yml in cwd or parents. Do not write agent files into
+            // an unrelated directory.
         }
     }
 }

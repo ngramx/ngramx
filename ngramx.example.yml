@@ -204,26 +204,26 @@ commands:
 #       # address_line_1: 'numberBetween(1, 999) + " " + firstName + " Street"'
 #       # omit non-PII columns — they stay as-is
 
-# Optional: control where Ngramx writes its managed agent instructions and skills.
+# Optional: where Ngramx writes its generated skill index and skill files.
 # `ngramx sync-agents` (and `ngramx up`) regenerate these from the bundled templates.
-# Both `targets` (rules) and `skills` respect the lists below — omit the whole
+# Generated paths are gitignored. AGENTS.md is not modified. Omit the whole
 # `agents:` block to accept the defaults shown here.
 agents:
-  # Where the managed rule/instruction content is written.
-  # Valid: agents_md, cursor_rules, claude_md, copilot_instructions
-  # Default: [agents_md, cursor_rules]
+  # Where the short skill index is written.
+  # Valid: cursor_rules, claude_md, copilot_instructions
+  # (`agents_md` is accepted and ignored.)
+  # Default: [cursor_rules, claude_md]
   targets:
-    - agents_md             # AGENTS.md (managed block, read by most agents)
     - cursor_rules          # .cursor/rules/ngramx.mdc
-    - claude_md             # CLAUDE.md (add this to distribute rules to Claude)
+    - claude_md             # .claude/rules/ngramx.md
     - copilot_instructions  # .github/copilot-instructions.md
 
-  # Where skill folders (start-ticket, create-pr, …) are copied.
+  # Where skill folders are copied, prefixed ngramx- so hand-written skills stay tracked.
   # Valid: cursor, claude
-  # Default: [cursor]
+  # Default: [cursor, claude]
   skills:
-    - cursor                # .cursor/skills/<name>/SKILL.md
-    - claude                # .claude/skills/<name>/SKILL.md
+    - cursor                # .cursor/skills/ngramx-<name>/SKILL.md
+    - claude                # .claude/skills/ngramx-<name>/SKILL.md
 
 # Optional: event hooks — host commands that run after ngramx lifecycle events.
 # Prefer putting personal defaults in ~/.ngramx.yaml; use this block (or

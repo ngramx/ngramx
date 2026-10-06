@@ -1,0 +1,23 @@
+{
+    "title": "GIG-3626: Update Ngramx CLI To Tidy Up Skills And AGENTS.md",
+    "description": "Stops dumping generated agent instructions into AGENTS.md and CLAUDE.md. Writes a short skill index under .cursor and .claude and gitignores only those generated files.",
+    "pr_url": "",
+    "linear_url": "https://linear.app/gigabyte/issue/GIG-3626/update-ngramx-cli-to-tidy-up-skills-and-agentsmd",
+    "test_urls": [
+        {
+            "label": "Agent sync tests",
+            "url": "https://github.com/ngramx/ngramx/blob/gig-3626-update-ngramx-cli-to-tidy-up-skills-and-agentsmd/tests/Unit/Agents/AgentsSyncOrchestratorTest.php"
+        }
+    ],
+    "test_plan": [
+        {
+            "description": "Generated agent files stay out of git and can be regenerated",
+            "status": "active",
+            "steps": [
+                "Run vendor/bin/phpunit --filter Agents --no-coverage",
+                "Run php bin/ngramx sync-agents twice and confirm the second run reports that targets are already up to date",
+                "Confirm AGENTS.md has no NGRAMX_AGENTS_MANAGED markers and that .cursor/skills/ngramx-start-ticket is gitignored"
+            ]
+        }
+    ]
+}

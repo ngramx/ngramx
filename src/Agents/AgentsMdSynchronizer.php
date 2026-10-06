@@ -89,6 +89,44 @@ final class AgentsMdSynchronizer
         return $this->hasAnyMarker($contents) && $this->findManagedRegion($contents) === null;
     }
 
+    /**
+     * Remove a previously written managed block from AGENTS.md.
+     *
+     * The top-level file is project-owned. If the only content left is the
+     * stock intro Ngramx used to insert, the file is deleted.
+     *
+     * @return bool True if AGENTS.md was modified or deleted
+     */
+    public function retireManagedBlock(string $projectRoot): bool
+    {
+        if ($this->shouldSkipForEnv()) {
+            return false;
+        }
+
+        $path = rtrim($projectRoot, '/') . '/AGENTS.md';
+        if (!is_file($path)) {
+            return false;
+        }
+
+        $existing = file_get_contents($path);
+        if ($existing === false || !$this->hasAnyMarker($existing)) {
+            return false;
+        }
+
+        $region = $this->findManagedRegion($existing);
+        if ($region === null) {
+            return false;
+        }
+
+        [$beginPos, $endClose] = $region;
+        $remaining = trim(rtrim(substr($existing, 0, $beginPos)) . "\n\n" . ltrim(substr($existing, $endClose)));
+        if ($this->isStockIntro($remaining)) {
+            return unlink($path);
+        }
+
+        return $this->writeAtomic($path, $remaining . "\n");
+    }
+
     private function hasAnyMarker(string $contents): bool
     {
         return str_contains($contents, self::MARKER_BEGIN)
@@ -115,6 +153,14 @@ final class AgentsMdSynchronizer
         }
 
         return [$beginPos, $endPos + strlen(self::MARKER_END)];
+    }
+
+    private function isStockIntro(string $remaining): bool
+    {
+        $stock = "# Agent instructions\n\n"
+            . 'Add project-specific notes for AI assistants above the Ngramx-managed section.';
+
+        return $remaining === '' || $remaining === $stock;
     }
 
     private function shouldSkipForEnv(): bool
