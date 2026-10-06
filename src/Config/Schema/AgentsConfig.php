@@ -6,10 +6,14 @@ namespace Ngramx\Config\Schema;
 
 readonly class AgentsConfig
 {
-    public const DEFAULT_TARGETS = ['agents_md', 'cursor_rules'];
+    public const DEFAULT_TARGETS = ['cursor_rules', 'claude_md'];
 
-    public const DEFAULT_SKILLS = ['cursor'];
+    public const DEFAULT_SKILLS = ['cursor', 'claude'];
 
+    /**
+     * `agents_md` is still accepted so existing configs load, but it is not
+     * written. Top-level AGENTS.md stays project-owned.
+     */
     public const VALID_TARGETS = [
         'agents_md',
         'cursor_rules',

@@ -52,23 +52,42 @@ class SyncAgentsCommand extends Command
         $orchestrator = new AgentsSyncOrchestrator();
         $result = $orchestrator->sync($projectRoot, $config->agents);
 
+        if (in_array('agents_md', $config->agents->targets, true)) {
+            $formatter->warning(
+                'agents.targets includes agents_md, which is no longer written. '
+                . 'AGENTS.md stays project-owned. Remove agents_md from ngramx.yml.'
+            );
+        }
+
         $targetsChanged = $result['targets_changed'];
         $skillsChanged = $result['skills_changed'];
+        $gitignoreChanged = $result['gitignore_changed'];
 
-        if ($targetsChanged === [] && !$skillsChanged) {
+        $writtenTargets = array_values(array_filter(
+            $targetsChanged,
+            static fn (string $target): bool => $target !== 'agents_md_retired',
+        ));
+
+        if ($writtenTargets === [] && !$skillsChanged && !$gitignoreChanged && !in_array('agents_md_retired', $targetsChanged, true)) {
             $formatter->info('All agent targets are already up to date.');
 
             return Command::SUCCESS;
         }
 
-        if ($targetsChanged !== []) {
-            foreach ($targetsChanged as $target) {
-                $formatter->success("✓ Updated: $target");
-            }
+        if (in_array('agents_md_retired', $targetsChanged, true)) {
+            $formatter->success('✓ Removed the Ngramx-managed section from AGENTS.md');
+        }
+
+        foreach ($writtenTargets as $target) {
+            $formatter->success("✓ Updated: $target");
         }
 
         if ($skillsChanged) {
             $formatter->success('✓ Skills synchronized to: ' . implode(', ', $config->agents->skills));
+        }
+
+        if ($gitignoreChanged) {
+            $formatter->success('✓ Updated .gitignore for generated agent files');
         }
 
         return Command::SUCCESS;

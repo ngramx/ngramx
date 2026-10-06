@@ -66,13 +66,13 @@ commands:
     description: "Run all validation checks (composer, phpstan, tests)"
     timeout: 180
 
-# Dogfood the managed agent instructions and skills for both Cursor and Claude.
+# Generated skill index and skills for Cursor and Claude. Gitignored.
+# AGENTS.md stays project-owned.
 agents:
   targets:
-    - agents_md       # AGENTS.md (managed block)
     - cursor_rules    # .cursor/rules/ngramx.mdc
-    - claude_md       # CLAUDE.md
+    - claude_md       # .claude/rules/ngramx.md
   skills:
-    - cursor          # .cursor/skills/<name>/SKILL.md
-    - claude          # .claude/skills/<name>/SKILL.md
+    - cursor          # .cursor/skills/ngramx-<name>/SKILL.md
+    - claude          # .claude/skills/ngramx-<name>/SKILL.md
 

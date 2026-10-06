@@ -303,8 +303,8 @@ class InitCommand extends Command
         }
 
         $formatter->info('');
-        $formatter->info('Agent sync: the Ngramx-managed sections are refreshed on every ngramx command.');
-        $formatter->info('Configure targets in ngramx.yml under `agents.targets` and `agents.skills`.');
+        $formatter->info('Agent sync: generated rules and skills are refreshed on every ngramx command.');
+        $formatter->info('They live under .cursor/ and .claude/ and are gitignored. AGENTS.md is not modified.');
         $formatter->info('');
         $formatter->info('For help: ngramx --help');
     }

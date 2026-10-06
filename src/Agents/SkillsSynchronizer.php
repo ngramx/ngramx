@@ -4,14 +4,16 @@ declare(strict_types=1);
 
 namespace Ngramx\Agents;
 
-use Ngramx\Templates\TemplateDirectory;
-
 /**
  * Copies skill folders from templates/skills/ to target-specific paths in the project.
  *
+ * Generated folders are prefixed with `ngramx-` so hand-written skills in the
+ * same directory can stay version-controlled. An older unprefixed copy of a
+ * bundled skill is removed.
+ *
  * Supported targets:
- *  - "cursor" → .cursor/skills/<name>/SKILL.md
- *  - "claude" → .claude/skills/<name>/SKILL.md
+ *  - "cursor" → .cursor/skills/ngramx-<name>/SKILL.md
+ *  - "claude" → .claude/skills/ngramx-<name>/SKILL.md
  */
 final class SkillsSynchronizer
 {
@@ -32,15 +34,8 @@ final class SkillsSynchronizer
      */
     public function sync(string $projectRoot, array $skillTargets): bool
     {
-        $templatesRoot = $this->templatesRoot ?? TemplateDirectory::resolve();
-        $skillsSourceDir = $templatesRoot . '/skills';
-
-        if (!is_dir($skillsSourceDir)) {
-            return false;
-        }
-
-        $skillNames = $this->discoverSkills($skillsSourceDir);
-        if ($skillNames === []) {
+        $skills = (new SkillCatalog($this->templatesRoot))->discover();
+        if ($skills === []) {
             return false;
         }
 
@@ -53,11 +48,14 @@ final class SkillsSynchronizer
 
             $targetDir = rtrim($projectRoot, '/') . '/' . self::TARGET_PATHS[$target];
 
-            foreach ($skillNames as $skillName) {
-                $sourceDir = $skillsSourceDir . '/' . $skillName;
-                $destDir = $targetDir . '/' . $skillName;
+            foreach ($skills as $skill) {
+                $destDir = $targetDir . '/' . $skill['generatedName'];
 
-                if ($this->syncSkillDirectory($sourceDir, $destDir)) {
+                if ($this->syncSkillDirectory($skill['sourceDir'], $destDir, $skill['generatedName'])) {
+                    $changed = true;
+                }
+
+                if ($skill['folder'] !== $skill['generatedName'] && $this->removeTree($targetDir . '/' . $skill['folder'])) {
                     $changed = true;
                 }
             }
@@ -66,31 +64,7 @@ final class SkillsSynchronizer
         return $changed;
     }
 
-    /**
-     * @return list<string>
-     */
-    private function discoverSkills(string $skillsSourceDir): array
-    {
-        $entries = scandir($skillsSourceDir);
-        if ($entries === false) {
-            return [];
-        }
-
-        $skills = [];
-        foreach ($entries as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            if (is_dir($skillsSourceDir . '/' . $entry) && is_file($skillsSourceDir . '/' . $entry . '/SKILL.md')) {
-                $skills[] = $entry;
-            }
-        }
-
-        sort($skills);
-        return $skills;
-    }
-
-    private function syncSkillDirectory(string $sourceDir, string $destDir): bool
+    private function syncSkillDirectory(string $sourceDir, string $destDir, string $generatedName): bool
     {
         $entries = scandir($sourceDir);
         if ($entries === false) {
@@ -108,7 +82,14 @@ final class SkillsSynchronizer
             $destPath = $destDir . '/' . $entry;
 
             if (is_file($sourcePath)) {
-                if ($this->syncFile($sourcePath, $destPath)) {
+                $contents = file_get_contents($sourcePath);
+                if ($contents === false) {
+                    continue;
+                }
+                if ($entry === 'SKILL.md') {
+                    $contents = $this->withGeneratedName($contents, $generatedName);
+                }
+                if ($this->syncContents($destPath, $contents)) {
                     $changed = true;
                 }
             }
@@ -117,13 +98,26 @@ final class SkillsSynchronizer
         return $changed;
     }
 
-    private function syncFile(string $source, string $dest): bool
+    private function withGeneratedName(string $content, string $generatedName): string
     {
-        $newContent = file_get_contents($source);
-        if ($newContent === false) {
-            return false;
+        if (preg_match('/\A---\R/s', $content) !== 1) {
+            return $content;
         }
 
+        $end = strpos($content, "\n---", 3);
+        if ($end === false) {
+            return $content;
+        }
+
+        $front = substr($content, 0, $end);
+        $rest = substr($content, $end);
+        $updated = preg_replace('/^name:\s*.*/m', 'name: ' . $generatedName, $front, 1);
+
+        return is_string($updated) ? $updated . $rest : $content;
+    }
+
+    private function syncContents(string $dest, string $newContent): bool
+    {
         if (is_file($dest)) {
             $existing = file_get_contents($dest);
             if ($existing !== false && hash('sha256', $existing) === hash('sha256', $newContent)) {
@@ -137,5 +131,31 @@ final class SkillsSynchronizer
         }
 
         return file_put_contents($dest, $newContent) !== false;
+    }
+
+    private function removeTree(string $dir): bool
+    {
+        if (!is_dir($dir)) {
+            return false;
+        }
+
+        $items = scandir($dir);
+        if ($items === false) {
+            return false;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+            $path = $dir . '/' . $item;
+            if (is_dir($path)) {
+                $this->removeTree($path);
+            } else {
+                unlink($path);
+            }
+        }
+
+        return rmdir($dir);
     }
 }

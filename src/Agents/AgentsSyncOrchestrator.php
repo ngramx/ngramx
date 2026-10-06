@@ -12,6 +12,10 @@ use Ngramx\Config\Schema\AgentsConfig;
 
 /**
  * Orchestrates the sync of agent instructions to all configured targets.
+ *
+ * Generated files go under .cursor/ and .claude/ (and optional Copilot
+ * instructions). Top-level AGENTS.md is not written. A previously dumped
+ * managed block is removed so the file can stay project-owned.
  */
 final class AgentsSyncOrchestrator
 {
@@ -21,6 +25,7 @@ final class AgentsSyncOrchestrator
     public function __construct(
         private readonly AgentsMdSynchronizer $agentsMdSync = new AgentsMdSynchronizer(),
         private readonly SkillsSynchronizer $skillsSync = new SkillsSynchronizer(),
+        private readonly AgentsGitignoreSynchronizer $gitignoreSync = new AgentsGitignoreSynchronizer(),
         ?CursorRulesWriter $cursorRulesWriter = null,
         ?ClaudeMdWriter $claudeMdWriter = null,
         ?CopilotInstructionsWriter $copilotWriter = null,
@@ -35,50 +40,43 @@ final class AgentsSyncOrchestrator
     /**
      * Sync all configured targets for the given project.
      *
-     * @return array{targets_changed: list<string>, skills_changed: bool}
+     * @return array{targets_changed: list<string>, skills_changed: bool, gitignore_changed: bool}
      */
     public function sync(string $projectRoot, AgentsConfig $config): array
     {
         $projectRoot = rtrim($projectRoot, '/');
         $targetsChanged = [];
 
-        // AGENTS.md is always synced if in targets
-        if (in_array('agents_md', $config->targets, true)) {
-            if ($this->agentsMdSync->sync($projectRoot)) {
-                $targetsChanged[] = 'agents_md';
-            }
+        if ($this->agentsMdSync->retireManagedBlock($projectRoot)) {
+            $targetsChanged[] = 'agents_md_retired';
         }
 
-        // Get the markdown content for other targets
-        $bodyProvider = new AgentsManagedBodyProvider();
-        $markdown = $bodyProvider->getMarkdown();
+        $markdown = (new AgentsManagedBodyProvider())->getMarkdown();
 
-        // Write to other configured targets
         foreach ($config->targets as $target) {
-            if ($target === 'agents_md') {
+            if ($target === 'agents_md' || !isset($this->writers[$target])) {
                 continue;
             }
 
-            if (isset($this->writers[$target])) {
-                if ($this->writers[$target]->write($projectRoot, $markdown)) {
-                    $targetsChanged[] = $target;
-                }
+            if ($this->writers[$target]->write($projectRoot, $markdown)) {
+                $targetsChanged[] = $target;
             }
         }
 
-        // Sync skills
         $skillsChanged = $this->skillsSync->sync($projectRoot, $config->skills);
+        $gitignoreChanged = $this->gitignoreSync->sync($projectRoot);
 
         return [
             'targets_changed' => $targetsChanged,
             'skills_changed' => $skillsChanged,
+            'gitignore_changed' => $gitignoreChanged,
         ];
     }
 
     /**
      * Convenience method: sync using default config (for when no ngramx.yml is available).
      *
-     * @return array{targets_changed: list<string>, skills_changed: bool}
+     * @return array{targets_changed: list<string>, skills_changed: bool, gitignore_changed: bool}
      */
     public function syncWithDefaults(string $projectRoot): array
     {

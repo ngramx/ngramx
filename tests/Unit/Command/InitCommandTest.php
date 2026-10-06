@@ -242,8 +242,11 @@ class InitCommandTest extends TestCase
 
         $this->assertEquals(0, $tester->getStatusCode());
 
-        // AGENTS.md should be created (default target)
-        $this->assertFileExists($this->testDir . '/AGENTS.md');
+        $this->assertFileDoesNotExist($this->testDir . '/AGENTS.md');
+        $this->assertFileDoesNotExist($this->testDir . '/CLAUDE.md');
+        $this->assertFileExists($this->testDir . '/.cursor/rules/ngramx.mdc');
+        $this->assertFileExists($this->testDir . '/.claude/rules/ngramx.md');
+        $this->assertFileExists($this->testDir . '/.gitignore');
     }
 
     public function testInitDisplaysSuccessMessage(): void

@@ -34,7 +34,7 @@ final class CursorRulesWriter implements TargetWriterInterface
     {
         $frontmatter = <<<'YAML'
 ---
-description: "Ngramx project conventions (architecture, DB, dev environment, ticket workflow)"
+description: "Short index of Ngramx skills. Project-specific notes stay in AGENTS.md."
 alwaysApply: true
 ---
 YAML;

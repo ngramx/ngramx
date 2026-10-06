@@ -1292,37 +1292,40 @@ is reserved.
 
 ### Agent instructions and skills (`agents`)
 
-Ngramx distributes a managed set of agent instructions (architecture, DB, ticket
-workflow conventions) and skills (`start-ticket`, `create-pr`, …) into each
-project. `ngramx sync-agents` — also run as part of `ngramx up` — regenerates
-these from the bundled templates.
+Ngramx distributes a short, generic index of skills into each project.
+`ngramx sync-agents` — also run as part of `ngramx up` — regenerates that
+index and the skill files from the bundled templates.
 
-The optional `agents` block controls **where** that content is written. Both the
-rules (`targets`) and the skills (`skills`) respect these settings:
+Generated files live in the agent folders and are gitignored. Hand-written
+rules and skills in those same folders stay version-controlled. Top-level
+`AGENTS.md` is project-owned: Ngramx does not write it, and a previously
+dumped managed block is removed on the next sync.
 
 ```yaml
 agents:
-  # Managed rule/instruction destinations.
-  # Valid: agents_md, cursor_rules, claude_md, copilot_instructions
-  # Default: [agents_md, cursor_rules]
+  # Where the short skill index is written.
+  # Valid: cursor_rules, claude_md, copilot_instructions
+  # `agents_md` is still accepted and ignored, so older configs keep loading.
+  # Default: [cursor_rules, claude_md]
   targets:
-    - agents_md             # AGENTS.md (managed block, read by most agents)
-    - cursor_rules          # .cursor/rules/ngramx.mdc
-    - claude_md             # CLAUDE.md
-    - copilot_instructions  # .github/copilot-instructions.md
+    - cursor_rules          # .cursor/rules/ngramx.mdc (gitignored)
+    - claude_md             # .claude/rules/ngramx.md (gitignored)
+    - copilot_instructions  # .github/copilot-instructions.md (gitignored)
 
-  # Skill folder destinations.
+  # Where skill folders are copied, under an ngramx- prefix.
   # Valid: cursor, claude
-  # Default: [cursor]
+  # Default: [cursor, claude]
   skills:
-    - cursor                # .cursor/skills/<name>/SKILL.md
-    - claude                # .claude/skills/<name>/SKILL.md
+    - cursor                # .cursor/skills/ngramx-<name>/SKILL.md
+    - claude                # .claude/skills/ngramx-<name>/SKILL.md
 ```
 
-- Omit the whole `agents:` block to accept the defaults (`agents_md` +
-  `cursor_rules` for rules, `cursor` for skills).
-- **Claude is opt-in.** To distribute the rules and skills to Claude as well as
-  Cursor, add `claude_md` to `targets` and `claude` to `skills`.
+- Omit the whole `agents:` block to accept the defaults.
+- The index is a list of one-line skill summaries. The instructions themselves
+  live in the generated skill files.
+- `.gitignore` gains a managed block that ignores only those generated paths.
+  A hand-written `.cursor/rules/review.mdc` or `.cursor/skills/my-skill/` is
+  not ignored.
 - Unknown values are rejected at load time, so a typo fails fast rather than
   silently skipping a target.
 
