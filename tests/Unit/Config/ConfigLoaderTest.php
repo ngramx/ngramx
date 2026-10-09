@@ -462,6 +462,76 @@ YAML);
         });
     }
 
+    public function test_it_defaults_auth_bypass_to_the_seeded_identity_user(): void
+    {
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
+
+        $this->assertTrue($config->authBypass->enabled);
+        $this->assertSame('hello@gigabyte.software', $config->authBypass->email);
+        $this->assertSame(480, $config->authBypass->ttlMinutes);
+        $this->assertNull($config->authBypass->url);
+    }
+
+    public function test_it_loads_auth_bypass_settings(): void
+    {
+        $root = $this->makeTempDir();
+        file_put_contents($root . '/ngramx.yml', <<<YAML
+            version: "1.0"
+            docker:
+              compose_file: "docker-compose.yml"
+              primary_service: "app"
+              app_url: "http://localhost:80"
+            auth:
+              bypass:
+                email: Reviewer@Example.com
+                ttl_minutes: 90
+                url: "{url}/login?as={email_query}"
+            YAML);
+
+        $config = $this->loader->load($root . '/ngramx.yml');
+
+        $this->assertSame('reviewer@example.com', $config->authBypass->email);
+        $this->assertSame(90, $config->authBypass->ttlMinutes);
+        $this->assertSame('{url}/login?as={email_query}', $config->authBypass->url);
+    }
+
+    public function test_it_disables_auth_bypass_when_set_to_false(): void
+    {
+        $root = $this->makeTempDir();
+        file_put_contents($root . '/ngramx.yml', <<<YAML
+            version: "1.0"
+            docker:
+              compose_file: "docker-compose.yml"
+              primary_service: "app"
+              app_url: "http://localhost:80"
+            auth:
+              bypass: false
+            YAML);
+
+        $config = $this->loader->load($root . '/ngramx.yml');
+
+        $this->assertFalse($config->authBypass->enabled);
+    }
+
+    public function test_it_rejects_an_invalid_auth_bypass_email(): void
+    {
+        $root = $this->makeTempDir();
+        file_put_contents($root . '/ngramx.yml', <<<YAML
+            version: "1.0"
+            docker:
+              compose_file: "docker-compose.yml"
+              primary_service: "app"
+              app_url: "http://localhost:80"
+            auth:
+              bypass:
+                email: not-an-email
+            YAML);
+
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('auth.bypass.email');
+        $this->loader->load($root . '/ngramx.yml');
+    }
+
     private function makeTempDir(): string
     {
         $dir = sys_get_temp_dir() . '/ngramx-config-test-' . uniqid('', true);

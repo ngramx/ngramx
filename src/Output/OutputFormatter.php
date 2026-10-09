@@ -246,7 +246,18 @@ class OutputFormatter
 
     public function url(string $label, string $url): void
     {
-        $this->writeAt(null, sprintf('<fg=' . self::COLOR_TEAL . '>➜ %s:</> %s', $label, $url));
+        $this->writeAt(null, sprintf('<fg=' . self::COLOR_TEAL . '>➜ %s:</> %s', $label, self::hyperlink($url)));
+    }
+
+    /**
+     * OSC 8 hyperlink. The URL text stays visible, and terminals that understand
+     * the sequence make that text clickable.
+     */
+    public static function hyperlink(string $url): string
+    {
+        $visible = ConsoleFormatter::escape($url);
+
+        return "\033]8;;{$url}\007{$visible}\033]8;;\007";
     }
 
     /**

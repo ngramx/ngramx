@@ -58,6 +58,10 @@ class ConfigValidator
             }
             $this->validateHooksSection($config['hooks']);
         }
+
+        if (isset($config['auth'])) {
+            $this->validateAuthSection($config['auth']);
+        }
     }
 
     /**
@@ -1171,6 +1175,47 @@ class ConfigValidator
                         "agents.skills[$index]: unknown skill target '$skill'. Valid targets: " . implode(', ', AgentsConfig::VALID_SKILLS)
                     );
                 }
+            }
+        }
+    }
+
+    /**
+     * @throws ConfigException
+     */
+    private function validateAuthSection(mixed $auth): void
+    {
+        if (!is_array($auth)) {
+            throw new ConfigException('auth must be a map');
+        }
+
+        if (!array_key_exists('bypass', $auth) || $auth['bypass'] === false || $auth['bypass'] === null) {
+            return;
+        }
+
+        $bypass = $auth['bypass'];
+        if (!is_array($bypass)) {
+            throw new ConfigException('auth.bypass must be a map or false');
+        }
+
+        if (isset($bypass['enabled']) && !is_bool($bypass['enabled'])) {
+            throw new ConfigException('auth.bypass.enabled must be a boolean');
+        }
+
+        if (isset($bypass['email'])) {
+            if (!is_string($bypass['email']) || filter_var($bypass['email'], FILTER_VALIDATE_EMAIL) === false) {
+                throw new ConfigException('auth.bypass.email must be an email address');
+            }
+        }
+
+        if (isset($bypass['ttl_minutes'])) {
+            if (!is_int($bypass['ttl_minutes']) || $bypass['ttl_minutes'] < 1 || $bypass['ttl_minutes'] > 1440) {
+                throw new ConfigException('auth.bypass.ttl_minutes must be an integer from 1 to 1440');
+            }
+        }
+
+        if (isset($bypass['url'])) {
+            if (!is_string($bypass['url']) || trim($bypass['url']) === '' || preg_match('/[\r\n]/', $bypass['url']) === 1) {
+                throw new ConfigException('auth.bypass.url must be a single-line URL template');
             }
         }
     }

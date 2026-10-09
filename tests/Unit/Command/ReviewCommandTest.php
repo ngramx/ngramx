@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Ngramx\Tests\Unit\Command;
 
+use Ngramx\Auth\AuthBypassAttempt;
 use Ngramx\Command\ReviewCommand;
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\LockFile;
 use Ngramx\Config\LockFileData;
+use Ngramx\Config\Schema\AuthBypassConfig;
 use Ngramx\Config\Schema\CommandDefinition;
 use Ngramx\Config\Schema\DockerConfig;
 use Ngramx\Config\Schema\N8nConfig;
@@ -1231,6 +1233,131 @@ class ReviewCommandTest extends TestCase
         $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-foo');
     }
 
+    public function test_it_prints_a_clickable_auth_bypass_link_on_the_live_app_url(): void
+    {
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->setupConfigLoader($config);
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+        $this->laravelService->expects($this->once())
+            ->method('mintAuthBypass')
+            ->with($this->anything(), 'app', null, 'hello@gigabyte.software', 480)
+            ->willReturn(new AuthBypassAttempt('ok', '/login/magic/review-token'));
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('Auth bypass', $display);
+        $this->assertStringContainsString('http://localhost:80/login/magic/review-token', $display);
+        $this->assertStringContainsString('hello@gigabyte.software', $display);
+    }
+
+    public function test_it_puts_the_auth_bypass_link_on_the_remapped_port(): void
+    {
+        $this->lockFile = $this->createMock(LockFile::class);
+        $this->lockFile->expects($this->any())->method('exists')->willReturn(true);
+        $this->lockFile->expects($this->any())->method('read')->willReturn(new LockFileData(
+            namespace: null,
+            portOffset: null,
+            startedAt: date('c'),
+            portMap: [80 => 8080],
+        ));
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->setupConfigLoader($config);
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+        $this->laravelService->expects($this->once())
+            ->method('mintAuthBypass')
+            ->willReturn(new AuthBypassAttempt('ok', '/login/magic/review-token'));
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('http://localhost:8080/login/magic/review-token', $display);
+    }
+
+    public function test_it_prints_a_configured_auth_bypass_url_without_minting_a_token(): void
+    {
+        $config = $this->createMockConfig(
+            [
+                'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+            ],
+            new AuthBypassConfig(url: '{url}/impersonate?as={email_query}'),
+        );
+        $this->setupConfigLoader($config);
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+        $this->laravelService->expects($this->never())->method('mintAuthBypass');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('http://localhost:80/impersonate?as=hello%40gigabyte.software', $display);
+    }
+
+    public function test_it_skips_the_auth_bypass_link_when_disabled(): void
+    {
+        $config = $this->createMockConfig(
+            [
+                'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+            ],
+            new AuthBypassConfig(enabled: false),
+        );
+        $this->setupConfigLoader($config);
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+        $this->laravelService->expects($this->never())->method('mintAuthBypass');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+
+        $this->assertSame(0, $exitCode, $tester->getDisplay());
+        $this->assertStringNotContainsString('Auth bypass', $tester->getDisplay());
+    }
+
+    public function test_it_warns_when_the_bypass_user_does_not_exist(): void
+    {
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->setupConfigLoader($config);
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+        $this->laravelService->expects($this->once())
+            ->method('mintAuthBypass')
+            ->willReturn(new AuthBypassAttempt('warn', null, 'user-missing'));
+
+        $tester = new CommandTester($this->createCommand());
+        $this->assertSame(0, $tester->execute(['ticket' => 'GIG-123']));
+        $this->assertStringContainsString('no user exists for hello@gigabyte.software', $tester->getDisplay());
+    }
+
+    public function test_it_stays_quiet_when_the_app_has_no_identity_package(): void
+    {
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->setupConfigLoader($config);
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+        $this->laravelService->expects($this->once())
+            ->method('mintAuthBypass')
+            ->willReturn(new AuthBypassAttempt('skip', null, 'identity-missing'));
+
+        $tester = new CommandTester($this->createCommand());
+        $this->assertSame(0, $tester->execute(['ticket' => 'GIG-123']));
+        $this->assertStringNotContainsString('Auth bypass', $tester->getDisplay());
+    }
+
     private function createCommand(
         ?WorktreeDependencyPrimer $primer = null,
         ?WorktreeUrlResolver $urlResolver = null,
@@ -1262,7 +1389,7 @@ class ReviewCommandTest extends TestCase
             ->method('findConfigFile')
             ->willReturn($configPath);
 
-        $this->configLoader->expects($this->once())
+        $this->configLoader->expects($this->atLeastOnce())
             ->method('load')
             ->willReturn($config);
     }
@@ -1270,7 +1397,7 @@ class ReviewCommandTest extends TestCase
     /**
      * @param array<string, CommandDefinition> $commands
      */
-    private function createMockConfig(array $commands): NgramxConfig
+    private function createMockConfig(array $commands, ?AuthBypassConfig $authBypass = null): NgramxConfig
     {
         return new NgramxConfig(
             version: '1.0',
@@ -1283,6 +1410,7 @@ class ReviewCommandTest extends TestCase
             setup: new SetupConfig(preStart: [], initialize: []),
             n8n: new N8nConfig(workflowsDir: './.n8n'),
             commands: $commands,
+            authBypass: $authBypass ?? new AuthBypassConfig(),
         );
     }
 

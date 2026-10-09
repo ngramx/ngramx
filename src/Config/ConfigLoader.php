@@ -6,6 +6,7 @@ namespace Ngramx\Config;
 
 use Ngramx\Config\Exception\ConfigException;
 use Ngramx\Config\Schema\AgentsConfig;
+use Ngramx\Config\Schema\AuthBypassConfig;
 use Ngramx\Config\Schema\CommandDefinition;
 use Ngramx\Config\Schema\DockerConfig;
 use Ngramx\Config\Schema\EndpointConfig;
@@ -14,6 +15,7 @@ use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Schema\Postmaclone\BackupConfig;
 use Ngramx\Config\Schema\Postmaclone\BackupCredentialsConfig;
 use Ngramx\Config\Schema\Postmaclone\ColumnRule;
+use Ngramx\Config\Schema\Postmaclone\ConnectConfig;
 use Ngramx\Config\Schema\Postmaclone\DbConnectionConfig;
 use Ngramx\Config\Schema\Postmaclone\DbCredentialsConfig;
 use Ngramx\Config\Schema\Postmaclone\EngineConnectionsConfig;
@@ -22,7 +24,6 @@ use Ngramx\Config\Schema\Postmaclone\FactoryDatasetConfig;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
 use Ngramx\Config\Schema\Postmaclone\PrebuiltConfig;
 use Ngramx\Config\Schema\Postmaclone\PublishConfig;
-use Ngramx\Config\Schema\Postmaclone\ConnectConfig;
 use Ngramx\Config\Schema\Postmaclone\SharedDbConfig;
 use Ngramx\Config\Schema\Postmaclone\TableRule;
 use Ngramx\Config\Schema\Postmaclone\TargetConfig;
@@ -175,6 +176,7 @@ class ConfigLoader
             defaultTeam: strtolower((string) $defaultTeam),
             postmaclone: $postmaclone,
             postmacloneError: $postmacloneError,
+            authBypass: $this->buildAuthBypassConfig($config['auth'] ?? null),
         );
     }
 
@@ -983,6 +985,35 @@ class ConfigLoader
                 required: is_array($secretsConfig['required'] ?? null) ? $secretsConfig['required'] : [],
             ),
         ]);
+    }
+
+    private function buildAuthBypassConfig(mixed $auth): AuthBypassConfig
+    {
+        if (!is_array($auth) || !array_key_exists('bypass', $auth) || $auth['bypass'] === false || $auth['bypass'] === null) {
+            if (is_array($auth) && array_key_exists('bypass', $auth) && $auth['bypass'] === false) {
+                return new AuthBypassConfig(enabled: false);
+            }
+
+            return new AuthBypassConfig();
+        }
+
+        $bypass = $auth['bypass'];
+        if (!is_array($bypass)) {
+            return new AuthBypassConfig();
+        }
+
+        $enabled = $bypass['enabled'] ?? true;
+
+        return new AuthBypassConfig(
+            enabled: is_bool($enabled) ? $enabled : true,
+            email: isset($bypass['email']) && is_string($bypass['email'])
+                ? strtolower($bypass['email'])
+                : AuthBypassConfig::DEFAULT_EMAIL,
+            ttlMinutes: isset($bypass['ttl_minutes']) && is_int($bypass['ttl_minutes'])
+                ? $bypass['ttl_minutes']
+                : AuthBypassConfig::DEFAULT_TTL_MINUTES,
+            url: isset($bypass['url']) && is_string($bypass['url']) ? $bypass['url'] : null,
+        );
     }
 
     /**
