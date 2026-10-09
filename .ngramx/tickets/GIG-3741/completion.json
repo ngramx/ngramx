@@ -1,7 +1,7 @@
 {
   "title": "GIG-3741: Output An Auth-Bypass App Link From Cortex Review",
   "description": "After ngramx review refreshes a ticket environment, it prints a single-use local magic link that signs the reviewer into the running app.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/40",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-3741/output-an-auth-bypass-app-link-from-cortex-review",
   "test_urls": [
     {
