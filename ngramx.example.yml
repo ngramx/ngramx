@@ -35,6 +35,17 @@ docker:
   #       VITE_API_BASE_URL: "{url.primary}"
   #       PWA_PORT: "{port}"
 
+# Optional: sign reviewers in after `ngramx review`. Omitted, Ngramx mints a
+# single-use magic link for hello@gigabyte.software when the app uses
+# gigabyte/laravel-identity and APP_ENV is local. The link expires after
+# ttl_minutes (default 480, max 1440). Set bypass: false to hide it.
+# A url template skips magic-link minting. Placeholders: {url} {email} {email_query}.
+# auth:
+#   bypass:
+#     email: hello@gigabyte.software
+#     ttl_minutes: 480
+#     url: "{url}?bypass={email_query}"
+
 setup:
   pre_start:
     - command: "[ ! -f .env ] && cp .env.example .env || true"

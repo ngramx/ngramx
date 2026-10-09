@@ -1,0 +1,45 @@
+{
+  "title": "GIG-3741: Output An Auth-Bypass App Link From Cortex Review",
+  "description": "After ngramx review refreshes a ticket environment, it prints a single-use local magic link that signs the reviewer into the running app.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-3741/output-an-auth-bypass-app-link-from-cortex-review",
+  "test_urls": [
+    {
+      "label": "Earl Kendrick worktree",
+      "url": "http://gig-3561-earl-kendrick-core.localhost:8180"
+    },
+    {
+      "label": "Think Fire Defence worktree",
+      "url": "http://gig-2501-think-fire-defence.localhost:8280"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Review prints a clickable login link for an identity app",
+      "status": "active",
+      "steps": [
+        "From earl-kendrick-core, run php bin/ngramx from this branch: review gig-3561 --worktree",
+        "Confirm the output includes an Auth bypass URL on the worktree host",
+        "Open that URL once and confirm you are signed in as hello@gigabyte.software without an email code",
+        "Open the same URL again and confirm it is rejected"
+      ]
+    },
+    {
+      "description": "The same link is printed for Think Fire Defence",
+      "status": "active",
+      "steps": [
+        "From think-fire-defence, run review gig-2501 --worktree with this branch's ngramx",
+        "If the first run fails while the container entrypoint is still installing, run it again once the app is up",
+        "Open the Auth bypass URL and confirm you are signed in as hello@gigabyte.software"
+      ]
+    },
+    {
+      "description": "Shared hosted databases and non-identity apps do not get a login link",
+      "status": "active",
+      "steps": [
+        "Run review with --anon and confirm it skips minting a link",
+        "Run review in a project that does not use gigabyte/laravel-identity and confirm no Auth bypass line is printed"
+      ]
+    }
+  ]
+}

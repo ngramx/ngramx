@@ -253,7 +253,8 @@ This command:
 1. Fetches from `origin`
 2. Finds branches containing the ticket number and checks one out (prompts if there are multiple)
 3. Runs either `fresh` (default) or `clear` (with `--quick`) to sync the environment
-4. Prints any URLs from `.ngramx/tickets/<ticket>/completion.json` (falls back to legacy `completion.md`)
+4. Prints a clickable **Auth bypass** URL that signs the reviewer into the running app
+5. Prints any URLs from `.ngramx/tickets/<ticket>/completion.json` (falls back to legacy `completion.md`)
 
 **Options:**
 
@@ -261,6 +262,19 @@ This command:
 - `--worktree` / `-w` — Review in an **isolated git worktree with its own parallel dev environment** instead of checking the branch out in your main working directory. This lets you review (or fix) several tickets at once without your editor and Docker stack fighting over a single branch.
 - `--cursor` / `-c` — Everything `--worktree` does, then opens the worktree in a **new Cursor window**. Implies `--worktree`.
 - `--cleanup` — Stop the worktree's Docker stack (including its volumes) and remove the git worktree. Use this when you're done reviewing. The argument is matched the same way as `ngramx worktree --cleanup` (folder, namespace, ticket, list index, or any fragment of a worktree or branch name), and an ambiguous match asks which one you meant. **Omit the argument** (`ngramx review --cleanup`) to pick from a list, with "All worktrees" as an option, or pass `--all` to remove every worktree without being asked. (If a container left root-owned files behind, cleanup removes them via a short-lived helper container.)
+
+**Auth bypass link:**
+
+After a successful review (in place or `--worktree`), Ngramx prints a labelled, clickable URL:
+
+```
+➜ Auth bypass: https://gig-1234-myapp.localhost/login/magic/<token>
+  Signs in as hello@gigabyte.software. Single-use, expires in 480 minutes, and is only created when APP_ENV is local.
+```
+
+Opening it logs the reviewer in through the app's existing identity magic-link route and lands them in the application. No email code, no password. The token is created inside the app container, only when `APP_ENV` is `local`, `dev`, `development`, or `testing`, and only for a user that already exists. It is single-use and expires after `auth.bypass.ttl_minutes` (default 8 hours, maximum 24). `--anon` does not mint a link, because that mode uses the shared hosted database.
+
+Projects on `gigabyte/laravel-identity` get this with no extra config: the default account is the seeded `hello@gigabyte.software` user, and the route is `config('identity.magic_link_route')`. Point `auth.bypass.email` at a different seeded user if yours is not that address. Apps without the identity package print nothing. Set `auth.bypass: false` to turn the link off, or set `auth.bypass.url` to a template (`{url}`, `{email}`, `{email_query}`) when the project signs people in some other way. See `ngramx.example.yml`.
 
 **How worktree mode works:**
 

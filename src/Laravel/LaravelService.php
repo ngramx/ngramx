@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Ngramx\Laravel;
 
+use Ngramx\Auth\AuthBypassAttempt;
+use Ngramx\Auth\AuthBypassScript;
 use Ngramx\Docker\ContainerExecutor;
 
 class LaravelService
@@ -106,5 +108,35 @@ SH;
         $path = trim($process->getOutput());
 
         return $path !== '' ? $path : null;
+    }
+
+    /**
+     * Mint a single-use local identity magic-link path inside the app container.
+     *
+     * Never throws: a review environment that is not a Laravel identity app, or
+     * a mint that fails, comes back as a skip/warn attempt so `review` can
+     * still finish.
+     */
+    public function mintAuthBypass(
+        string $composeFile,
+        string $service,
+        ?string $namespace,
+        string $email,
+        int $ttlMinutes,
+    ): ?AuthBypassAttempt {
+        try {
+            $process = $this->containerExecutor->exec(
+                $composeFile,
+                $service,
+                AuthBypassScript::shellCommand($email, $ttlMinutes),
+                60,
+                null,
+                $namespace,
+            );
+        } catch (\Throwable) {
+            return new AuthBypassAttempt('skip', null, 'no-protocol');
+        }
+
+        return AuthBypassScript::parse($process->getOutput());
     }
 }

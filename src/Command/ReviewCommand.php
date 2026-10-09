@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Ngramx\Command;
 
 use Exception;
+use Ngramx\Auth\AuthBypassAttempt;
+use Ngramx\Auth\AuthBypassLink;
+use Ngramx\Auth\AuthBypassUrl;
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\EnvFileSeeder;
 use Ngramx\Config\Exception\ConfigException;
@@ -293,6 +296,17 @@ class ReviewCommand extends Command
             // localised completion.json deep-links must follow the web port
             // wherever the map moved it.
             $environmentUrls = EndpointUrls::shifted($config->docker, $portOffset, $portMap);
+            // Re-read ngramx.yml after checkout so the branch's auth.bypass
+            // settings are the ones that mint the link.
+            $reviewConfig = $this->reloadConfig($configPath, $config);
+            $this->printAuthBypass($formatter, $this->prepareAuthBypass(
+                $input,
+                $reviewConfig,
+                $composeFile,
+                $primaryService,
+                $namespace,
+                $environmentUrls->primary,
+            ));
             $this->displayCompletionUrls($repositoryPath, $ticketNumber, $formatter, $config->docker, $environmentUrls);
 
             $output->writeln('');
@@ -331,6 +345,7 @@ class ReviewCommand extends Command
         $worktreePath = $this->worktreePathFor($repositoryPath, $ticketSlug);
 
         $noHostMapping = (bool) $input->getOption('no-host-mapping');
+        $authBypass = new AuthBypassLink();
 
         // Resolve the port offset up-front so we can bake the final URL into the
         // worktree .env before the env is brought up. A worktree that is already
@@ -715,6 +730,17 @@ class ReviewCommand extends Command
             }
 
             $this->reconcileWorktreeOwnership($worktreePath, $formatter);
+
+            // Mint while cwd is still the worktree: compose exec resolves the
+            // generated override next to that checkout.
+            $authBypass = $this->prepareAuthBypass(
+                $input,
+                $worktreeConfig,
+                $worktreeConfig->docker->composeFile,
+                $worktreeConfig->docker->primaryService,
+                $namespace,
+                $worktreeUrl,
+            );
         } finally {
             $this->dependencyPrimer->await($formatter);
             chdir($originalCwd);
@@ -723,6 +749,7 @@ class ReviewCommand extends Command
         $formatter->success("✓ Worktree ready for ticket $ticketNumber on branch $selectedBranch");
         $output->writeln('');
         $formatter->url('Application', $worktreeUrl);
+        $this->printAuthBypass($formatter, $authBypass);
         $formatter->url('Worktree', $worktreePath);
 
         // Option A keeps the app's own host, which (unlike a *.localhost name) may
@@ -1737,6 +1764,115 @@ class ReviewCommand extends Command
         } catch (\Throwable) {
             $formatter->warning('Could not open Cursor automatically.');
             $formatter->info("Open it manually with: $manualCommand");
+        }
+    }
+
+    /**
+     * Re-read ngramx.yml. Checkout can replace the file the command loaded at
+     * startup; a broken file on the branch falls back to that earlier copy.
+     */
+    private function reloadConfig(string $configPath, NgramxConfig $fallback): NgramxConfig
+    {
+        try {
+            return $this->configLoader->load($configPath);
+        } catch (ConfigException) {
+            return $fallback;
+        }
+    }
+
+    /**
+     * Build the auth-bypass link for the environment that just came up.
+     * Identity apps get a single-use magic link. Other apps stay quiet unless
+     * they configured `auth.bypass.url`. `--anon` never writes a login token
+     * into the shared database.
+     */
+    private function prepareAuthBypass(
+        InputInterface $input,
+        NgramxConfig $config,
+        string $composeFile,
+        string $primaryService,
+        ?string $namespace,
+        string $appUrl,
+    ): AuthBypassLink {
+        $bypass = $config->authBypass;
+        if (!$bypass->enabled) {
+            return new AuthBypassLink();
+        }
+
+        if ((bool) $input->getOption('anon')) {
+            return new AuthBypassLink(
+                warning: 'Auth bypass skipped: a login link is not minted against the shared hosted database (--anon).',
+            );
+        }
+
+        if ($bypass->url !== null) {
+            return new AuthBypassLink(
+                url: AuthBypassUrl::fromTemplate($bypass->url, $appUrl, $bypass->email),
+                hint: 'Configured auth-bypass URL.',
+            );
+        }
+
+        $attempt = $this->laravelService->mintAuthBypass(
+            $composeFile,
+            $primaryService,
+            $namespace,
+            $bypass->email,
+            $bypass->ttlMinutes,
+        );
+
+        if (!$attempt instanceof AuthBypassAttempt || $attempt->status === 'skip') {
+            return new AuthBypassLink();
+        }
+
+        if ($attempt->status === 'ok' && $attempt->path !== null) {
+            return new AuthBypassLink(
+                url: AuthBypassUrl::absolute($appUrl, $attempt->path),
+                hint: sprintf(
+                    'Signs in as %s. Single-use, expires in %d minutes, and is only created when APP_ENV is local.',
+                    $bypass->email,
+                    $bypass->ttlMinutes,
+                ),
+            );
+        }
+
+        if ($attempt->status !== 'warn') {
+            return new AuthBypassLink();
+        }
+
+        return new AuthBypassLink(warning: $this->authBypassWarning($attempt->detail ?? 'failed', $bypass->email));
+    }
+
+    private function authBypassWarning(string $detail, string $email): string
+    {
+        $space = strpos($detail, ' ');
+        $code = $space === false ? $detail : substr($detail, 0, $space);
+
+        return match ($code) {
+            'not-local' => 'Auth bypass skipped: the app is not running with a local APP_ENV, so no login link was created.',
+            'user-missing' => "Auth bypass skipped: no user exists for {$email}. Set auth.bypass.email in ngramx.yml to a seeded local account.",
+            'no-magic-route' => 'Auth bypass skipped: identity magic_link_route is not set, so there is no login URL to open.',
+            'bad-email' => 'Auth bypass skipped: auth.bypass.email is not a valid email address.',
+            'failed' => 'Auth bypass skipped: the app could not create a login link'
+                . ($detail !== 'failed' && str_starts_with($detail, 'failed ')
+                    ? ' (' . substr($detail, strlen('failed ')) . ').'
+                    : '.'),
+            default => 'Auth bypass skipped: the app could not create a login link.',
+        };
+    }
+
+    private function printAuthBypass(OutputFormatter $formatter, AuthBypassLink $link): void
+    {
+        if ($link->url !== null) {
+            $formatter->url('Auth bypass', $link->url);
+            if ($link->hint !== null && $link->hint !== '') {
+                $formatter->info(OutputFormatter::escape($link->hint));
+            }
+
+            return;
+        }
+
+        if ($link->warning !== null && $link->warning !== '') {
+            $formatter->warning(OutputFormatter::escape($link->warning));
         }
     }
 

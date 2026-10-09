@@ -1,0 +1,11 @@
+{
+  "id": "GIG-3741",
+  "title": "Output an auth-bypass app link from `cortex review`",
+  "url": "https://linear.app/gigabyte/issue/GIG-3741/output-an-auth-bypass-app-link-from-cortex-review",
+  "status": "In Progress",
+  "priority": "Medium",
+  "estimate": 2,
+  "project": "ngramx",
+  "gitBranchName": "gig-3741-output-an-auth-bypass-app-link-from-cortex-review",
+  "description": "Enhance cortex/ngramx review so that after checkout and environment refresh it outputs a clearly labelled auth-bypass URL. Opening the URL logs the reviewer in and takes them to the running application."
+}
