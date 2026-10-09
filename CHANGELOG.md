@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.48.3](https://github.com/ngramx/ngramx/compare/v2.48.2...v2.48.3) (2026-10-09)
+
+
+### Bug Fixes
+
+* give reviewers a local login link from ngramx review ([22a5b7e](https://github.com/ngramx/ngramx/commit/22a5b7ef36ad4826438147c587412075d8f30675))
+
 ## [2.48.2](https://github.com/ngramx/ngramx/compare/v2.48.1...v2.48.2) (2026-10-06)
 
 
