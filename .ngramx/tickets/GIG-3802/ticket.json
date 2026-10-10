@@ -1,0 +1,11 @@
+{
+  "id": "GIG-3802",
+  "title": "Output TablePlus database browser URL in ngramx review and worktree commands",
+  "url": "https://linear.app/gigabyte/issue/GIG-3802/output-tableplus-database-browser-url-in-ngramx-review-and-worktree",
+  "status": "In Progress",
+  "priority": "Low",
+  "estimate": 2,
+  "project": "ngramx",
+  "gitBranchName": "gig-3802-output-tableplus-database-browser-url-in-ngramx-review-and",
+  "description": "After ngramx review or ngramx worktree brings up a development database, print a clickable TablePlus URL with that environment's host, port, username, password, and database name."
+}
