@@ -18,6 +18,7 @@ use Ngramx\Config\Schema\DockerConfig;
 use Ngramx\Config\Schema\HookEvent;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Validator\SecretsValidator;
+use Ngramx\Database\TablePlusLinkResolver;
 use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Docker\ImageReuser;
@@ -307,6 +308,14 @@ class ReviewCommand extends Command
                 $namespace,
                 $environmentUrls->primary,
             ));
+            $this->printTablePlus(
+                $formatter,
+                $repositoryPath,
+                $composeFile,
+                $portOffset,
+                $portMap,
+                !(bool) $input->getOption('no-host-mapping'),
+            );
             $this->displayCompletionUrls($repositoryPath, $ticketNumber, $formatter, $config->docker, $environmentUrls);
 
             $output->writeln('');
@@ -345,7 +354,9 @@ class ReviewCommand extends Command
         $worktreePath = $this->worktreePathFor($repositoryPath, $ticketSlug);
 
         $noHostMapping = (bool) $input->getOption('no-host-mapping');
+        $publishHostPorts = !$noHostMapping;
         $authBypass = new AuthBypassLink();
+        $portMap = [];
 
         // Resolve the port offset up-front so we can bake the final URL into the
         // worktree .env before the env is brought up. A worktree that is already
@@ -604,7 +615,10 @@ class ReviewCommand extends Command
             // When `up` resolved conflicts per-port instead of via an offset, the
             // lock carries a port map — the advertised URL (and the completion
             // deep-links rewritten onto it) must follow the web port's remap.
-            $portMap = $liveLock->portMap ?? [];
+            $portMap = $liveLock !== null ? $liveLock->portMap : [];
+            if ($liveLock !== null && $liveLock->noHostMapping) {
+                $publishHostPorts = false;
+            }
 
             // Before deciding the URL, offer the app its worktree hostname. A
             // host-routed app (apache/nginx vhosts) would otherwise 404 on
@@ -750,6 +764,14 @@ class ReviewCommand extends Command
         $output->writeln('');
         $formatter->url('Application', $worktreeUrl);
         $this->printAuthBypass($formatter, $authBypass);
+        $this->printTablePlus(
+            $formatter,
+            $worktreePath,
+            $config->docker->composeFile,
+            $portOffset,
+            $portMap,
+            $publishHostPorts,
+        );
         $formatter->url('Worktree', $worktreePath);
 
         // Option A keeps the app's own host, which (unlike a *.localhost name) may
@@ -1858,6 +1880,32 @@ class ReviewCommand extends Command
                     : '.'),
             default => 'Auth bypass skipped: the app could not create a login link.',
         };
+    }
+
+    /**
+     * @param array<int, int> $portMap
+     */
+    private function printTablePlus(
+        OutputFormatter $formatter,
+        string $projectRoot,
+        string $composeFile,
+        int $portOffset,
+        array $portMap,
+        bool $publishHostPorts,
+    ): void {
+        $link = (new TablePlusLinkResolver())->resolve(
+            $projectRoot,
+            $composeFile,
+            $portOffset,
+            $portMap,
+            $publishHostPorts,
+        );
+        if ($link->url === null) {
+            return;
+        }
+
+        $formatter->url('TablePlus', $link->url);
+        $formatter->info('Opens this database in TablePlus.');
     }
 
     private function printAuthBypass(OutputFormatter $formatter, AuthBypassLink $link): void

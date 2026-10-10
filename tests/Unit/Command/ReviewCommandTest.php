@@ -1342,6 +1342,92 @@ class ReviewCommandTest extends TestCase
         $this->assertStringContainsString('no user exists for hello@gigabyte.software', $tester->getDisplay());
     }
 
+    public function test_it_prints_a_clickable_tableplus_url_for_the_published_database(): void
+    {
+        file_put_contents($this->tmpDir . '/.env', "DB_CONNECTION=pgsql\nDB_PORT=5432\nDB_DATABASE=earl_kendrick\nDB_USERNAME=postgres\nDB_PASSWORD=postgres\n");
+        file_put_contents($this->tmpDir . '/docker-compose.yml', <<<'YAML'
+services:
+  db:
+    image: postgres:17
+    ports:
+      - "5432:5432"
+YAML);
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+        $this->laravelService->expects($this->once())
+            ->method('mintAuthBypass')
+            ->willReturn(new AuthBypassAttempt('skip', null, 'identity-missing'));
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('TablePlus', $display);
+        $this->assertStringContainsString('postgresql://postgres:postgres@127.0.0.1:5432/earl_kendrick?', $display);
+        $this->assertStringContainsString('Opens this database in TablePlus.', $display);
+    }
+
+    public function test_worktree_review_prints_the_tableplus_url_on_the_offset_port(): void
+    {
+        $repoName = WorktreeIdentity::sanitizeSegment(basename($this->tmpDir));
+        $folderName = WorktreeIdentity::folderName('gig-123', $repoName);
+        $worktreePath = $this->tmpDir . '/.ngramx/worktrees/' . $folderName;
+        mkdir($worktreePath, 0755, true);
+        file_put_contents($worktreePath . '/.env', "DB_CONNECTION=pgsql\nDB_PORT=5432\nDB_DATABASE=app\nDB_USERNAME=postgres\nDB_PASSWORD=secret\n");
+        file_put_contents($worktreePath . '/docker-compose.yml', <<<'YAML'
+services:
+  db:
+    image: postgres:17
+    ports:
+      - "5432:5432"
+YAML);
+        file_put_contents($worktreePath . '/.ngramx.lock', json_encode([
+            'port_offset' => 8200,
+            'started_at' => date('c'),
+        ], JSON_THROW_ON_ERROR));
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn($this->tmpDir . '/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(true);
+
+        $primer = $this->createMock(WorktreeDependencyPrimer::class);
+        $primer->expects($this->once())->method('start');
+        $primer->expects($this->atLeastOnce())->method('await');
+
+        $urlResolver = $this->createMock(WorktreeUrlResolver::class);
+        $urlResolver->expects($this->any())->method('resolve')->willReturn('http://localhost:8280');
+
+        $reconciler = $this->createMock(WorktreeOwnershipReconciler::class);
+        $reconciler->expects($this->any())
+            ->method('reconcile')
+            ->willReturn(OwnershipReconcileResult::skipped('unit test'));
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $override = $this->createMock(ComposeOverrideGenerator::class);
+        $override->expects($this->once())->method('generate');
+
+        $tester = new CommandTester($this->createCommand(
+            primer: $primer,
+            urlResolver: $urlResolver,
+            reconciler: $reconciler,
+            overrideGenerator: $override,
+        ));
+        $exitCode = $tester->execute(['ticket' => 'GIG-123', '--worktree' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('postgresql://postgres:secret@127.0.0.1:13632/app?', $display);
+    }
+
     public function test_it_stays_quiet_when_the_app_has_no_identity_package(): void
     {
         $config = $this->createMockConfig([

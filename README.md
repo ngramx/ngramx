@@ -254,7 +254,8 @@ This command:
 2. Finds branches containing the ticket number and checks one out (prompts if there are multiple)
 3. Runs either `fresh` (default) or `clear` (with `--quick`) to sync the environment
 4. Prints a clickable **Auth bypass** URL that signs the reviewer into the running app
-5. Prints any URLs from `.ngramx/tickets/<ticket>/completion.json` (falls back to legacy `completion.md`)
+5. Prints a clickable **TablePlus** URL for this environment's database
+6. Prints any URLs from `.ngramx/tickets/<ticket>/completion.json` (falls back to legacy `completion.md`)
 
 **Options:**
 
@@ -275,6 +276,19 @@ After a successful review (in place or `--worktree`), Ngramx prints a labelled, 
 Opening it logs the reviewer in through the app's existing identity magic-link route and lands them in the application. No email code, no password. The token is created inside the app container, only when `APP_ENV` is `local`, `dev`, `development`, or `testing`, and only for a user that already exists. It is single-use and expires after `auth.bypass.ttl_minutes` (default 8 hours, maximum 24). `--anon` does not mint a link, because that mode uses the shared hosted database.
 
 Projects on `gigabyte/laravel-identity` get this with no extra config: the default account is the seeded `hello@gigabyte.software` user, and the route is `config('identity.magic_link_route')`. Point `auth.bypass.email` at a different seeded user if yours is not that address. Apps without the identity package print nothing. Set `auth.bypass: false` to turn the link off, or set `auth.bypass.url` to a template (`{url}`, `{email}`, `{email_query}`) when the project signs people in some other way. See `ngramx.example.yml`.
+
+**TablePlus link:**
+
+After a successful review or worktree (in place or `--worktree`), Ngramx prints a clickable database URL when it can see one:
+
+```
+➜ TablePlus: postgresql://postgres:postgres@127.0.0.1:5432/earl_kendrick?env=local&name=gig-1234-earl-kendrick-core
+  Opens this database in TablePlus.
+```
+
+Clicking it opens TablePlus on that database. The scheme is the one TablePlus registers for the engine (`postgresql://`, `mysql://`, or `mariadb://`). Install TablePlus locally for the link to open an app; without it the URL is still there to copy.
+
+Credentials come from the project's `.env` (`DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, or `DATABASE_URL`). The host is `127.0.0.1` and the port is the database port Docker published, including a worktree port offset or a recorded port remap. `--no-host-mapping` publishes nothing, so no link is printed. When `ngramx postmaclone connect` (including `--anon`) is active, the link uses that session's IDE host, port, and credentials instead of the compose database. Projects with no published SQL database print nothing.
 
 **How worktree mode works:**
 
@@ -323,7 +337,7 @@ This command:
 2. Searches remote branches for the ticket (canonical slug, hyphen-less spelling, then bare number)
 3. Uses the matching branch, prompts if multiple, or creates a new `{team}-{number}` branch from `origin/<integration>` (usually `origin/main`) when none exists
 4. Creates or reuses a worktree under `.ngramx/worktrees/` and brings up a parallel dev environment (same machinery as `review --worktree`)
-5. Prints the application URL, worktree path, and any URLs from `.ngramx/tickets/<ticket>/completion.json`
+5. Prints the application URL, a TablePlus database URL, the worktree path, and any URLs from `.ngramx/tickets/<ticket>/completion.json`
 
 **Options:**
 
