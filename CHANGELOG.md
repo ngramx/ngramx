@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.51.0](https://github.com/ngramx/ngramx/compare/v2.50.0...v2.51.0) (2026-10-11)
+
+
+### Features
+
+* open the review database when another Postgres holds port 5432 ([b03d791](https://github.com/ngramx/ngramx/commit/b03d7911b12e15c34d5eaeb35ed18478cb61ecf2))
+
 # [2.50.0](https://github.com/ngramx/ngramx/compare/v2.49.0...v2.50.0) (2026-10-11)
 
 
