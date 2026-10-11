@@ -10,10 +10,14 @@ namespace Ngramx\Auth;
  */
 final readonly class AuthBypassLink
 {
+    /**
+     * @param array<string, string> $deepLinks Local path (plus query) => absolute magic URL
+     */
     public function __construct(
         public ?string $url = null,
         public ?string $hint = null,
         public ?string $warning = null,
+        public array $deepLinks = [],
     ) {
     }
 }

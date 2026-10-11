@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Ngramx\Auth;
 
 /**
- * PHP that runs inside the app container to mint one identity magic-link
- * path, plus the shell wrapper that delivers it and the parser for its
- * single-line protocol.
+ * PHP that runs inside the app container to mint identity magic-link
+ * paths, plus the shell wrapper that delivers it and the parser for its
+ * `ok|skip|warn` protocol.
  *
  * The script talks in `ok|skip|warn` lines so a failure never prints a
  * token, and so projects that do not use gigabyte/laravel-identity stay quiet.
@@ -82,22 +82,41 @@ if ($user === null) {
     exit(0);
 }
 
-try {
-    $token = Illuminate\Support\Str::random(64);
-    Gigabyte\Identity\Models\LoginCode::query()->create([
-        'email' => $email,
-        'code' => str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT),
-        'token' => $token,
-        'expires_at' => Illuminate\Support\Carbon::now()->addMinutes($ttl),
-    ]);
-
-    $path = route($routeName, ['token' => $token], false);
-    if (!is_string($path) || $path === '') {
-        echo "warn no-magic-route\n";
-        exit(0);
+$redirects = [null];
+$encodedRedirects = getenv('NGRAMX_BYPASS_REDIRECTS');
+if (is_string($encodedRedirects) && $encodedRedirects !== '') {
+    $decoded = json_decode(base64_decode($encodedRedirects, true) ?: '', true);
+    if (is_array($decoded)) {
+        foreach ($decoded as $candidate) {
+            if (is_string($candidate) && str_starts_with($candidate, '/') && !str_starts_with($candidate, '//') && !str_contains($candidate, '://')) {
+                $redirects[] = $candidate;
+            }
+        }
     }
+}
 
-    echo 'ok ' . $path . "\n";
+try {
+    foreach ($redirects as $redirect) {
+        $token = Illuminate\Support\Str::random(64);
+        Gigabyte\Identity\Models\LoginCode::query()->create([
+            'email' => $email,
+            'code' => str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT),
+            'token' => $token,
+            'expires_at' => Illuminate\Support\Carbon::now()->addMinutes($ttl),
+        ]);
+
+        $path = route($routeName, ['token' => $token], false);
+        if (!is_string($path) || $path === '') {
+            echo "warn no-magic-route\n";
+            exit(0);
+        }
+
+        if (is_string($redirect) && $redirect !== '') {
+            $path .= (str_contains($path, '?') ? '&' : '?') . 'redirect=' . rawurlencode($redirect);
+        }
+
+        echo 'ok ' . $path . "\n";
+    }
 } catch (Throwable $e) {
     $name = (new ReflectionClass($e))->getShortName();
     echo 'warn failed ' . $name . "\n";
@@ -110,8 +129,10 @@ PHP;
     /**
      * Shell run via `docker compose exec sh -c`. The script is base64 so the
      * email and the PHP source never share a quoting context.
+     *
+     * @param list<string> $redirects Local paths. Each gets its own magic token.
      */
-    public static function shellCommand(string $email, int $ttlMinutes): string
+    public static function shellCommand(string $email, int $ttlMinutes, array $redirects = []): string
     {
         $tmp = '/tmp/ngramx-auth-bypass-' . bin2hex(random_bytes(8)) . '.php';
         $encoded = base64_encode(self::source());
@@ -119,11 +140,20 @@ PHP;
             'file_put_contents(' . var_export($tmp, true) . ', base64_decode(stream_get_contents(STDIN)));'
         );
 
+        $redirectEnv = '';
+        if ($redirects !== []) {
+            $json = json_encode($redirects);
+            if (is_string($json)) {
+                $redirectEnv = ' NGRAMX_BYPASS_REDIRECTS=' . escapeshellarg(base64_encode($json));
+            }
+        }
+
         return 'php -r ' . $writer . " <<'NGRAMX_BYPASS_B64'\n"
             . $encoded . "\n"
             . "NGRAMX_BYPASS_B64\n"
             . 'NGRAMX_BYPASS_EMAIL=' . escapeshellarg($email)
             . ' NGRAMX_BYPASS_TTL=' . $ttlMinutes
+            . $redirectEnv
             . ' php ' . $tmp . "\n"
             . "status=\$?\n"
             . 'rm -f ' . $tmp . "\n"
@@ -132,38 +162,53 @@ PHP;
 
     public static function parse(string $stdout): AuthBypassAttempt
     {
-        $matched = null;
+        $ok = [];
+        $skip = null;
+        $warn = null;
         $lines = preg_split("/\r\n|\n|\r/", $stdout) ?: [];
         foreach ($lines as $line) {
             $line = trim($line);
             if (preg_match('/^(ok|skip|warn)\s+(\S.*)$/', $line, $matches) === 1) {
-                $matched = [$matches[1], trim($matches[2])];
+                $kind = $matches[1];
+                $rest = trim($matches[2]);
+            } elseif (preg_match('/^(ok|skip|warn)$/', $line, $matches) === 1) {
+                $kind = $matches[1];
+                $rest = '';
+            } else {
                 continue;
             }
-            if (preg_match('/^(ok|skip|warn)$/', $line, $matches) === 1) {
-                $matched = [$matches[1], ''];
-            }
-        }
 
-        if ($matched === null) {
-            // The container never spoke the protocol (no PHP, exec failed).
-            // Stay quiet — only a script that ran and refused is worth a warning.
-            return new AuthBypassAttempt('skip', null, 'no-protocol');
-        }
-
-        [$kind, $rest] = $matched;
-        if ($kind === 'ok') {
-            if (preg_match('#^(https?://\S+|/\S*)$#', $rest) !== 1) {
-                return new AuthBypassAttempt('warn', null, 'failed');
+            if ($kind === 'ok') {
+                if (preg_match('#^(https?://\S+|/\S*)$#', $rest) === 1) {
+                    $ok[] = $rest;
+                } else {
+                    $warn = 'failed';
+                }
+                continue;
             }
 
-            return new AuthBypassAttempt('ok', $rest, null);
+            if ($kind === 'skip') {
+                $skip = $rest !== '' ? $rest : 'skipped';
+                continue;
+            }
+
+            $warn = $rest !== '' ? $rest : 'failed';
         }
 
-        if ($kind === 'skip') {
-            return new AuthBypassAttempt('skip', null, $rest !== '' ? $rest : 'skipped');
+        if ($ok !== []) {
+            return new AuthBypassAttempt('ok', $ok[0], null, $ok);
         }
 
-        return new AuthBypassAttempt('warn', null, $rest !== '' ? $rest : 'failed');
+        if ($warn !== null) {
+            return new AuthBypassAttempt('warn', null, $warn);
+        }
+
+        if ($skip !== null) {
+            return new AuthBypassAttempt('skip', null, $skip);
+        }
+
+        // The container never spoke the protocol (no PHP, exec failed).
+        // Stay quiet — only a script that ran and refused is worth a warning.
+        return new AuthBypassAttempt('skip', null, 'no-protocol');
     }
 }

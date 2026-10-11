@@ -300,14 +300,16 @@ class ReviewCommand extends Command
             // Re-read ngramx.yml after checkout so the branch's auth.bypass
             // settings are the ones that mint the link.
             $reviewConfig = $this->reloadConfig($configPath, $config);
-            $this->printAuthBypass($formatter, $this->prepareAuthBypass(
+            $authBypass = $this->prepareAuthBypass(
                 $input,
                 $reviewConfig,
                 $composeFile,
                 $primaryService,
                 $namespace,
                 $environmentUrls->primary,
-            ));
+                $this->completionRedirects($repositoryPath, $ticketNumber, $config->docker, $environmentUrls),
+            );
+            $this->printAuthBypass($formatter, $authBypass);
             $this->printTablePlus(
                 $formatter,
                 $repositoryPath,
@@ -316,7 +318,7 @@ class ReviewCommand extends Command
                 $portMap,
                 !(bool) $input->getOption('no-host-mapping'),
             );
-            $this->displayCompletionUrls($repositoryPath, $ticketNumber, $formatter, $config->docker, $environmentUrls);
+            $this->displayCompletionUrls($repositoryPath, $ticketNumber, $formatter, $config->docker, $environmentUrls, $authBypass->deepLinks);
 
             $output->writeln('');
 
@@ -754,6 +756,7 @@ class ReviewCommand extends Command
                 $worktreeConfig->docker->primaryService,
                 $namespace,
                 $worktreeUrl,
+                $this->completionRedirects($worktreePath, $ticketNumber, $config->docker, $worktreeUrls),
             );
         } finally {
             $this->dependencyPrimer->await($formatter);
@@ -784,7 +787,7 @@ class ReviewCommand extends Command
             $formatter->info('  ' . $hostsLine);
         }
 
-        $this->displayCompletionUrls($worktreePath, $ticketNumber, $formatter, $config->docker, $worktreeUrls);
+        $this->displayCompletionUrls($worktreePath, $ticketNumber, $formatter, $config->docker, $worktreeUrls, $authBypass->deepLinks);
 
         if ((bool) $input->getOption('cursor')) {
             $this->openCursorWindow($worktreePath, $formatter);
@@ -1807,6 +1810,8 @@ class ReviewCommand extends Command
      * Identity apps get a single-use magic link. Other apps stay quiet unless
      * they configured `auth.bypass.url`. `--anon` never writes a login token
      * into the shared database.
+     *
+     * @param list<string> $redirects
      */
     private function prepareAuthBypass(
         InputInterface $input,
@@ -1815,6 +1820,7 @@ class ReviewCommand extends Command
         string $primaryService,
         ?string $namespace,
         string $appUrl,
+        array $redirects = [],
     ): AuthBypassLink {
         $bypass = $config->authBypass;
         if (!$bypass->enabled) {
@@ -1840,6 +1846,7 @@ class ReviewCommand extends Command
             $namespace,
             $bypass->email,
             $bypass->ttlMinutes,
+            $redirects,
         );
 
         if (!$attempt instanceof AuthBypassAttempt || $attempt->status === 'skip') {
@@ -1847,6 +1854,8 @@ class ReviewCommand extends Command
         }
 
         if ($attempt->status === 'ok' && $attempt->path !== null) {
+            $paths = $attempt->paths !== [] ? $attempt->paths : [$attempt->path];
+
             return new AuthBypassLink(
                 url: AuthBypassUrl::absolute($appUrl, $attempt->path),
                 hint: sprintf(
@@ -1854,6 +1863,7 @@ class ReviewCommand extends Command
                     $bypass->email,
                     $bypass->ttlMinutes,
                 ),
+                deepLinks: AuthBypassUrl::deepLinks($appUrl, $paths),
             );
         }
 
@@ -1928,7 +1938,10 @@ class ReviewCommand extends Command
      * Look for completion.json (preferred) or completion.md (legacy fallback) in
      * .ngramx/tickets/<ticket>/ and display the completion info.
      */
-    private function displayCompletionUrls(string $repositoryPath, string $ticketNumber, OutputFormatter $formatter, ?DockerConfig $docker = null, ?EndpointUrls $environmentUrls = null): void
+    /**
+     * @param array<string, string> $deepLinks
+     */
+    private function displayCompletionUrls(string $repositoryPath, string $ticketNumber, OutputFormatter $formatter, ?DockerConfig $docker = null, ?EndpointUrls $environmentUrls = null, array $deepLinks = []): void
     {
         $ticketDir = $this->findTicketDirectory($repositoryPath, $ticketNumber);
 
@@ -1938,7 +1951,7 @@ class ReviewCommand extends Command
 
         $jsonFile = $this->findFileInDirectory($ticketDir, 'completion.json');
         if ($jsonFile !== null) {
-            $this->displayCompletionJson($jsonFile, $formatter, $docker, $environmentUrls);
+            $this->displayCompletionJson($jsonFile, $formatter, $docker, $environmentUrls, $deepLinks);
 
             return;
         }
@@ -1968,6 +1981,49 @@ class ReviewCommand extends Command
      * the correct host/port. Falls back to the stored URL when no environment
      * URL is known. See {@see CompletionUrlRewriter} for the rules.
      */
+    /**
+     * Local paths from completion.json test URLs, so each can be minted as
+     * its own magic link. The site root is skipped.
+     *
+     * @return list<string>
+     */
+    private function completionRedirects(string $repositoryPath, string $ticketNumber, ?DockerConfig $docker, ?EndpointUrls $environmentUrls): array
+    {
+        $ticketDir = $this->findTicketDirectory($repositoryPath, $ticketNumber);
+        if ($ticketDir === null) {
+            return [];
+        }
+
+        $jsonFile = $this->findFileInDirectory($ticketDir, 'completion.json');
+        if ($jsonFile === null) {
+            return [];
+        }
+
+        $contents = file_get_contents($jsonFile);
+        if ($contents === false) {
+            return [];
+        }
+
+        $data = json_decode($contents, true);
+        if (!is_array($data) || !isset($data['test_urls']) || !is_array($data['test_urls'])) {
+            return [];
+        }
+
+        $paths = [];
+        foreach ($data['test_urls'] as $entry) {
+            if (!is_array($entry) || !isset($entry['url']) || !is_string($entry['url'])) {
+                continue;
+            }
+
+            $path = AuthBypassUrl::redirectPath($this->localiseTestUrl($entry['url'], $docker, $environmentUrls));
+            if ($path !== null) {
+                $paths[] = $path;
+            }
+        }
+
+        return array_values(array_unique($paths));
+    }
+
     private function localiseTestUrl(string $url, ?DockerConfig $docker, ?EndpointUrls $environmentUrls): string
     {
         if ($environmentUrls === null) {
@@ -1989,7 +2045,10 @@ class ReviewCommand extends Command
      * Parse and display the full completion.json with title, description,
      * test plan (with active/stale status), and links.
      */
-    private function displayCompletionJson(string $filePath, OutputFormatter $formatter, ?DockerConfig $docker = null, ?EndpointUrls $environmentUrls = null): void
+    /**
+     * @param array<string, string> $deepLinks
+     */
+    private function displayCompletionJson(string $filePath, OutputFormatter $formatter, ?DockerConfig $docker = null, ?EndpointUrls $environmentUrls = null, array $deepLinks = []): void
     {
         $contents = file_get_contents($filePath);
         if ($contents === false) {
@@ -2075,7 +2134,10 @@ class ReviewCommand extends Command
         if (isset($data['test_urls']) && is_array($data['test_urls'])) {
             foreach ($data['test_urls'] as $entry) {
                 if (is_array($entry) && isset($entry['label'], $entry['url']) && is_string($entry['label']) && is_string($entry['url'])) {
-                    $formatter->url($entry['label'], $this->localiseTestUrl($entry['url'], $docker, $environmentUrls));
+                    $localUrl = $this->localiseTestUrl($entry['url'], $docker, $environmentUrls);
+                    $redirect = AuthBypassUrl::redirectPath($localUrl);
+                    $magicUrl = $redirect !== null ? ($deepLinks[$redirect] ?? null) : null;
+                    $formatter->url($entry['label'], $magicUrl ?? $localUrl);
                 }
             }
         }

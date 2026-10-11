@@ -275,6 +275,8 @@ After a successful review (in place or `--worktree`), Ngramx prints a labelled, 
 
 Opening it logs the reviewer in through the app's existing identity magic-link route and lands them in the application. No email code, no password. The token is created inside the app container, only when `APP_ENV` is `local`, `dev`, `development`, or `testing`, and only for a user that already exists. It is single-use and expires after `auth.bypass.ttl_minutes` (default 8 hours, maximum 24). `--anon` does not mint a link, because that mode uses the shared hosted database.
 
+Each `test_urls` entry in the ticket's `completion.json` is printed as its own magic link, with `?redirect=` set to that page. One click signs in and opens that exact screen. Each link has its own token, so opening one does not invalidate the others. The app has to be on a `gigabyte/laravel-identity` release that follows `redirect` (`IdentityService::intendedWebPath`). Until then, those lines stay as ordinary deep links and the separate Auth bypass line still signs in at the home page.
+
 Projects on `gigabyte/laravel-identity` get this with no extra config: the default account is the seeded `hello@gigabyte.software` user, and the route is `config('identity.magic_link_route')`. Point `auth.bypass.email` at a different seeded user if yours is not that address. Apps without the identity package print nothing. Set `auth.bypass: false` to turn the link off, or set `auth.bypass.url` to a template (`{url}`, `{email}`, `{email_query}`) when the project signs people in some other way. See `ngramx.example.yml`.
 
 **TablePlus link:**

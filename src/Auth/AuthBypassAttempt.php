@@ -13,10 +13,15 @@ namespace Ngramx\Auth;
  */
 final readonly class AuthBypassAttempt
 {
+    /**
+     * @param list<string> $paths Every `ok` path. The first is the home login
+     *        link; later ones carry `?redirect=` for a completion.json deep link.
+     */
     public function __construct(
         public string $status,
         public ?string $path = null,
         public ?string $detail = null,
+        public array $paths = [],
     ) {
     }
 }

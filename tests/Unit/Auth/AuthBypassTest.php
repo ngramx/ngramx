@@ -57,6 +57,27 @@ class AuthBypassTest extends TestCase
 
         $silent = AuthBypassScript::parse('');
         $this->assertSame('skip', $silent->status);
+
+        $deep = AuthBypassScript::parse("ok /login/magic/home\nok /login/magic/deep?redirect=%2Finvoices%3Fbypass%3Dme\n");
+        $this->assertSame('ok', $deep->status);
+        $this->assertSame('/login/magic/home', $deep->path);
+        $this->assertCount(2, $deep->paths);
+    }
+
+    public function test_a_deep_link_keeps_the_page_and_joins_onto_the_app_origin(): void
+    {
+        $this->assertSame('/invoices?bypass=me', AuthBypassUrl::redirectPath('http://localhost:8080/invoices?bypass=me'));
+        $this->assertNull(AuthBypassUrl::redirectPath('http://localhost:8080/'));
+
+        $links = AuthBypassUrl::deepLinks('http://localhost:8080', [
+            '/login/magic/home',
+            '/login/magic/deep?redirect=' . rawurlencode('/invoices?bypass=me'),
+        ]);
+
+        $this->assertSame(
+            'http://localhost:8080/login/magic/deep?redirect=' . rawurlencode('/invoices?bypass=me'),
+            $links['/invoices?bypass=me'],
+        );
     }
 
     public function test_the_mint_script_refuses_non_local_environments_and_does_not_send_mail(): void

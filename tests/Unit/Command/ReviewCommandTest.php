@@ -550,6 +550,45 @@ class ReviewCommandTest extends TestCase
         $this->assertStringNotContainsString('app.example.com', $display);
     }
 
+    public function test_it_prints_each_completion_url_as_its_own_magic_link(): void
+    {
+        $ticketDir = $this->tmpDir . '/.ngramx/tickets/GIG-123';
+        mkdir($ticketDir, 0755, true);
+        file_put_contents($ticketDir . '/completion.json', json_encode([
+            'title' => 'GIG-123: Feature',
+            'description' => 'A feature.',
+            'pr_url' => 'https://github.com/org/repo/pull/7',
+            'test_urls' => [
+                ['label' => 'Invoice list', 'url' => 'https://app.example.com/invoices?bypass=me'],
+            ],
+            'test_plan' => [],
+        ]));
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+
+        $magic = '/login/magic/deep?redirect=' . rawurlencode('/invoices?bypass=me');
+        $this->laravelService->expects($this->once())
+            ->method('mintAuthBypass')
+            ->with($this->anything(), 'app', null, 'hello@gigabyte.software', 480, ['/invoices?bypass=me'])
+            ->willReturn(new AuthBypassAttempt('ok', '/login/magic/home', null, [
+                '/login/magic/home',
+                $magic,
+            ]));
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('http://localhost:80' . $magic, $display);
+        $this->assertStringNotContainsString('http://localhost:80/invoices?bypass=me', $display);
+    }
+
     public function test_worktree_review_follows_the_port_map_recorded_in_the_worktree_lock(): void
     {
         // Pre-create the worktree directory the command derives so chdir succeeds,
@@ -1243,7 +1282,7 @@ class ReviewCommandTest extends TestCase
         $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
         $this->laravelService->expects($this->once())
             ->method('mintAuthBypass')
-            ->with($this->anything(), 'app', null, 'hello@gigabyte.software', 480)
+            ->with($this->anything(), 'app', null, 'hello@gigabyte.software', 480, [])
             ->willReturn(new AuthBypassAttempt('ok', '/login/magic/review-token'));
 
         $tester = new CommandTester($this->createCommand());
