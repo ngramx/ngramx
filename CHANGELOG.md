@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.50.0](https://github.com/ngramx/ngramx/compare/v2.49.0...v2.50.0) (2026-10-11)
+
+
+### Features
+
+* print each review test URL as its own magic link ([1070864](https://github.com/ngramx/ngramx/commit/107086450249739b8f19838ead516406be9d7d48))
+
 # [2.49.0](https://github.com/ngramx/ngramx/compare/v2.48.3...v2.49.0) (2026-10-10)
 
 
