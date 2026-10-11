@@ -29,15 +29,23 @@ class PortOffsetManager
     /** @var \Closure(): list<int> */
     private readonly \Closure $usedPortsProvider;
 
+    /** @var \Closure(int): bool */
+    private readonly \Closure $nonDockerLoopback;
+
     /**
      * @param callable(): list<int>|null $usedPortsProvider Test seam: supplies the
      *        host ports currently in use. Defaults to querying Docker.
+     * @param (callable(int): bool)|null $nonDockerLoopback Test seam: true when a
+     *        process other than Docker is listening on 127.0.0.1 for that port.
      */
-    public function __construct(?callable $usedPortsProvider = null)
+    public function __construct(?callable $usedPortsProvider = null, ?callable $nonDockerLoopback = null)
     {
         $this->usedPortsProvider = $usedPortsProvider !== null
             ? $usedPortsProvider(...)
             : fn (): array => $this->getDockerUsedPorts();
+        $this->nonDockerLoopback = $nonDockerLoopback !== null
+            ? $nonDockerLoopback(...)
+            : (new LoopbackHold())->owns(...);
     }
 
     /**
@@ -152,7 +160,7 @@ class PortOffsetManager
         $claimed = [];
 
         foreach ($basePorts as $basePort) {
-            if ($this->isPortAvailable($basePort)) {
+            if (!$this->isHostPortTaken($basePort)) {
                 continue;
             }
 
@@ -175,7 +183,7 @@ class PortOffsetManager
     private function findFreePortNear(int $basePort, array $reserved): int
     {
         for ($candidate = $basePort + self::CONFLICT_SCAN_STEP; $candidate <= self::MAX_PORT; $candidate += self::CONFLICT_SCAN_STEP) {
-            if ($this->isPortAvailable($candidate) && !in_array($candidate, $reserved, true)) {
+            if (!$this->isHostPortTaken($candidate) && !in_array($candidate, $reserved, true)) {
                 return $candidate;
             }
         }
@@ -183,6 +191,17 @@ class PortOffsetManager
         throw new \RuntimeException(
             "No free replacement found for conflicted port {$basePort}. Stop the service using it or specify a custom --port-offset."
         );
+    }
+
+    /**
+     * A port Docker has published, or that another process holds on 127.0.0.1.
+     *
+     * The loopback check stays out of {@see findAvailableOffset()}: one stolen
+     * database port should move only that port, not the whole stack.
+     */
+    private function isHostPortTaken(int $port): bool
+    {
+        return !$this->isPortAvailable($port) || ($this->nonDockerLoopback)($port);
     }
 
     /**
