@@ -34,6 +34,57 @@ final class AuthBypassUrl
         return $origin . $prefix . '/' . ltrim($path, '/');
     }
 
+    /**
+     * Path, query, and fragment of an app URL, for a magic-link `redirect`.
+     * The site root is not a deep link.
+     */
+    public static function redirectPath(string $url): ?string
+    {
+        $parts = parse_url($url);
+        if ($parts === false) {
+            return null;
+        }
+
+        $path = $parts['path'] ?? '';
+        if ($path === '' || $path === '/' || !str_starts_with($path, '/') || str_starts_with($path, '//')) {
+            return null;
+        }
+
+        if (isset($parts['query']) && $parts['query'] !== '') {
+            $path .= '?' . $parts['query'];
+        }
+        if (isset($parts['fragment']) && $parts['fragment'] !== '') {
+            $path .= '#' . $parts['fragment'];
+        }
+
+        return $path;
+    }
+
+    /**
+     * @param list<string> $magicPaths
+     * @return array<string, string>
+     */
+    public static function deepLinks(string $appUrl, array $magicPaths): array
+    {
+        $links = [];
+        foreach ($magicPaths as $magicPath) {
+            $query = parse_url($magicPath, PHP_URL_QUERY);
+            if (!is_string($query) || $query === '') {
+                continue;
+            }
+
+            parse_str($query, $params);
+            $redirect = $params['redirect'] ?? null;
+            if (!is_string($redirect) || $redirect === '') {
+                continue;
+            }
+
+            $links[$redirect] = self::absolute($appUrl, $magicPath);
+        }
+
+        return $links;
+    }
+
     public static function fromTemplate(string $template, string $appUrl, string $email): string
     {
         return strtr($template, [

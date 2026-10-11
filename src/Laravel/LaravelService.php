@@ -117,18 +117,22 @@ SH;
      * a mint that fails, comes back as a skip/warn attempt so `review` can
      * still finish.
      */
+    /**
+     * @param list<string> $redirects
+     */
     public function mintAuthBypass(
         string $composeFile,
         string $service,
         ?string $namespace,
         string $email,
         int $ttlMinutes,
+        array $redirects = [],
     ): ?AuthBypassAttempt {
         try {
             $process = $this->containerExecutor->exec(
                 $composeFile,
                 $service,
-                AuthBypassScript::shellCommand($email, $ttlMinutes),
+                AuthBypassScript::shellCommand($email, $ttlMinutes, $redirects),
                 60,
                 null,
                 $namespace,
