@@ -1010,6 +1010,69 @@ class GitRepositoryServiceTest extends TestCase
         $this->assertSame('main', $this->service->getCurrentBranch($this->gitRepoPath));
     }
 
+    public function test_addWorktree_cleans_up_existing_directory_on_failure(): void
+    {
+        $worktreePath = $this->tempDir . '/wt-cleanup-existing';
+
+        // Simulate a stale/partial directory from a previous failed attempt
+        mkdir($worktreePath, 0755, true);
+        file_put_contents($worktreePath . '/leftover.txt', 'stale content');
+        $this->assertDirectoryExists($worktreePath);
+
+        // Attempt to create worktree with non-existent branch
+        $result = $this->service->addWorktree($this->gitRepoPath, $worktreePath, 'does-not-exist');
+
+        $this->assertFalse($result);
+        // The cleanup should have removed the existing directory
+        $this->assertDirectoryDoesNotExist($worktreePath);
+    }
+
+    public function test_addWorktree_fast_forwards_from_origin_when_local_branch_is_behind(): void
+    {
+        // Create a local branch that's behind origin
+        $this->runGitCommand('git checkout feature/TICKET-456');
+        $localTipBefore = $this->revParse('feature/TICKET-456');
+
+        // Add a commit to origin
+        $this->pushAdditionalCommitToOrigin('feature/TICKET-456', 'new-commit.txt', 'New commit on origin');
+        $this->runGitCommand('git fetch origin');
+        $originTip = $this->revParse('origin/feature/TICKET-456');
+
+        $this->assertNotEquals($localTipBefore, $originTip);
+
+        // Create worktree - should fast-forward to origin
+        $worktreePath = $this->tempDir . '/wt-ff-test';
+        $this->runGitCommand('git checkout main');
+
+        $result = $this->service->addWorktree($this->gitRepoPath, $worktreePath, 'feature/TICKET-456');
+
+        $this->assertTrue($result);
+        $this->assertTrue($this->service->worktreeExists($this->gitRepoPath, $worktreePath));
+
+        // Verify the worktree is at the latest origin commit
+        $worktreeTip = $this->revParse('feature/TICKET-456');
+        $this->assertEquals($originTip, $worktreeTip, 'Worktree should be fast-forwarded to origin');
+    }
+
+    public function test_addWorktreeWithNewBranch_cleans_up_on_failure_with_existing_directory(): void
+    {
+        $worktreePath = $this->tempDir . '/wt-new-cleanup';
+
+        // Create a directory that might be left over from a previous attempt
+        mkdir($worktreePath, 0755, true);
+        file_put_contents($worktreePath . '/old-file.txt', 'leftover');
+
+        // Try to create a new branch that already exists (should fail)
+        $result = $this->service->addWorktreeWithNewBranch(
+            $this->gitRepoPath,
+            $worktreePath,
+            'feature/TICKET-456'
+        );
+
+        $this->assertFalse($result);
+        $this->assertDirectoryDoesNotExist($worktreePath);
+    }
+
     /**
      * Install a post-checkout hook that always fails, mimicking a hook runner
      * invoked via a relative vendor/ path that is absent in a fresh worktree.
