@@ -80,6 +80,8 @@ class PostmacloneProducer
         $this->progress($onProgress, 'Provisioning scratch database');
         $target = $this->provisionScratch($dataset, $engine);
 
+        $scratchReleased = false;
+
         try {
             if ($target->provider === 'remote') {
                 $this->progress($onProgress, 'Wiping scratch database');
@@ -159,6 +161,10 @@ class PostmacloneProducer
             $passwordRotated = false;
             $passwordRotatedAt = null;
             if ($dataset->shared?->isConfigured() ?? false) {
+                $this->progress($onProgress, 'Destroying scratch database before shared refresh');
+                $this->destroyScratch($dataset, $target, $engine);
+                $scratchReleased = true;
+
                 $this->progress($onProgress, 'Refreshing shared hosted database');
                 $this->sharedRefresher->refresh($engine, $dataset->shared, $artifactLocal);
                 $sharedRefreshed = true;
@@ -215,8 +221,10 @@ class PostmacloneProducer
                 'password_rotated' => $passwordRotated,
             ];
         } finally {
-            $this->progress($onProgress, 'Destroying scratch database');
-            $this->destroyScratch($dataset, $target, $engine);
+            if (!$scratchReleased) {
+                $this->progress($onProgress, 'Destroying scratch database');
+                $this->destroyScratch($dataset, $target, $engine);
+            }
         }
     }
 
