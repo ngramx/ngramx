@@ -22,7 +22,7 @@ final class PostmacloneProducerScratchOrderTest extends TestCase
 
         $upload = strpos($source, '$uploader->putFile($artifactLocal)');
         self::assertNotFalse($upload);
-        self::assertLessThan($upload, $destroyBefore);
+        self::assertTrue($upload < $destroyBefore, 'artifact upload must finish before scratch is destroyed');
 
         $sharedRefresh = strpos(
             $source,
@@ -30,7 +30,7 @@ final class PostmacloneProducerScratchOrderTest extends TestCase
             $destroyBefore
         );
         self::assertNotFalse($sharedRefresh);
-        self::assertLessThan($destroyBefore, $sharedRefresh);
+        self::assertTrue($destroyBefore < $sharedRefresh, 'scratch must be destroyed before shared anon restore');
         self::assertStringContainsString('if (!$scratchReleased)', $source);
     }
 }
