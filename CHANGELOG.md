@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.52.0](https://github.com/ngramx/ngramx/compare/v2.51.0...v2.52.0) (2026-10-13)
+
+
+### Features
+
+* wipe factory scratch before shared anon refresh ([ae12c09](https://github.com/ngramx/ngramx/commit/ae12c091e2c5405336a2d333e2363291a3bf1e2e))
+* wipe factory scratch before shared anon refresh ([094ec26](https://github.com/ngramx/ngramx/commit/094ec26f8a907d21f405234415a22df51b8524e1))
+
 # [2.51.0](https://github.com/ngramx/ngramx/compare/v2.50.0...v2.51.0) (2026-10-11)
 
 
