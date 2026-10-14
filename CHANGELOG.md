@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.53.1](https://github.com/ngramx/ngramx/compare/v2.53.0...v2.53.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* fetch semantic-release git notes before publish ([66c96f8](https://github.com/ngramx/ngramx/commit/66c96f80ebbf2f4f4511774d119cfec0cea64513))
+* fetch semantic-release git notes before publish ([bff9277](https://github.com/ngramx/ngramx/commit/bff9277e2241db0cfc607dc672fcafad39b7af03))
+
 # [2.53.0](https://github.com/ngramx/ngramx/compare/v2.52.1...v2.53.0) (2026-10-14)
 
 
