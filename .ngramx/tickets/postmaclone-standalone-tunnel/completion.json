@@ -1,7 +1,7 @@
 {
   "title": "Standalone Postmaclone Tunnel For Shared Anonymized DBs",
   "description": "Adds ngramx postmaclone tunnel with --mysql/--psql to open an SSH hop to shared anonymized clusters using factory engine credentials, without patching project .env.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/46",
   "test_urls": [
     {
       "label": "Ngramx CLI (local)",
