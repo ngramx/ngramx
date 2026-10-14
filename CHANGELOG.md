@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.53.0](https://github.com/ngramx/ngramx/compare/v2.52.1...v2.53.0) (2026-10-14)
+
+
+### Bug Fixes
+
+* postmaclone tunnel review — separate config discovery and error messages ([5acf1a5](https://github.com/ngramx/ngramx/commit/5acf1a5dac2cb9ae3c82d0a7baf9523d0bd7a454))
+
+
+### Features
+
+* add standalone postmaclone tunnel for shared anonymized DBs ([72e5c70](https://github.com/ngramx/ngramx/commit/72e5c702f89cd47586a66ae3e8a63d49078945b7))
+
 ## [2.52.1](https://github.com/ngramx/ngramx/compare/v2.52.0...v2.52.1) (2026-10-14)
 
 
