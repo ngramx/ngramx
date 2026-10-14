@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ngramx\Postmaclone\Restore;
 
+use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\Progress\PercentReporter;
 use Ngramx\Postmaclone\Target\EphemeralTarget;
@@ -22,14 +23,27 @@ class MysqlRestorer implements RestorerInterface
      * No --compress: in-region restores (e.g. lon1 runner → DO Managed MySQL) spend
      * more CPU on zlib than they save on the wire. Large packets keep multi-row INSERTs intact.
      *
-     * sql_require_primary_key=0: DO Managed MySQL rejects CREATE TABLE without a PK (ERROR 3750);
+     * sql_require_primary_key=0 (MySQL only): DO Managed MySQL rejects CREATE TABLE without a PK (ERROR 3750);
      * Hydra prod dumps may include legacy tables that prod allows but managed restore does not.
+     * MariaDB has no such variable; including it fails the whole SET and breaks local Docker restores.
      */
-    /** @var list<string> */
-    public const RESTORE_CLIENT_ARGS = [
-        '--max-allowed-packet=1G',
-        '--init-command=SET SESSION foreign_key_checks=0, unique_checks=0, autocommit=0, sql_require_primary_key=0',
-    ];
+    private const RESTORE_SESSION_INIT_BASE = 'SET SESSION foreign_key_checks=0, unique_checks=0, autocommit=0';
+
+    /**
+     * @return list<string>
+     */
+    public static function restoreClientArgs(EphemeralTarget $target): array
+    {
+        $init = self::RESTORE_SESSION_INIT_BASE;
+        if ($target->engine === PostmacloneConfig::ENGINE_MYSQL) {
+            $init .= ', sql_require_primary_key=0';
+        }
+
+        return [
+            '--max-allowed-packet=1G',
+            '--init-command=' . $init,
+        ];
+    }
 
     /**
      * @var (callable(string): void)|null
@@ -59,7 +73,7 @@ class MysqlRestorer implements RestorerInterface
             $this->appendProgressFilter($in, $dumpPath);
             $this->sanitizer->appendFilter($in);
             $this->progress('Loading dump into scratch (this can take several hours)');
-            $this->mysql->run($target, self::RESTORE_CLIENT_ARGS, $in, self::RESTORE_TIMEOUT_SECONDS);
+            $this->mysql->run($target, self::restoreClientArgs($target), $in, self::RESTORE_TIMEOUT_SECONDS);
             $this->progress('Restore finished');
         } catch (PostmacloneException $e) {
             throw new PostmacloneException(
