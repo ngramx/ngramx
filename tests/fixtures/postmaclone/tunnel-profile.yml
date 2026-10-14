@@ -1,0 +1,10 @@
+version: "1"
+tunnel_profile: true
+engines:
+  postgres:
+    anon:
+      credentials:
+        server: "op://Tech Team Vault/postmaclone-anon-psql/server"
+        port: "op://Tech Team Vault/postmaclone-anon-psql/port"
+        username: "op://Tech Team Vault/postmaclone-anon-psql/username"
+        password: "op://Tech Team Vault/postmaclone-anon-psql/password"

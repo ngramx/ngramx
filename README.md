@@ -724,7 +724,7 @@ ngramx postmaclone tunnel --psql --database my_app_anon   # probe / default sche
 ngramx postmaclone tunnel --psql --local-port 15433     # when 15432 is already in use
 ```
 
-A minimal `tunnel_profile: true` file (engines + optional `connect:` only) is enough; copy `postmaclone.tunnel.example.yml` to `~/.config/ngramx/postmaclone.yml` if you do not keep a factory clone checked out.
+A minimal `tunnel_profile: true` file (engines + optional `connect:` only) is enough; copy `postmaclone.tunnel.example.yml` to `~/.config/ngramx/postmaclone-tunnel.yml` if you do not keep a factory clone checked out. That filename is tunnel-only — `postmaclone produce` still requires a full factory `postmaclone.yml`.
 
 - **Local developers** without a static IP: traffic goes `localhost → SSH (Codabyte) → DO Managed DB`. TablePlus/DBeaver use `127.0.0.1:<local-port>` from `ngramx postmaclone status`. Run `ssh-add` once per session if your key has a passphrase. If `OP_SERVICE_ACCOUNT_TOKEN` is set locally but you are not on a whitelisted IP, set `NGRAMX_FORCE_TUNNEL=1` to keep using the Codabyte SSH hop.
 - **Codabyte / cortex-coder**: set `NGRAMX_TRUSTED_DB_EGRESS=1` and `OP_SERVICE_ACCOUNT_TOKEN` on the `coding-agent` container; `ngramx up` connects directly (droplet IP whitelisted on the cluster).

@@ -7,6 +7,7 @@ namespace Ngramx\Postmaclone\Connect;
 use Ngramx\Codabyte\ServerTargetResolver;
 use Ngramx\Config\Schema\Postmaclone\ConnectConfig;
 use Ngramx\Config\Schema\Postmaclone\DbConnectionConfig;
+use Ngramx\Config\Schema\Postmaclone\DbCredentialsConfig;
 use Ngramx\Config\Schema\Postmaclone\FactoryConfig;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
 use Ngramx\Postmaclone\Connection\ConnectionFactory;
@@ -47,18 +48,14 @@ final class PostmacloneTunnelService
         ?int $localPortOverride = null,
     ): array {
         $engine = $this->normalizeEngine($engine);
-        $anon = $factory->engines[$engine]->anon ?? null;
-        if ($anon === null) {
-            throw new PostmacloneException(
-                "Factory config has no engines.{$engine}.anon credentials for tunnel."
-            );
-        }
+        $anon = $this->requireEngineAnon($factory, $engine);
 
         $lockFile = new PostmacloneTunnelLock($engine);
         if ($lockFile->exists()) {
             if (!$replace) {
+                $flag = $this->engineCliFlag($engine);
                 throw new PostmacloneException(
-                    "A {$engine} tunnel is already open. Run `ngramx postmaclone tunnel disconnect --{$this->engineCliFlag($engine)}` "
+                    "A {$engine} tunnel is already open. Run `ngramx postmaclone tunnel --{$flag} --tunnel-disconnect` "
                     . 'or add --replace.'
                 );
             }
@@ -138,16 +135,12 @@ final class PostmacloneTunnelService
         ?int $localPortOverride = null,
     ): array {
         $engine = $this->normalizeEngine($engine);
-        $anon = $factory->engines[$engine]->anon ?? null;
-        if ($anon === null) {
-            throw new PostmacloneException(
-                "Factory config has no engines.{$engine}.anon credentials for tunnel."
-            );
-        }
+        $anon = $this->requireEngineAnon($factory, $engine);
 
         if ((new PostmacloneTunnelLock($engine))->exists()) {
+            $flag = $this->engineCliFlag($engine);
             throw new PostmacloneException(
-                'A tunnel is already active. Run tunnel disconnect first.'
+                "A tunnel is already active. Run `ngramx postmaclone tunnel --{$flag} --tunnel-disconnect` first."
             );
         }
 
@@ -238,6 +231,19 @@ final class PostmacloneTunnelService
             PostmacloneConfig::ENGINE_POSTGRES => self::DEFAULT_POSTGRES_LOCAL_PORT,
             default => self::DEFAULT_MYSQL_LOCAL_PORT,
         };
+    }
+
+    private function requireEngineAnon(FactoryConfig $factory, string $engine): DbCredentialsConfig
+    {
+        $engineConfig = $factory->engines[$engine] ?? null;
+        $anon = $engineConfig?->anon;
+        if ($anon === null) {
+            throw new PostmacloneException(
+                "Factory config has no engines.{$engine}.anon credentials for tunnel."
+            );
+        }
+
+        return $anon;
     }
 
     private function probeConnection(ParsedConnectionUrl $parsed, int $localPort, string $engine): void

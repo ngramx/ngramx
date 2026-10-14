@@ -1,5 +1,5 @@
 # Standalone SSH tunnel profile for HeidiSQL / TablePlus (no app ngramx.yml).
-# Copy to ~/.config/ngramx/postmaclone.yml or point POSTMACLONE_FACTORY_CONFIG at this file.
+# Copy to ~/.config/ngramx/postmaclone-tunnel.yml or set POSTMACLONE_TUNNEL_CONFIG to this path.
 #
 #   ngramx postmaclone tunnel --psql
 #   ngramx postmaclone tunnel --mysql --tunnel-disconnect

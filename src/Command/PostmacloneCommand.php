@@ -601,10 +601,10 @@ class PostmacloneCommand extends Command
 
         try {
             $configOpt = $input->getOption('config');
-            $factoryPath = $this->configLoader->findFactoryConfigFile(
+            $factoryPath = $this->configLoader->findTunnelConfigFile(
                 is_string($configOpt) && $configOpt !== '' ? $configOpt : null,
             );
-            $factory = $this->configLoader->loadFactory($factoryPath);
+            $factory = $this->configLoader->loadTunnelFactory($factoryPath);
         } catch (\Exception $e) {
             $formatter->error($e->getMessage());
 

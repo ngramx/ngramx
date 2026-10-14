@@ -14,3 +14,4 @@ Adds `ngramx postmaclone tunnel` so developers can reach the shared MySQL/Postgr
 
 - `PostmacloneTunnelService`, home-dir tunnel locks, factory `tunnel_profile` validation
 - `--local-port` for explicit local bind when defaults are busy
+- Review: `findTunnelConfigFile` + `postmaclone-tunnel.yml` home path so produce is not shadowed; fix disconnect hint; safe missing-engine errors
