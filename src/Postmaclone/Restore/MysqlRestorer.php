@@ -21,11 +21,14 @@ class MysqlRestorer implements RestorerInterface
      *
      * No --compress: in-region restores (e.g. lon1 runner → DO Managed MySQL) spend
      * more CPU on zlib than they save on the wire. Large packets keep multi-row INSERTs intact.
+     *
+     * sql_require_primary_key=0: DO Managed MySQL rejects CREATE TABLE without a PK (ERROR 3750);
+     * Hydra prod dumps may include legacy tables that prod allows but managed restore does not.
      */
     /** @var list<string> */
     public const RESTORE_CLIENT_ARGS = [
         '--max-allowed-packet=1G',
-        '--init-command=SET SESSION foreign_key_checks=0, unique_checks=0, autocommit=0',
+        '--init-command=SET SESSION foreign_key_checks=0, unique_checks=0, autocommit=0, sql_require_primary_key=0',
     ];
 
     /**
