@@ -30,8 +30,28 @@ final class MysqlRestorerTest extends TestCase
 
         (new MysqlRestorer($runner))->restore($dump, $this->target());
 
-        self::assertSame(MysqlRestorer::RESTORE_CLIENT_ARGS, $seenArgs);
+        self::assertSame(MysqlRestorer::restoreClientArgs($this->target()), $seenArgs);
         self::assertNull($seenTimeout);
+        @unlink($dump);
+    }
+
+    public function test_restore_mariadb_init_command_omits_sql_require_primary_key(): void
+    {
+        $dump = $this->writeDump("INSERT INTO t VALUES (1);\n");
+        $seenArgs = null;
+
+        $runner = $this->createMock(MysqlRunner::class);
+        $runner->expects($this->once())
+            ->method('run')
+            ->willReturnCallback(function ($target, array $args, $stdin) use (&$seenArgs): void {
+                $seenArgs = $args;
+                stream_get_contents($stdin);
+            });
+
+        (new MysqlRestorer($runner))->restore($dump, $this->target(engine: 'mariadb'));
+
+        self::assertSame(MysqlRestorer::restoreClientArgs($this->target(engine: 'mariadb')), $seenArgs);
+        self::assertStringNotContainsString('sql_require_primary_key', $seenArgs[1] ?? '');
         @unlink($dump);
     }
 
@@ -98,11 +118,11 @@ final class MysqlRestorerTest extends TestCase
         return $path;
     }
 
-    private function target(): EphemeralTarget
+    private function target(string $engine = 'mysql'): EphemeralTarget
     {
         return new EphemeralTarget(
             provider: 'remote',
-            engine: 'mysql',
+            engine: $engine,
             host: 'db.example.com',
             port: 25060,
             database: 'hydra_prod_scratch',
