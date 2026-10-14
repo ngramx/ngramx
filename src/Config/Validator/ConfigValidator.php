@@ -252,6 +252,14 @@ class ConfigValidator
      */
     public function validateFactory(array $config): void
     {
+        $tunnelProfile = ($config['tunnel_profile'] ?? false) === true;
+
+        if ($tunnelProfile) {
+            $this->validateFactoryTunnelProfile($config);
+
+            return;
+        }
+
         if (!isset($config['datasets']) || !is_array($config['datasets']) || $config['datasets'] === []) {
             throw new ConfigException('Factory postmaclone.yml requires a non-empty datasets map');
         }
@@ -304,6 +312,32 @@ class ConfigValidator
                 $this->validatePostmacloneShared($dataset['shared'], "datasets.{$name}.shared", credentialsOptional: true);
                 $this->validateDatasetSharedEngineFallback($config, $name, $dataset);
             }
+        }
+    }
+
+    /**
+     * Minimal factory profile for `ngramx postmaclone tunnel` (engines + optional connect only).
+     *
+     * @param array<string, mixed> $config
+     * @throws ConfigException
+     */
+    private function validateFactoryTunnelProfile(array $config): void
+    {
+        if (!isset($config['engines']) || !is_array($config['engines']) || $config['engines'] === []) {
+            throw new ConfigException('tunnel_profile postmaclone.yml requires a non-empty engines map');
+        }
+
+        $this->validateEngineConnections($config['engines']);
+
+        $hasAnon = false;
+        foreach ($config['engines'] as $roles) {
+            if (is_array($roles) && isset($roles['anon']['credentials']) && is_array($roles['anon']['credentials'])) {
+                $hasAnon = true;
+                break;
+            }
+        }
+        if (!$hasAnon) {
+            throw new ConfigException('tunnel_profile requires engines.<engine>.anon.credentials for at least one engine');
         }
     }
 

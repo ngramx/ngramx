@@ -1,0 +1,48 @@
+{
+  "title": "Standalone Postmaclone Tunnel For Shared Anonymized DBs",
+  "description": "Adds ngramx postmaclone tunnel with --mysql/--psql to open an SSH hop to shared anonymized clusters using factory engine credentials, without patching project .env.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/46",
+  "test_urls": [
+    {
+      "label": "Ngramx CLI (local)",
+      "url": "http://localhost"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Open and close a Postgres standalone tunnel",
+      "status": "stale",
+      "steps": [
+        "Copy postmaclone.tunnel.example.yml to ~/.config/ngramx/postmaclone.yml and ensure op CLI is signed in",
+        "Run ngramx postmaclone tunnel --psql",
+        "Confirm output shows 127.0.0.1 and a local port, then connect with HeidiSQL using printed user/host/port",
+        "Run ngramx postmaclone tunnel --psql --tunnel-disconnect and confirm the tunnel stops"
+      ]
+    },
+    {
+      "description": "Custom local port when default is in use",
+      "status": "stale",
+      "steps": [
+        "With a tunnel already on 15432, run ngramx postmaclone tunnel --psql --local-port 15433",
+        "Confirm HeidiSQL can connect on 15433"
+      ]
+    },
+    {
+      "description": "Tunnel profile does not break factory produce",
+      "status": "active",
+      "steps": [
+        "Copy postmaclone.tunnel.example.yml to ~/.config/ngramx/postmaclone-tunnel.yml",
+        "From the postmaclone-factory repo run ngramx postmaclone produce --all (or --dry-run if available) and confirm it still loads the repo postmaclone.yml with datasets",
+        "Run ngramx postmaclone tunnel --psql and confirm it loads the home tunnel profile"
+      ]
+    },
+    {
+      "description": "Review feedback: errors and missing engine",
+      "status": "active",
+      "steps": [
+        "Start a tunnel, run tunnel --psql again without --replace and confirm the error cites --tunnel-disconnect not tunnel disconnect",
+        "With a postgres-only tunnel profile, run ngramx postmaclone tunnel --mysql and confirm a clear missing engines.mysql.anon message (no PHP fatal)"
+      ]
+    }
+  ]
+}

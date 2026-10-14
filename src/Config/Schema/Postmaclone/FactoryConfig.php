@@ -16,6 +16,7 @@ readonly class FactoryConfig
         public array $engines = [],
         public string $locale = PostmacloneConfig::DEFAULT_LOCALE,
         public ?int $seed = 42,
+        public ?ConnectConfig $connect = null,
     ) {
     }
 }

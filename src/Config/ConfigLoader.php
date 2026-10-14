@@ -196,6 +196,14 @@ class ConfigLoader
             return $path;
         }
 
+        $fromEnv = getenv('POSTMACLONE_FACTORY_CONFIG');
+        if (is_string($fromEnv) && $fromEnv !== '') {
+            $path = $this->resolveConfigPath($fromEnv);
+            if (file_exists($path)) {
+                return $path;
+            }
+        }
+
         $currentDir = getcwd();
         if ($currentDir === false) {
             throw new ConfigException('Failed to get current working directory');
@@ -227,9 +235,123 @@ class ConfigLoader
     }
 
     /**
+     * Discover config for `ngramx postmaclone tunnel` (tunnel profile or full factory).
+     *
+     * @throws ConfigException
+     */
+    public function findTunnelConfigFile(?string $explicit = null): string
+    {
+        if ($explicit !== null && $explicit !== '') {
+            $path = $this->resolveConfigPath($explicit);
+            if (!file_exists($path)) {
+                throw new ConfigException("Tunnel configuration file not found: {$path}");
+            }
+
+            return $path;
+        }
+
+        foreach (['POSTMACLONE_TUNNEL_CONFIG', 'POSTMACLONE_FACTORY_CONFIG'] as $envName) {
+            $fromEnv = getenv($envName);
+            if (!is_string($fromEnv) || $fromEnv === '') {
+                continue;
+            }
+            $path = $this->resolveConfigPath($fromEnv);
+            if (file_exists($path)) {
+                return $path;
+            }
+        }
+
+        foreach ($this->tunnelConfigHomeCandidates() as $candidate) {
+            if (file_exists($candidate)) {
+                return $candidate;
+            }
+        }
+
+        $currentDir = getcwd();
+        if ($currentDir === false) {
+            throw new ConfigException('Failed to get current working directory');
+        }
+
+        $maxDepth = 10;
+        $depth = 0;
+        while ($depth < $maxDepth) {
+            foreach (['postmaclone-tunnel.yml', 'postmaclone-tunnel.yaml', 'postmaclone.yml', 'postmaclone.yaml'] as $name) {
+                $candidate = $currentDir . '/' . $name;
+                if (file_exists($candidate)) {
+                    return $candidate;
+                }
+            }
+            if (file_exists($currentDir . '/.git')) {
+                break;
+            }
+            $parent = dirname($currentDir);
+            if ($parent === $currentDir) {
+                break;
+            }
+            $currentDir = $parent;
+            $depth++;
+        }
+
+        throw new ConfigException(
+            'Tunnel config not found. Set POSTMACLONE_TUNNEL_CONFIG, add ~/.config/ngramx/postmaclone-tunnel.yml, '
+            . 'use a factory postmaclone.yml, or pass --config.'
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tunnelConfigHomeCandidates(): array
+    {
+        $home = getenv('HOME');
+        if (!is_string($home) || $home === '') {
+            return [];
+        }
+
+        $candidates = [];
+        foreach (['postmaclone-tunnel.yml', 'postmaclone-tunnel.yaml'] as $name) {
+            $candidates[] = $home . '/.config/ngramx/' . $name;
+            $candidates[] = $home . '/.ngramx/' . $name;
+        }
+
+        return $candidates;
+    }
+
+    /**
      * @throws ConfigException
      */
     public function loadFactory(string $path): FactoryConfig
+    {
+        $config = $this->parseFactoryYamlFile($path);
+
+        if (($config['tunnel_profile'] ?? false) === true) {
+            throw new ConfigException(
+                'tunnel_profile postmaclone.yml is for `ngramx postmaclone tunnel` only, not produce. '
+                . 'Use a full factory config or pass --config to the factory postmaclone.yml.'
+            );
+        }
+
+        $this->validator->validateFactory($config);
+
+        return $this->buildFactoryConfig($config);
+    }
+
+    /**
+     * @throws ConfigException
+     */
+    public function loadTunnelFactory(string $path): FactoryConfig
+    {
+        $config = $this->parseFactoryYamlFile($path);
+        $this->validator->validateFactory($config);
+
+        return $this->buildFactoryConfig($config);
+    }
+
+    /**
+     * @return array<string, mixed>
+     * @throws ConfigException
+     */
+    private function parseFactoryYamlFile(string $path): array
     {
         $filePath = $this->resolveConfigPath($path);
         if (!file_exists($filePath)) {
@@ -251,9 +373,7 @@ class ConfigLoader
             throw new ConfigException('Invalid factory configuration: expected array');
         }
 
-        $this->validator->validateFactory($config);
-
-        return $this->buildFactoryConfig($config);
+        return $config;
     }
 
     /**
@@ -275,12 +395,15 @@ class ConfigLoader
             $datasets[$name] = $this->buildFactoryDataset($name, $dataset, $locale, $seed, $engines);
         }
 
+        $connectRaw = is_array($config['connect'] ?? null) ? $config['connect'] : null;
+
         return new FactoryConfig(
             version: isset($config['version']) ? (string) $config['version'] : '1',
             datasets: $datasets,
             engines: $engines,
             locale: $locale,
             seed: $seed,
+            connect: $this->buildConnectConfig($connectRaw),
         );
     }
 

@@ -107,6 +107,28 @@ YAML);
         }
     }
 
+    public function test_tunnel_requires_engine_flag(): void
+    {
+        $command = new PostmacloneCommand(new ConfigLoader(new ConfigValidator()));
+        $tester = new CommandTester($command);
+        $exit = $tester->execute(['action' => 'tunnel']);
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('requires exactly one of --mysql or --psql', $tester->getDisplay());
+    }
+
+    public function test_tunnel_rejects_invalid_local_port(): void
+    {
+        $command = new PostmacloneCommand(new ConfigLoader(new ConfigValidator()));
+        $tester = new CommandTester($command);
+        $exit = $tester->execute([
+            'action' => 'tunnel',
+            '--psql' => true,
+            '--local-port' => 'abc',
+        ]);
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('--local-port must be a positive integer', $tester->getDisplay());
+    }
+
     public function test_sql_requires_from(): void
     {
         $cwd = getcwd();

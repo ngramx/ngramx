@@ -1,0 +1,31 @@
+# Standalone SSH tunnel profile for HeidiSQL / TablePlus (no app ngramx.yml).
+# Copy to ~/.config/ngramx/postmaclone-tunnel.yml or set POSTMACLONE_TUNNEL_CONFIG to this path.
+#
+#   ngramx postmaclone tunnel --psql
+#   ngramx postmaclone tunnel --mysql --tunnel-disconnect
+
+version: "1"
+tunnel_profile: true
+
+engines:
+  postgres:
+    anon:
+      credentials:
+        server: "op://Tech Team Vault/postmaclone-anon-psql/server"
+        port: "op://Tech Team Vault/postmaclone-anon-psql/port"
+        username: "op://Tech Team Vault/postmaclone-anon-psql/username"
+        password: "op://Tech Team Vault/postmaclone-anon-psql/password"
+        connection_options: "op://Tech Team Vault/postmaclone-anon-psql/connection options"
+  mysql:
+    anon:
+      credentials:
+        server: "op://Tech Team Vault/postmaclone-anon-mysql/server"
+        port: "op://Tech Team Vault/postmaclone-anon-mysql/port"
+        username: "op://Tech Team Vault/postmaclone-anon-mysql/username"
+        password: "op://Tech Team Vault/postmaclone-anon-mysql/password"
+
+# connect:                      # optional Codabyte SSH hop overrides
+#   tunnel_host: codabyte.gigabyte.software
+#   tunnel_user: forge
+#   local_port: 15432           # default when omitted; mysql defaults to 13306
+# Or per run: ngramx postmaclone tunnel --psql --local-port 15433
