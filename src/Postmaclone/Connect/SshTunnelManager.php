@@ -274,10 +274,16 @@ final class SshTunnelManager
         return true;
     }
 
-    public function allocateLocalPort(?int $preferred = null): int
+    public function allocateLocalPort(?int $preferred = null, bool $exact = false): int
     {
         if ($preferred !== null && $this->isPortFree($preferred)) {
             return $preferred;
+        }
+
+        if ($exact && $preferred !== null) {
+            throw new PostmacloneException(
+                "Local port {$preferred} is already in use. Pick another port with --local-port or stop the other tunnel."
+            );
         }
 
         for ($port = 15432; $port <= 15532; ++$port) {

@@ -6,11 +6,13 @@ namespace Ngramx\Command;
 
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\Postmaclone\FactoryConfig;
 use Ngramx\Output\OutputFormatter;
 use Ngramx\Codabyte\SshRunner;
 use Ngramx\Postmaclone\Backup\S3Credentials;
 use Ngramx\Postmaclone\Connect\PostmacloneConnectLockData;
 use Ngramx\Postmaclone\Connect\PostmacloneConnectService;
+use Ngramx\Postmaclone\Connect\PostmacloneTunnelService;
 use Ngramx\Postmaclone\Connect\TrustedEgressDetector;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\PostmacloneDoctor;
@@ -29,6 +31,7 @@ class PostmacloneCommand extends Command
         private readonly PostmacloneService $service = new PostmacloneService(),
         private readonly PostmacloneProducer $producer = new PostmacloneProducer(),
         private readonly PostmacloneConnectService $connectService = new PostmacloneConnectService(),
+        private readonly PostmacloneTunnelService $tunnelService = new PostmacloneTunnelService(),
         private readonly SshRunner $sshRunner = new SshRunner(),
     ) {
         parent::__construct();
@@ -42,7 +45,7 @@ class PostmacloneCommand extends Command
             ->addArgument(
                 'action',
                 InputArgument::OPTIONAL,
-                'Optional lifecycle action: down | disconnect | status | doctor | connect | produce (omit to create a clone)',
+                'Optional lifecycle action: down | disconnect | status | doctor | connect | tunnel | produce (omit to create a clone)',
                 null
             )
             ->addOption('from', null, InputOption::VALUE_REQUIRED, 'Dump path, connection URL, or s3:// / spaces:// URI')
@@ -60,8 +63,13 @@ class PostmacloneCommand extends Command
             ->addOption('all', null, InputOption::VALUE_NONE, 'With produce: process every dataset in factory postmaclone.yml')
             ->addOption('dataset', null, InputOption::VALUE_REQUIRED, 'With produce: process a single dataset name')
             ->addOption('config', 'c', InputOption::VALUE_REQUIRED, 'With produce: path to factory postmaclone.yml')
-            ->addOption('foreground', null, InputOption::VALUE_NONE, 'With connect: run SSH tunnel in foreground (passphrase-friendly)')
-            ->addOption('no-probe', null, InputOption::VALUE_NONE, 'With connect: skip SELECT 1 connection probe');
+            ->addOption('foreground', null, InputOption::VALUE_NONE, 'With connect/tunnel: run SSH tunnel in foreground (passphrase-friendly)')
+            ->addOption('no-probe', null, InputOption::VALUE_NONE, 'With connect/tunnel: skip SELECT 1 connection probe')
+            ->addOption('mysql', null, InputOption::VALUE_NONE, 'With tunnel: open SSH tunnel to the shared MySQL anonymized cluster')
+            ->addOption('psql', null, InputOption::VALUE_NONE, 'With tunnel: open SSH tunnel to the shared Postgres anonymized cluster')
+            ->addOption('database', null, InputOption::VALUE_REQUIRED, 'With tunnel: database name for credentials probe (default postgres/mysql)')
+            ->addOption('tunnel-disconnect', null, InputOption::VALUE_NONE, 'With tunnel: stop the standalone tunnel for the selected engine')
+            ->addOption('local-port', null, InputOption::VALUE_REQUIRED, 'With tunnel: local TCP port for 127.0.0.1 (must be free; default scans from engine default if busy)');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -72,6 +80,10 @@ class PostmacloneCommand extends Command
 
         if ($action === 'produce') {
             return $this->runProduce($formatter, $input);
+        }
+
+        if ($action === 'tunnel') {
+            return $this->runTunnel($formatter, $input);
         }
 
         try {
@@ -106,7 +118,7 @@ class PostmacloneCommand extends Command
                 return $this->runDoctor($formatter, $config, $projectRoot, $input);
             }
             if ($action !== null && $action !== '') {
-                $formatter->error("Unknown action '{$action}'. Use: ngramx postmaclone [|down|disconnect|connect|status|doctor|produce]");
+                $formatter->error("Unknown action '{$action}'. Use: ngramx postmaclone [|down|disconnect|connect|tunnel|status|doctor|produce]");
 
                 return Command::FAILURE;
             }
@@ -567,6 +579,170 @@ class PostmacloneCommand extends Command
         $formatter->info('  Tear down when finished: ngramx postmaclone down');
 
         return Command::SUCCESS;
+    }
+
+    private function runTunnel(OutputFormatter $formatter, InputInterface $input): int
+    {
+        $engine = $this->resolveTunnelEngineOption($input);
+        if ($engine === null) {
+            $formatter->error('tunnel requires exactly one of --mysql or --psql');
+
+            return Command::FAILURE;
+        }
+
+        $localPort = $this->resolveLocalPortOption($input, $formatter);
+        if ($localPort === false) {
+            return Command::FAILURE;
+        }
+
+        if ((bool) $input->getOption('tunnel-disconnect')) {
+            return $this->runTunnelDisconnect($formatter, $engine, (bool) $input->getOption('force'));
+        }
+
+        try {
+            $configOpt = $input->getOption('config');
+            $factoryPath = $this->configLoader->findFactoryConfigFile(
+                is_string($configOpt) && $configOpt !== '' ? $configOpt : null,
+            );
+            $factory = $this->configLoader->loadFactory($factoryPath);
+        } catch (\Exception $e) {
+            $formatter->error($e->getMessage());
+
+            return Command::FAILURE;
+        }
+
+        $formatter->welcome('Post Maclone tunnel');
+        $formatter->info('Factory config: ' . $factoryPath);
+        $databaseOpt = $input->getOption('database');
+        $database = is_string($databaseOpt) && $databaseOpt !== '' ? $databaseOpt : null;
+        $probe = !(bool) $input->getOption('no-probe');
+        $replace = (bool) $input->getOption('replace');
+
+        try {
+            if ((bool) $input->getOption('foreground')) {
+                return $this->runTunnelForeground($formatter, $factory, $engine, $database, $localPort);
+            }
+
+            $result = $this->tunnelService->open(
+                factory: $factory,
+                engine: $engine,
+                database: $database,
+                probe: $probe,
+                replace: $replace,
+                localPortOverride: $localPort,
+            );
+        } catch (PostmacloneException $e) {
+            $formatter->error($e->getMessage());
+
+            return Command::FAILURE;
+        }
+
+        $lock = $result['lock'];
+        $formatter->success('SSH tunnel open for shared anonymized ' . $lock->engine);
+        $formatter->info('  SQL client: ' . $lock->ideHost . ':' . $lock->idePort);
+        $formatter->info('  Database:   ' . $lock->database . ' (use --database to probe a different default schema)');
+        $formatter->info('  User:       ' . $lock->username);
+        $formatter->info('  Remote:     ' . $lock->remoteHost . ':' . $lock->remotePort . ' via Codabyte');
+        if ($lock->tunnelPid !== null) {
+            $formatter->info('  Tunnel pid: ' . $lock->tunnelPid);
+        }
+        $flag = $this->tunnelService->engineCliFlag($lock->engine);
+        $formatter->info("  Close:      ngramx postmaclone tunnel --{$flag} --tunnel-disconnect");
+
+        return Command::SUCCESS;
+    }
+
+    private function runTunnelForeground(
+        OutputFormatter $formatter,
+        FactoryConfig $factory,
+        string $engine,
+        ?string $database,
+        ?int $localPort,
+    ): int {
+        try {
+            $prepared = $this->tunnelService->prepareForeground($factory, $engine, $database, $localPort);
+        } catch (PostmacloneException $e) {
+            $formatter->error($e->getMessage());
+
+            return Command::FAILURE;
+        }
+
+        $lock = $prepared['lock'];
+        $formatter->info("Starting SSH tunnel on 127.0.0.1:{$lock->localPort} (Ctrl-C to close)…");
+        $formatter->info('SQL client: ' . $lock->ideHost . ':' . $lock->idePort . ' / user ' . $lock->username);
+
+        $exit = $this->sshRunner->run($prepared['tunnel_args']);
+        try {
+            $this->tunnelService->close($engine, force: true);
+        } catch (PostmacloneException) {
+        }
+
+        return $exit === 0 ? Command::SUCCESS : Command::FAILURE;
+    }
+
+    private function runTunnelDisconnect(OutputFormatter $formatter, string $engine, bool $force): int
+    {
+        $formatter->welcome('Post Maclone tunnel disconnect');
+        try {
+            $closed = $this->tunnelService->close($engine, $force);
+        } catch (PostmacloneException $e) {
+            $formatter->error($e->getMessage());
+
+            return Command::FAILURE;
+        }
+
+        if (!$closed) {
+            $formatter->info('No active standalone tunnel for that engine.');
+
+            return Command::SUCCESS;
+        }
+
+        $formatter->success('Tunnel stopped.');
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * @return int|null|false null = use defaults; false = invalid CLI value
+     */
+    private function resolveLocalPortOption(InputInterface $input, OutputFormatter $formatter): int|null|false
+    {
+        $raw = $input->getOption('local-port');
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+
+        if (!ctype_digit($raw)) {
+            $formatter->error('--local-port must be a positive integer');
+
+            return false;
+        }
+
+        $port = (int) $raw;
+        if ($port <= 0 || $port > 65535) {
+            $formatter->error('--local-port must be between 1 and 65535');
+
+            return false;
+        }
+
+        return $port;
+    }
+
+    private function resolveTunnelEngineOption(InputInterface $input): ?string
+    {
+        $mysql = (bool) $input->getOption('mysql');
+        $psql = (bool) $input->getOption('psql');
+        if ($mysql && $psql) {
+            return null;
+        }
+        if ($mysql) {
+            return 'mysql';
+        }
+        if ($psql) {
+            return 'postgres';
+        }
+
+        return null;
     }
 
     private function runProduce(OutputFormatter $formatter, InputInterface $input): int

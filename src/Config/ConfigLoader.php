@@ -196,6 +196,20 @@ class ConfigLoader
             return $path;
         }
 
+        $fromEnv = getenv('POSTMACLONE_FACTORY_CONFIG');
+        if (is_string($fromEnv) && $fromEnv !== '') {
+            $path = $this->resolveConfigPath($fromEnv);
+            if (file_exists($path)) {
+                return $path;
+            }
+        }
+
+        foreach ($this->factoryConfigHomeCandidates() as $candidate) {
+            if (file_exists($candidate)) {
+                return $candidate;
+            }
+        }
+
         $currentDir = getcwd();
         if ($currentDir === false) {
             throw new ConfigException('Failed to get current working directory');
@@ -222,8 +236,28 @@ class ConfigLoader
         }
 
         throw new ConfigException(
-            'Factory config not found. Create postmaclone.yml (or pass --config) in the factory repo.'
+            'Factory config not found. Set POSTMACLONE_FACTORY_CONFIG, add ~/.config/ngramx/postmaclone.yml, '
+            . 'create postmaclone.yml in the factory repo, or pass --config.'
         );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function factoryConfigHomeCandidates(): array
+    {
+        $home = getenv('HOME');
+        if (!is_string($home) || $home === '') {
+            return [];
+        }
+
+        $candidates = [];
+        foreach (['postmaclone.yml', 'postmaclone.yaml'] as $name) {
+            $candidates[] = $home . '/.config/ngramx/' . $name;
+            $candidates[] = $home . '/.ngramx/' . $name;
+        }
+
+        return $candidates;
     }
 
     /**
@@ -275,12 +309,15 @@ class ConfigLoader
             $datasets[$name] = $this->buildFactoryDataset($name, $dataset, $locale, $seed, $engines);
         }
 
+        $connectRaw = is_array($config['connect'] ?? null) ? $config['connect'] : null;
+
         return new FactoryConfig(
             version: isset($config['version']) ? (string) $config['version'] : '1',
             datasets: $datasets,
             engines: $engines,
             locale: $locale,
             seed: $seed,
+            connect: $this->buildConnectConfig($connectRaw),
         );
     }
 
