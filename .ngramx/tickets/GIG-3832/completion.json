@@ -1,0 +1,23 @@
+{
+  "title": "GIG-3832: Flag PRs That Introduce Outbound Communications",
+  "description": "Adds a forced-escalation category to the create-pr skill so pull requests that introduce or enable outbound communications are labelled risk:high.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-3832/add-pr-risk-heuristic-flag-prs-that-introduce-outbound-communications",
+  "test_urls": [
+    {
+      "label": "create-pr skill",
+      "url": "https://github.com/ngramx/ngramx/blob/gig-3832-add-pr-risk-heuristic-flag-prs-that-introduce-outbound/templates/skills/create-pr/SKILL.md"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Synced create-pr skill includes the outbound communications rule",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Agents/AgentsSyncOrchestratorTest.php --filter test_sync_creates_prefixed_skills_in_cursor_directory --no-coverage",
+        "Open templates/skills/create-pr/SKILL.md and confirm the Forced escalation section requires risk:high for new or newly enabled email, SMS, letters, scheduled or queued senders, and bulk mail",
+        "Confirm wording edits to an existing sender on the same trigger and audience stay on the normal risk scale"
+      ]
+    }
+  ]
+}
