@@ -31,7 +31,7 @@ Every PR gets two labels — one for risk, one for size. The merge automation re
 
 - `risk:low` — docs, tests-only, comments, dependency bumps with passing CI, isolated UI tweaks, internal tooling
 - `risk:medium` — feature work or refactors that touch shared code but follow established patterns
-- `risk:high` — auth, payments, migrations, infra/deployment, customer data, external integrations, anything that could cause an outage or data loss
+- `risk:high` — auth, payments, migrations, infra/deployment, customer data, external integrations, outbound communications (see Forced escalation), anything that could cause an outage or data loss
 
 **Size:**
 
@@ -44,6 +44,24 @@ Every PR gets two labels — one for risk, one for size. The merge automation re
 - When in doubt, escalate. Default to higher risk and larger size.
 - Include a one-line rationale in the PR description, e.g. *"Labelled `risk:low` because only touches docs and tests."*
 - Never open a PR without both labels.
+
+## Forced escalation
+
+Some diffs must be labelled `risk:high` even when they are small. Auto-merge only proceeds for `risk:low` together with `size:small`, so `risk:high` keeps a person in the review.
+
+Add further categories in this section. Each category names the label, the signals that force it, and the edits that stay on the normal risk scale.
+
+### Outbound communications
+
+Label `risk:high` when the pull request introduces or enables a process that sends messages to people:
+
+- Email, SMS, letters, or other external dispatch. This includes a new sender, and config, flags, or schedules that turn an existing sender on.
+- Scheduled commands, queued jobs, listeners, or webhooks whose purpose is to send those messages.
+- Bulk mail, including bulk internal mail.
+
+Name the send path in the risk rationale, for example: *"Labelled `risk:high` because this schedules the weekly digest email to clients."*
+
+Wording, template, and copy edits stay on the normal risk scale when the sender already sends on the same trigger to the same audience.
 
 ## Linear status — leave it alone
 

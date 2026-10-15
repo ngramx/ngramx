@@ -1,0 +1,16 @@
+{
+  "id": "GIG-3832",
+  "title": "Add PR risk heuristic: flag PRs that introduce outbound communications",
+  "description": "## Background\n\nTwo recent incidents (Block Debt weekly digest and Earl Kendrick invoice forecasting) involved features being released to production that sent bulk emails to external recipients without client sign-off. In both cases the developers didn't recognise the risk of enabling outbound communications without a demo/approval cycle.\n\nRob wants to build a PR risk scoring heuristic that would automatically flag PRs as high-risk when they introduce or enable:\n\n* Scheduled or triggered email sends to external recipients\n* Bulk internal communications\n* Any automated process that dispatches letters, SMS, or other external comms\n\nThis was discussed as a task for Wilkie to work on. The risk score should surface in the PR review process so that high-risk PRs get additional human review before merging.\n\n## Requirements\n\n* Define heuristics that detect outbound communication patterns in PRs (e.g. email dispatch, scheduled jobs, queue dispatches for notifications)\n* Integrate with the existing PR review/scoring tooling\n* Flag PRs matching these heuristics as requiring additional review\n* Document the heuristic so it can be extended to other risk categories in future\n\n## Goal\n\nCatch high-risk releases before they reach production by automatically identifying PRs that could result in unsolicited external communications. This is a systemic fix to prevent the class of incidents seen with Block Debt and Earl Kendrick.",
+  "url": "https://linear.app/gigabyte/issue/GIG-3832/add-pr-risk-heuristic-flag-prs-that-introduce-outbound-communications",
+  "status": "In Progress",
+  "priority": 3,
+  "estimate": 4,
+  "assignee": "Wilkie Hoare",
+  "createdBy": "Rob Corley",
+  "team": "Gigabyte",
+  "project": null,
+  "projectMilestone": null,
+  "labels": ["Gigabyte Software"],
+  "gitBranchName": "gig-3832-add-pr-risk-heuristic-flag-prs-that-introduce-outbound"
+}
