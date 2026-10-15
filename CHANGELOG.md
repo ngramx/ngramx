@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.54.0](https://github.com/ngramx/ngramx/compare/v2.53.1...v2.54.0) (2026-10-15)
+
+
+### Features
+
+* flag outbound communications as high-risk in create-pr ([037df73](https://github.com/ngramx/ngramx/commit/037df73215613f0b714494df9f41ca3fd8464aa5))
+
 ## [2.53.1](https://github.com/ngramx/ngramx/compare/v2.53.0...v2.53.1) (2026-10-14)
 
 
