@@ -14,3 +14,4 @@ Flag pull requests that introduce or enable outbound communications so they get 
 ## Changes
 
 - Ticket folder created; branch `gig-3832-add-pr-risk-heuristic-flag-prs-that-introduce-outbound` started from `origin/main` with no upstream.
+- Added a Forced escalation section to `templates/skills/create-pr/SKILL.md`. Outbound communications (new or newly enabled email, SMS, letters, scheduled or queued senders, and bulk mail) must be labelled `risk:high`. Copy edits to an existing sender on the same trigger and audience stay on the normal scale. Further risk categories can be added in that section the same way.
