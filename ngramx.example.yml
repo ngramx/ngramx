@@ -245,6 +245,9 @@ agents:
 # {url}, {repository_path}, {folder}, {project_path}
 #
 # hooks:
+#   onReview:
+#     - command: "zed {path}"
+#       description: "Open the review in Zed"
 #   onWorktreeCreate:
 #     - command: "cursor --new-window {worktree_path}"
 #       description: "Open the worktree in Cursor"

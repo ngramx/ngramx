@@ -16,6 +16,7 @@ use Ngramx\Config\LockFile;
 use Ngramx\Config\LockFileData;
 use Ngramx\Config\Schema\DockerConfig;
 use Ngramx\Config\Schema\HookEvent;
+use Ngramx\Config\Schema\HooksConfig;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Validator\SecretsValidator;
 use Ngramx\Database\TablePlusLinkResolver;
@@ -35,6 +36,7 @@ use Ngramx\Http\UrlPortOffset;
 use Ngramx\Laravel\LaravelService;
 use Ngramx\Orchestrator\CommandOrchestrator;
 use Ngramx\Output\OutputFormatter;
+use Ngramx\Review\PostReviewEditor;
 use Ngramx\Worktree\CursorIpcHookResolver;
 use Ngramx\Worktree\WorktreeCertSeeder;
 use Ngramx\Worktree\WorktreeDependencyPrimer;
@@ -125,7 +127,8 @@ class ReviewCommand extends Command
             ->addArgument('ticket', InputArgument::OPTIONAL, 'The ticket number to prepare for review. Optional with --cleanup, where it targets a single worktree (omit it to clean up every worktree).')
             ->addOption('quick', null, InputOption::VALUE_NONE, 'Use the "clear" command instead of "fresh" — skips the database reset. Only safe on branches with no schema or seed changes.')
             ->addOption('worktree', 'w', InputOption::VALUE_NONE, 'Review in an isolated git worktree + parallel dev environment under .ngramx/worktrees/ instead of checking the branch out in place')
-            ->addOption('cursor', 'c', InputOption::VALUE_NONE, 'Open the worktree in a new Cursor window once it is ready (implies --worktree)')
+            ->addOption('cursor', 'c', InputOption::VALUE_NONE, 'Open the worktree in an editor once it is ready (implies --worktree). Uses hooks.onReview when that is set, otherwise Cursor.')
+            ->addOption('editor', null, InputOption::VALUE_REQUIRED, 'Open this editor when the review is ready (e.g. zed, code, cursor, or a command using {path}). Overrides hooks.onReview and implies --worktree.')
             ->addOption('all', null, InputOption::VALUE_NONE, 'With --cleanup: target every worktree, without asking.')
             ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. The argument can be a ticket, a list index, a namespace, or any fragment of a worktree or branch name; ambiguous matches ask which one. With no argument you pick from a list (including "all").')
             ->addOption('no-host-mapping', null, InputOption::VALUE_NONE, 'Do not expose container ports to the host. Use on shared or headless machines where host ports may already be taken; reach the app over the Docker network instead.')
@@ -139,9 +142,13 @@ class ReviewCommand extends Command
         $ticketNumber = is_string($ticketArgument) ? trim($ticketArgument) : '';
         $hasTicket = $ticketNumber !== '';
 
-        // --cursor implies worktree mode: you can only open a parallel Cursor window
-        // if there is a separate worktree for it to live in.
-        $worktreeMode = (bool) $input->getOption('worktree') || (bool) $input->getOption('cursor');
+        // --cursor and --editor imply worktree mode: a second editor window needs
+        // a separate checkout so the main working tree stays put.
+        $editorOption = $input->getOption('editor');
+        $editorRequested = is_string($editorOption) && trim($editorOption) !== '';
+        $worktreeMode = (bool) $input->getOption('worktree')
+            || (bool) $input->getOption('cursor')
+            || $editorRequested;
 
         try {
             $configPath = $this->configLoader->findConfigFile();
@@ -319,6 +326,27 @@ class ReviewCommand extends Command
                 !(bool) $input->getOption('no-host-mapping'),
             );
             $this->displayCompletionUrls($repositoryPath, $ticketNumber, $formatter, $config->docker, $environmentUrls, $authBypass->deepLinks);
+
+            $resolvedRepositoryPath = realpath($repositoryPath) ?: $repositoryPath;
+            if (!$this->launchPostReviewEditor(
+                $input,
+                $repositoryPath,
+                $resolvedRepositoryPath,
+                [
+                    'worktree_path' => $resolvedRepositoryPath,
+                    'path' => $resolvedRepositoryPath,
+                    'branch' => $selectedBranch,
+                    'ticket' => $ticketNumber,
+                    'ticket_slug' => WorktreeIdentity::deriveTicketSlug($selectedBranch, $ticketNumber),
+                    'url' => $environmentUrls->primary,
+                    'repository_path' => $repositoryPath,
+                    'folder' => basename($repositoryPath),
+                    ...self::endpointHookContext($environmentUrls),
+                ],
+                $formatter,
+            )) {
+                return Command::FAILURE;
+            }
 
             $output->writeln('');
 
@@ -789,25 +817,33 @@ class ReviewCommand extends Command
 
         $this->displayCompletionUrls($worktreePath, $ticketNumber, $formatter, $config->docker, $worktreeUrls, $authBypass->deepLinks);
 
-        if ((bool) $input->getOption('cursor')) {
+        $resolvedWorktreePath = realpath($worktreePath) ?: $worktreePath;
+        $hookContext = [
+            'worktree_path' => $resolvedWorktreePath,
+            'path' => $resolvedWorktreePath,
+            'branch' => $selectedBranch,
+            'ticket' => $ticketNumber,
+            'ticket_slug' => $ticketSlug,
+            'url' => $worktreeUrl,
+            'repository_path' => $repositoryPath,
+            'folder' => $folderName,
+            ...self::endpointHookContext($worktreeUrls),
+        ];
+
+        // `ngramx worktree -c` keeps the Cursor launcher. `ngramx review` uses
+        // the configurable post-review editor (hook, --editor, or Cursor).
+        if ($this->getName() === 'review') {
+            if (!$this->launchPostReviewEditor($input, $repositoryPath, $resolvedWorktreePath, $hookContext, $formatter)) {
+                return Command::FAILURE;
+            }
+        } elseif ((bool) $input->getOption('cursor')) {
             $this->openCursorWindow($worktreePath, $formatter);
         }
 
-        $resolvedWorktreePath = realpath($worktreePath) ?: $worktreePath;
         $hooksOk = $this->runConfiguredHooks(
             HookEvent::WorktreeCreate,
             $repositoryPath,
-            [
-                'worktree_path' => $resolvedWorktreePath,
-                'path' => $resolvedWorktreePath,
-                'branch' => $selectedBranch,
-                'ticket' => $ticketNumber,
-                'ticket_slug' => $ticketSlug,
-                'url' => $worktreeUrl,
-                'repository_path' => $repositoryPath,
-                'folder' => $folderName,
-                ...self::endpointHookContext($worktreeUrls),
-            ],
+            $hookContext,
             $resolvedWorktreePath,
             $formatter,
         );
@@ -818,6 +854,61 @@ class ReviewCommand extends Command
         $output->writeln('');
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Open the editor selected for this review.
+     *
+     * `--editor` wins over config. A configured `onReview` hook wins over the
+     * built-in Cursor launcher. With neither, `--cursor` still opens Cursor.
+     *
+     * @param array<string, string> $context
+     */
+    private function launchPostReviewEditor(
+        InputInterface $input,
+        string $projectRoot,
+        string $path,
+        array $context,
+        OutputFormatter $formatter,
+    ): bool {
+        $editorOption = null;
+        if ($input->hasOption('editor')) {
+            $rawEditor = $input->getOption('editor');
+            $editorOption = is_string($rawEditor) ? $rawEditor : null;
+        }
+
+        $cursor = $input->hasOption('cursor') && (bool) $input->getOption('cursor');
+        $configured = [];
+        $explicitEditor = is_string($editorOption) && trim($editorOption) !== '';
+
+        if (!$explicitEditor) {
+            try {
+                $configured = $this->hooksConfigLoader->load($projectRoot)->for(HookEvent::Review);
+            } catch (ConfigException $e) {
+                $formatter->error('Hooks configuration error: ' . $e->getMessage());
+
+                return false;
+            }
+        }
+
+        $plan = PostReviewEditor::resolve($editorOption, $cursor, $configured);
+        if ($plan->openCursor) {
+            $this->openCursorWindow($path, $formatter);
+
+            return true;
+        }
+
+        if ($plan->hooks === []) {
+            return true;
+        }
+
+        return $this->hookRunner->run(
+            new HooksConfig([HookEvent::Review->value => $plan->hooks]),
+            HookEvent::Review,
+            $context,
+            $path,
+            $formatter,
+        );
     }
 
     /**
