@@ -50,6 +50,7 @@ class InitGithubActionsCommandTest extends TestCase
             $this->assertFileExists($this->testDir . '/.github/workflows/claude-auto-rebase.yml');
             $this->assertFileExists($this->testDir . '/.github/workflows/claude-fix-review-comments.yml');
             $this->assertFileExists($this->testDir . '/.github/workflows/auto-merge.yml');
+            $this->assertFileExists($this->testDir . '/.github/workflows/high-risk-review.yml');
             $this->assertFileExists($this->testDir . '/.github/workflows/linear-status-sync.yml');
 
             $fix = file_get_contents($this->testDir . '/.github/workflows/claude-auto-fix.yml');
@@ -113,6 +114,19 @@ class InitGithubActionsCommandTest extends TestCase
                 $autoMerge
             );
             $this->assertStringContainsString("merge-method: 'squash'", $autoMerge);
+
+            $gate = file_get_contents($this->testDir . '/.github/workflows/high-risk-review.yml');
+            $this->assertIsString($gate);
+            $this->assertStringContainsString("branches:\n      - 'main'", $gate);
+            $this->assertStringContainsString(
+                'acme/shared-workflows/.github/workflows/high-risk-review.yml@v2',
+                $gate
+            );
+            $this->assertStringContainsString('secrets: inherit', $gate);
+            $this->assertStringContainsString("risk-high-label: 'risk:high'", $gate);
+            $this->assertStringContainsString("risk-low-label: 'risk:low'", $gate);
+            $this->assertStringContainsString("auto-merge-label: 'auto-merge'", $gate);
+            $this->assertStringNotContainsString('--disable-auto', $gate);
         } finally {
             if ($originalDir !== false) {
                 chdir($originalDir);
@@ -132,7 +146,9 @@ class InitGithubActionsCommandTest extends TestCase
             $tester = new CommandTester($command);
             $tester->execute([
                 '--repo' => 'acme/shared-workflows',
+                '--base-branch' => 'develop',
                 '--risk-low-label' => 'risk-low',
+                '--risk-high-label' => 'risk-high',
                 '--size-small-label' => 'size-xs',
                 '--auto-merge-label' => 'ship-it',
                 '--protected-branches' => ' main , release ,, main, qa ',
@@ -147,6 +163,17 @@ class InitGithubActionsCommandTest extends TestCase
             $this->assertStringContainsString("auto-merge-label: 'ship-it'", $autoMerge);
             $this->assertStringContainsString("protected-branches: 'main,release,qa'", $autoMerge);
             $this->assertStringContainsString("merge-method: 'rebase'", $autoMerge);
+
+            $gate = file_get_contents($this->testDir . '/.github/workflows/high-risk-review.yml');
+            $this->assertIsString($gate);
+            $this->assertStringContainsString("branches:\n      - 'develop'", $gate);
+            $this->assertStringContainsString(
+                'acme/shared-workflows/.github/workflows/high-risk-review.yml@main',
+                $gate
+            );
+            $this->assertStringContainsString("risk-high-label: 'risk-high'", $gate);
+            $this->assertStringContainsString("risk-low-label: 'risk-low'", $gate);
+            $this->assertStringContainsString("auto-merge-label: 'ship-it'", $gate);
         } finally {
             if ($originalDir !== false) {
                 chdir($originalDir);
