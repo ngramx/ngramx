@@ -253,8 +253,9 @@ ngramx review GIG-1234           # Checks out the branch and runs `fresh`
 ngramx review GIG-1234 --quick   # Checks out the branch and runs `clear` instead
 ngramx review GIG-1234 --worktree # Reviews in an isolated worktree + parallel env
 ngramx review GIG-1234 --worktree --anon  # Worktree against the shared anonymized hosted DB
-ngramx review GIG-1234 --cursor   # Same as --worktree, then opens a new Cursor window
+ngramx review GIG-1234 --cursor   # Same as --worktree, then opens Cursor (or hooks.onReview)
 ngramx review GIG-1234 -c         # Shorthand for --cursor
+ngramx review GIG-1234 --editor zed   # Worktree, then opens Zed instead of the configured editor
 ngramx review GIG-1234 --cleanup  # Tears down + removes that ticket's worktree env
 ngramx review --cleanup           # Pick from a list (including "all")
 ngramx review --cleanup --all     # Tears down + removes every worktree env
@@ -273,7 +274,8 @@ This command:
 
 - `--quick` — Run the `clear` command instead of `fresh`. This skips the database reset and only installs deps and clears caches, so it's much faster. **Only use `--quick` on branches that don't change your database schema or seed data** — otherwise you'll be reviewing against stale data. When in doubt, use the default (`fresh`).
 - `--worktree` / `-w` — Review in an **isolated git worktree with its own parallel dev environment** instead of checking the branch out in your main working directory. This lets you review (or fix) several tickets at once without your editor and Docker stack fighting over a single branch.
-- `--cursor` / `-c` — Everything `--worktree` does, then opens the worktree in a **new Cursor window**. Implies `--worktree`.
+- `--cursor` / `-c` — Everything `--worktree` does, then opens the worktree in an editor. Implies `--worktree`. With no `onReview` hook this is still a **new Cursor window**. When `hooks.onReview` is configured, that hook runs instead, so `-c` follows your editor without a code change.
+- `--editor <command>` — Everything `--worktree` does, then runs this command instead of `hooks.onReview`. A bare name expands to a window command: `zed`, `code`, `vscode`, or `cursor` (`cursor` keeps the built-in launcher, including its IPC retry). Anything else is a shell command; append `{path}` yourself or let Ngramx add it (`--editor emacs`, `--editor "code --new-window {path}"`). Implies `--worktree`.
 - `--cleanup` — Stop the worktree's Docker stack (including its volumes) and remove the git worktree. Use this when you're done reviewing. The argument is matched the same way as `ngramx worktree --cleanup` (folder, namespace, ticket, list index, or any fragment of a worktree or branch name), and an ambiguous match asks which one you meant. **Omit the argument** (`ngramx review --cleanup`) to pick from a list, with "All worktrees" as an option, or pass `--all` to remove every worktree without being asked. (If a container left root-owned files behind, cleanup removes them via a short-lived helper container.)
 
 **Auth bypass link:**
@@ -378,9 +380,10 @@ Sources are **deep-merged**. Sibling event keys are kept; when the same event ap
 ```yaml
 # ~/.ngramx.yaml
 hooks:
+  onReview:
+    - command: "zed {path}"
+      description: "Open Zed"
   onWorktreeCreate:
-    - command: "cursor --new-window {worktree_path}"
-      description: "Open Cursor"
     - "tmux new-window -c {worktree_path}"
   onEnvironmentUp:
     - command: "echo Stack ready at {url}"
@@ -388,8 +391,11 @@ hooks:
 
 | Event | Fires when |
 |-------|------------|
+| `onReview` | `ngramx review` finishes successfully (in place, or in a worktree). Also runs for `ngramx review -c` in place of the built-in Cursor launcher. `ngramx review --editor` replaces this list for one run. |
 | `onWorktreeCreate` | `ngramx worktree` / `ngramx review --worktree` finishes successfully (create or reuse) |
 | `onEnvironmentUp` | `ngramx up` finishes successfully |
+
+`onReview` is the post-review editor hook. Leave it unset and `ngramx review -c` still opens Cursor. Set it once (usually in `~/.ngramx.yaml`) and every review, including `-c`, launches that command. `--editor zed` (or `code`, `cursor`, or a full command) overrides it for a single run.
 
 Placeholders: `{worktree_path}`, `{path}`, `{branch}`, `{ticket}`, `{ticket_slug}`, `{url}`, `{repository_path}`, `{folder}`, `{project_path}`. Values substituted into the command string are shell-escaped automatically so metacharacters in branch names or paths cannot break out of the intended command.
 

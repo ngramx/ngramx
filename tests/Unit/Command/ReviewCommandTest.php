@@ -7,17 +7,21 @@ namespace Ngramx\Tests\Unit\Command;
 use Ngramx\Auth\AuthBypassAttempt;
 use Ngramx\Command\ReviewCommand;
 use Ngramx\Config\ConfigLoader;
+use Ngramx\Config\HooksConfigLoader;
 use Ngramx\Config\LockFile;
 use Ngramx\Config\LockFileData;
 use Ngramx\Config\Schema\AuthBypassConfig;
 use Ngramx\Config\Schema\CommandDefinition;
 use Ngramx\Config\Schema\DockerConfig;
+use Ngramx\Config\Schema\HookEvent;
+use Ngramx\Config\Schema\HooksConfig;
 use Ngramx\Config\Schema\N8nConfig;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Schema\SetupConfig;
 use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Git\GitRepositoryService;
+use Ngramx\Hooks\HookRunner;
 use Ngramx\Laravel\LaravelService;
 use Ngramx\Orchestrator\CommandOrchestrator;
 use Ngramx\Worktree\OwnershipReconcileResult;
@@ -89,9 +93,11 @@ class ReviewCommandTest extends TestCase
 
         $this->assertTrue($definition->hasOption('worktree'));
         $this->assertTrue($definition->hasOption('cursor'));
+        $this->assertTrue($definition->hasOption('editor'));
         $this->assertTrue($definition->hasOption('anon'));
         $this->assertSame('w', $definition->getOption('worktree')->getShortcut());
         $this->assertSame('c', $definition->getOption('cursor')->getShortcut());
+        $this->assertTrue($definition->getOption('editor')->isValueRequired());
     }
 
     public function test_it_starts_services_when_the_primary_service_is_not_running_instead_of_refusing(): void
@@ -1467,6 +1473,197 @@ YAML);
         $this->assertStringContainsString('postgresql://postgres:secret@127.0.0.1:13632/app?', $display);
     }
 
+    public function test_it_runs_the_configured_on_review_hook_after_an_in_place_review(): void
+    {
+        mkdir($this->tmpDir . '/.ngramx');
+        file_put_contents($this->tmpDir . '/.ngramx/config.yaml', <<<'YAML'
+hooks:
+  onReview:
+    - command: "true"
+      description: "Open Zed"
+YAML);
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('Running onReview hooks', $display);
+        $this->assertStringContainsString('Open Zed', $display);
+    }
+
+    public function test_it_does_not_open_an_editor_when_nothing_is_configured(): void
+    {
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->setupConfigLoader($config);
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $runner = $this->createMock(HookRunner::class);
+        $runner->expects($this->never())->method('run');
+
+        $tester = new CommandTester($this->createCommand(hookRunner: $runner));
+        $exitCode = $tester->execute(['ticket' => 'GIG-123']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringNotContainsString('Opening Cursor', $display);
+        $this->assertStringNotContainsString('cursor` command was not found', $display);
+    }
+
+    public function test_editor_option_implies_worktree_mode(): void
+    {
+        $config = $this->createMockConfig([]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(false);
+        $this->gitRepositoryService->expects($this->once())->method('addWorktree')->willReturn(false);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'GIG-123', '--editor' => 'zed']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(1, $exitCode, $display);
+        $this->assertStringContainsString('Creating worktree', $display);
+        $this->assertStringNotContainsString('Checking out branch', $display);
+    }
+
+    public function test_editor_flag_overrides_the_configured_hook_on_a_worktree_review(): void
+    {
+        $repoName = WorktreeIdentity::sanitizeSegment(basename($this->tmpDir));
+        $folderName = WorktreeIdentity::folderName('gig-123', $repoName);
+        $worktreePath = $this->tmpDir . '/.ngramx/worktrees/' . $folderName;
+        mkdir($worktreePath, 0755, true);
+        file_put_contents($this->tmpDir . '/.ngramx/config.yaml', <<<'YAML'
+hooks:
+  onReview:
+    - command: "zed {path}"
+      description: "Open Zed"
+YAML);
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn($this->tmpDir . '/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(false);
+        $this->gitRepositoryService->expects($this->once())->method('addWorktree')->willReturn(true);
+
+        $primer = $this->createMock(WorktreeDependencyPrimer::class);
+        $primer->expects($this->once())->method('start');
+        $primer->expects($this->atLeastOnce())->method('await');
+
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $urlResolver = $this->createMock(WorktreeUrlResolver::class);
+        $urlResolver->expects($this->any())->method('resolve')->willReturn('http://localhost:80');
+
+        $reconciler = $this->createMock(WorktreeOwnershipReconciler::class);
+        $reconciler->expects($this->any())
+            ->method('reconcile')
+            ->willReturn(OwnershipReconcileResult::skipped('unit test'));
+
+        $seen = [];
+        $runner = $this->createMock(HookRunner::class);
+        $runner->expects($this->atLeastOnce())
+            ->method('run')
+            ->willReturnCallback(function (HooksConfig $hooks, HookEvent $event) use (&$seen): bool {
+                $seen[] = [$event, $hooks->for($event)];
+
+                return true;
+            });
+
+        $tester = new CommandTester($this->createCommand(
+            primer: $primer,
+            urlResolver: $urlResolver,
+            reconciler: $reconciler,
+            hookRunner: $runner,
+        ));
+        $exitCode = $tester->execute(['ticket' => 'GIG-123', '--editor' => 'code']);
+
+        $this->assertSame(0, $exitCode, $tester->getDisplay());
+
+        $reviewHooks = null;
+        foreach ($seen as [$event, $hooks]) {
+            if ($event === HookEvent::Review) {
+                $reviewHooks = $hooks;
+            }
+        }
+
+        $this->assertNotNull($reviewHooks);
+        $this->assertSame('code --new-window {path}', $reviewHooks[0]->command);
+        $this->assertStringNotContainsString('Opening Cursor', $tester->getDisplay());
+    }
+
+    public function test_cursor_flag_uses_the_configured_editor_instead_of_cursor(): void
+    {
+        $repoName = WorktreeIdentity::sanitizeSegment(basename($this->tmpDir));
+        $folderName = WorktreeIdentity::folderName('gig-123', $repoName);
+        mkdir($this->tmpDir . '/.ngramx/worktrees/' . $folderName, 0755, true);
+        file_put_contents($this->tmpDir . '/.ngramx/config.yaml', <<<'YAML'
+hooks:
+  onReview:
+    - command: "zed {path}"
+      description: "Open Zed"
+YAML);
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn($this->tmpDir . '/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(false);
+        $this->gitRepositoryService->expects($this->once())->method('addWorktree')->willReturn(true);
+
+        $primer = $this->createMock(WorktreeDependencyPrimer::class);
+        $primer->expects($this->once())->method('start');
+        $primer->expects($this->atLeastOnce())->method('await');
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $urlResolver = $this->createMock(WorktreeUrlResolver::class);
+        $urlResolver->expects($this->any())->method('resolve')->willReturn('http://localhost:80');
+        $reconciler = $this->createMock(WorktreeOwnershipReconciler::class);
+        $reconciler->expects($this->any())
+            ->method('reconcile')
+            ->willReturn(OwnershipReconcileResult::skipped('unit test'));
+
+        $commands = [];
+        $runner = $this->createMock(HookRunner::class);
+        $runner->expects($this->atLeastOnce())
+            ->method('run')
+            ->willReturnCallback(function (HooksConfig $hooks, HookEvent $event) use (&$commands): bool {
+                if ($event === HookEvent::Review) {
+                    foreach ($hooks->for($event) as $hook) {
+                        $commands[] = $hook->command;
+                    }
+                }
+
+                return true;
+            });
+
+        $tester = new CommandTester($this->createCommand(
+            primer: $primer,
+            urlResolver: $urlResolver,
+            reconciler: $reconciler,
+            hookRunner: $runner,
+        ));
+        $exitCode = $tester->execute(['ticket' => 'GIG-123', '--cursor' => true]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertSame(['zed {path}'], $commands);
+        $this->assertStringNotContainsString('Opening Cursor', $display);
+        $this->assertStringNotContainsString('cursor` command was not found', $display);
+    }
+
     public function test_it_stays_quiet_when_the_app_has_no_identity_package(): void
     {
         $config = $this->createMockConfig([
@@ -1489,6 +1686,8 @@ YAML);
         ?WorktreeOwnershipReconciler $reconciler = null,
         ?WorktreeCertSeeder $certSeeder = null,
         ?ComposeOverrideGenerator $overrideGenerator = null,
+        ?HookRunner $hookRunner = null,
+        ?HooksConfigLoader $hooksConfigLoader = null,
     ): ReviewCommand {
         return new ReviewCommand(
             $this->configLoader,
@@ -1501,9 +1700,10 @@ YAML);
             worktreeUrlResolver: $urlResolver,
             dependencyPrimer: $primer,
             certSeeder: $certSeeder,
-            hooksConfigLoader: new \Ngramx\Config\HooksConfigLoader(
+            hooksConfigLoader: $hooksConfigLoader ?? new HooksConfigLoader(
                 homeDirectory: sys_get_temp_dir() . '/ngramx-test-home-empty',
             ),
+            hookRunner: $hookRunner,
             overrideGenerator: $overrideGenerator,
         );
     }

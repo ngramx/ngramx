@@ -126,6 +126,23 @@ YAML);
         $this->assertSame('echo bare', $config->for(HookEvent::WorktreeCreate)[0]->command);
     }
 
+    public function test_it_accepts_the_on_review_event(): void
+    {
+        file_put_contents($this->home . '/.ngramx.yaml', <<<'YAML'
+hooks:
+  onReview:
+    - command: "zed {path}"
+      description: "Open Zed"
+YAML);
+
+        $config = $this->loader->load($this->project);
+        $hooks = $config->for(HookEvent::Review);
+
+        $this->assertCount(1, $hooks);
+        $this->assertSame('zed {path}', $hooks[0]->command);
+        $this->assertSame('Open Zed', $hooks[0]->description);
+    }
+
     public function test_it_rejects_unknown_events(): void
     {
         file_put_contents($this->home . '/.ngramx.yaml', <<<'YAML'

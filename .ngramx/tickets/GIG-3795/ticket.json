@@ -1,0 +1,14 @@
+{
+  "id": "GIG-3795",
+  "title": "Add configurable post-review editor hook to ngramx review command",
+  "url": "https://linear.app/gigabyte/issue/GIG-3795/add-configurable-post-review-editor-hook-to-ngramx-review-command",
+  "gitBranchName": "gig-3795-add-configurable-post-review-editor-hook-to-ngramx-review",
+  "status": "In Progress",
+  "priority": "Low",
+  "estimate": 2,
+  "team": "Gigabyte",
+  "project": "ngramx",
+  "assignee": "Guru",
+  "createdBy": "Rob Corley",
+  "description": "Currently the ngramx review command has a hardcoded -c flag to open Cursor after review. The review command should support a configurable hook so that any editor/command can be launched after the review completes, via config and a CLI flag override. Default to the current Cursor behaviour if nothing is configured."
+}
