@@ -1,0 +1,13 @@
+{
+  "id": "GIG-3931",
+  "title": "Set up GitHub branch protection to require review on high-risk PRs",
+  "url": "https://linear.app/gigabyte/issue/GIG-3931/set-up-github-branch-protection-to-require-review-on-high-risk-prs",
+  "gitBranchName": "gig-3931-set-up-github-branch-protection-to-require-review-on-high",
+  "status": "In Progress",
+  "priority": "Medium",
+  "estimate": 4,
+  "team": "Gigabyte",
+  "assignee": "Guru",
+  "createdBy": "Rob Corley",
+  "description": "Require a review before high-risk PRs merge, while low-risk PRs stay mergeable without review. Distribute the enforcement with the ngramx GitHub workflow installer."
+}

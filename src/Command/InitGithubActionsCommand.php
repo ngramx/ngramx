@@ -76,6 +76,13 @@ class InitGithubActionsCommand extends Command
                 'size:small'
             )
             ->addOption(
+                'risk-high-label',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Label that marks a PR as high risk. Disables auto-merge and requires another person\'s approval.',
+                'risk:high'
+            )
+            ->addOption(
                 'auto-merge-label',
                 null,
                 InputOption::VALUE_REQUIRED,
@@ -137,6 +144,7 @@ class InitGithubActionsCommand extends Command
             $runComposer = $input->getOption('no-composer') ? 'false' : 'true';
             $runNpm = $input->getOption('no-npm') ? 'false' : 'true';
             $riskLowLabel = (string) $input->getOption('risk-low-label');
+            $riskHighLabel = (string) $input->getOption('risk-high-label');
             $sizeSmallLabel = (string) $input->getOption('size-small-label');
             $autoMergeLabel = (string) $input->getOption('auto-merge-label');
             $protectedBranches = $this->normalizeProtectedBranches((string) $input->getOption('protected-branches'));
@@ -164,6 +172,7 @@ class InitGithubActionsCommand extends Command
                 '{{RUN_COMPOSER}}' => $runComposer,
                 '{{RUN_NPM}}' => $runNpm,
                 '{{RISK_LOW_LABEL}}' => $riskLowLabel,
+                '{{RISK_HIGH_LABEL}}' => $riskHighLabel,
                 '{{SIZE_SMALL_LABEL}}' => $sizeSmallLabel,
                 '{{AUTO_MERGE_LABEL}}' => $autoMergeLabel,
                 '{{PROTECTED_BRANCHES}}' => $protectedBranches,
@@ -218,6 +227,7 @@ class InitGithubActionsCommand extends Command
                 $formatter->info('2. Linear status sync moves issues to "' . $linearInProgressStateName . '" from the generic pull_request trigger (no workflow-name matching needed). For the "' . $linearInReviewStateName . '" move it watches a broad list of common CI workflow names plus --ci-workflow-name (currently: ' . $ciName . '); if your CI workflow has an unusual name and is not in that list, add its name to workflows: in .github/workflows/linear-status-sync.yml.');
                 $formatter->info('3. Pin --ref to a tag or SHA in production rather than a moving branch');
                 $formatter->info('4. See shared repo README: https://github.com/' . $sharedRepo);
+                $formatter->info('5. On the default branch ruleset, require the status check "high-risk-review" and do not require approving reviews for every pull request. Do this only after high-risk-review.yml is on the default branch. Low-risk pull requests pass that check with no review; risk:high stays red until the pull request has one approval (including the author), and auto-merge is turned off.');
             }
 
             return Command::SUCCESS;
@@ -238,6 +248,7 @@ class InitGithubActionsCommand extends Command
             ['template' => 'claude-auto-rebase.caller.yml.template', 'filename' => 'claude-auto-rebase.yml'],
             ['template' => 'claude-fix-review-comments.caller.yml.template', 'filename' => 'claude-fix-review-comments.yml'],
             ['template' => 'auto-merge.caller.yml.template', 'filename' => 'auto-merge.yml'],
+            ['template' => 'high-risk-review.caller.yml.template', 'filename' => 'high-risk-review.yml'],
             ['template' => 'linear-status-sync.caller.yml.template', 'filename' => 'linear-status-sync.yml'],
         ];
     }

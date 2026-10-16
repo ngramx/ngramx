@@ -118,7 +118,7 @@ The user-level files are automatically updated if templates change when re-runni
 
 ### `ngramx init-github-actions`
 
-Add caller workflows under `.github/workflows/` that invoke the shared automation from [`gigabyte-software/shared-workflows`](https://github.com/gigabyte-software/shared-workflows): CI auto-fix, auto-rebase, review-comment fixes, and auto-merge.
+Add caller workflows under `.github/workflows/` that invoke the shared automation from [`gigabyte-software/shared-workflows`](https://github.com/gigabyte-software/shared-workflows): CI auto-fix, auto-rebase, review-comment fixes, auto-merge, and the high-risk review gate.
 
 ```bash
 ngramx init-github-actions
@@ -127,7 +127,19 @@ ngramx init-github-actions --no-composer --force
 ngramx init-github-actions --auto-merge-label ship-it --merge-method rebase
 ```
 
-The generated `auto-merge.yml` looks for the `auto-merge` label (override with `--auto-merge-label`) and refuses to merge into any branch listed in `--protected-branches` (default: `master,main,stage,staging,test,testing,prod,production`). Merge method defaults to `squash` and can be `merge`, `squash`, or `rebase`.
+The generated `auto-merge.yml` looks for the `auto-merge` label (override with `--auto-merge-label`) and refuses to merge into any branch listed in `--protected-branches` (default: `prod,production,stage,staging,test,testing`). Merge method defaults to `squash` and can be `merge`, `squash`, or `rebase`.
+
+`high-risk-review.yml` is a caller. On pull requests into `--base-branch` (default `main`) it runs the shared `high-risk-review` workflow. Claude reads the diff and applies `risk:low`, `risk:medium`, or `--risk-high-label` (default `risk:high`), using the same scale as the create-pr skill. `risk:high` turns off native auto-merge and removes the auto-merge label. The job is the status check `high-risk-review`: it passes immediately for every other risk, and it fails for `risk:high` until the pull request has one approval. The author's own approval counts.
+
+GitHub rulesets cannot require an approval from a label on their own ([ruleset rules](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets) cover branches and file paths, not labels). After `high-risk-review.yml` is on the default branch, add a ruleset on that branch:
+
+1. Leave "Require a pull request" approving-review count at 0, so low-risk pull requests can still merge with no review.
+2. Require the status check `high-risk-review`.
+3. Keep "Allow auto-merge" enabled. The auto-merge workflow still merges `risk:low` + `size:small`. It never qualifies a `risk:high` pull request, and this workflow also disables auto-merge when that label is applied.
+
+Do not require the check before the workflow file is on the default branch. GitHub would then wait for a check that never runs.
+
+The ngramx repository includes `.github/workflows/high-risk-review.yml` as the proof of concept. Roll the same file out by running `ngramx init-github-actions` in each client repository (use `--force` to replace an existing copy). `ANTHROPIC_API_KEY` must be available to Actions, which the other Claude workflows already use.
 
 See `ngramx init-github-actions --help` for all options (`--repo`, `--ref`, `--php-version`, `--node-version`, `--auto-merge-label`, `--protected-branches`, `--merge-method`, etc.). After running, configure the repository secrets listed in the command output and confirm your CI workflow name matches `--ci-workflow-name`.
 

@@ -45,6 +45,8 @@ Every PR gets two labels — one for risk, one for size. The merge automation re
 - Include a one-line rationale in the PR description, e.g. *"Labelled `risk:low` because only touches docs and tests."*
 - Never open a PR without both labels.
 
+GitHub Actions (`high-risk-review`) classifies the diff again on open and on every push. `risk:high` disables auto-merge. The required check `high-risk-review` stays red until the pull request has one approval. The author's own approval counts. Other risk labels pass that check with no review.
+
 ## Forced escalation
 
 Some diffs must be labelled `risk:high` even when they are small. Auto-merge only proceeds for `risk:low` together with `size:small`, so `risk:high` keeps a person in the review.
