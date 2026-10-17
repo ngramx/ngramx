@@ -243,11 +243,15 @@ agents:
 #
 # Placeholders: {worktree_path}, {path}, {branch}, {ticket}, {ticket_slug},
 # {url}, {repository_path}, {folder}, {project_path}
+# Each is also an environment variable: {path} is $NGRAMX_PATH, {branch} is
+# $NGRAMX_BRANCH. Use the variable when the path has to sit inside quotes.
 #
 # hooks:
 #   onReview:
 #     - command: "zed {path}"
 #       description: "Open the review in Zed"
+#     # Or any command, for example Zed on the Windows host from WSL:
+#     # - command: 'cd /mnt/c && setsid /mnt/c/Users/rob/AppData/Local/Programs/Zed/bin/zed.exe --wsl rob@Ubuntu "$NGRAMX_PATH" >> ~/.local/share/zed/launch-win.log 2>&1 < /dev/null & disown'
 #   onWorktreeCreate:
 #     - command: "cursor --new-window {worktree_path}"
 #       description: "Open the worktree in Cursor"

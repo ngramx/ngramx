@@ -7,9 +7,10 @@ namespace Ngramx\Review;
 use Ngramx\Config\Schema\HookDefinition;
 
 /**
- * Decides which editor command runs after `ngramx review`.
+ * Decides which command runs after `ngramx review`.
  *
- * Precedence:
+ * `hooks.onReview` is a generic command hook: any shell command, not only an
+ * editor. Bare editor names on `--editor` are shortcuts. Precedence:
  * 1. `--editor` replaces any configured hook for this run.
  * 2. `hooks.onReview` from user or project config.
  * 3. `--cursor` with nothing configured opens Cursor.
@@ -67,10 +68,23 @@ final class PostReviewEditor
 
     private static function commandWithPath(string $editor): string
     {
-        if (str_contains($editor, '{path}') || str_contains($editor, '{worktree_path}')) {
+        if (
+            str_contains($editor, '{path}')
+            || str_contains($editor, '{worktree_path}')
+            || self::isShellCommand($editor)
+        ) {
             return $editor;
         }
 
         return $editor . ' {path}';
+    }
+
+    /**
+     * A pipeline, redirect, or variable is already a complete command. A bare
+     * editor invocation still needs the worktree path appended.
+     */
+    private static function isShellCommand(string $editor): bool
+    {
+        return preg_match('/&&|\|\||[|&;<>`$]|\n/', $editor) === 1;
     }
 }
