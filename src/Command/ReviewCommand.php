@@ -128,7 +128,7 @@ class ReviewCommand extends Command
             ->addOption('quick', null, InputOption::VALUE_NONE, 'Use the "clear" command instead of "fresh" — skips the database reset. Only safe on branches with no schema or seed changes.')
             ->addOption('worktree', 'w', InputOption::VALUE_NONE, 'Review in an isolated git worktree + parallel dev environment under .ngramx/worktrees/ instead of checking the branch out in place')
             ->addOption('cursor', 'c', InputOption::VALUE_NONE, 'Open the worktree in an editor once it is ready (implies --worktree). Uses hooks.onReview when that is set, otherwise Cursor.')
-            ->addOption('editor', null, InputOption::VALUE_REQUIRED, 'Open this editor when the review is ready (e.g. zed, code, cursor, or a command using {path}). Overrides hooks.onReview and implies --worktree.')
+            ->addOption('editor', null, InputOption::VALUE_REQUIRED, 'Run this command when the review is ready (e.g. zed, code, cursor, or any shell command). Overrides hooks.onReview and implies --worktree. {path} and $NGRAMX_PATH are the worktree path.')
             ->addOption('all', null, InputOption::VALUE_NONE, 'With --cleanup: target every worktree, without asking.')
             ->addOption('cleanup', null, InputOption::VALUE_NONE, 'Stop and remove worktree(s) + parallel environments. The argument can be a ticket, a list index, a namespace, or any fragment of a worktree or branch name; ambiguous matches ask which one. With no argument you pick from a list (including "all").')
             ->addOption('no-host-mapping', null, InputOption::VALUE_NONE, 'Do not expose container ports to the host. Use on shared or headless machines where host ports may already be taken; reach the app over the Docker network instead.')

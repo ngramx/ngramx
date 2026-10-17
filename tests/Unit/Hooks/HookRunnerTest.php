@@ -97,6 +97,32 @@ class HookRunnerTest extends TestCase
         $this->assertFileDoesNotExist($injected);
     }
 
+    public function test_context_is_exported_as_environment_variables(): void
+    {
+        $marker = $this->cwd . DIRECTORY_SEPARATOR . 'env.txt';
+        $path = $this->cwd . DIRECTORY_SEPARATOR . 'worktree with space';
+
+        $config = new HooksConfig([
+            HookEvent::Review->value => [
+                new HookDefinition(
+                    command: escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg(
+                        'file_put_contents($argv[1], getenv("NGRAMX_PATH"));'
+                    ) . ' -- ' . escapeshellarg($marker),
+                ),
+            ],
+        ]);
+
+        $ok = $this->runner->run(
+            $config,
+            HookEvent::Review,
+            ['path' => $path],
+            $this->cwd,
+        );
+
+        $this->assertTrue($ok);
+        $this->assertSame($path, (string) file_get_contents($marker));
+    }
+
     public function test_failed_hook_is_ignored_by_default(): void
     {
         $config = new HooksConfig([

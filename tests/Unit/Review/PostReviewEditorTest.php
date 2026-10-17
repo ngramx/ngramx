@@ -68,6 +68,15 @@ class PostReviewEditorTest extends TestCase
         $this->assertSame('emacs -nw {path}', $plan->hooks[0]->command);
     }
 
+    public function test_shell_command_is_kept_as_written(): void
+    {
+        $command = 'cd /mnt/c && setsid zed.exe --wsl rob@Ubuntu "$NGRAMX_PATH" >> ~/.local/share/zed/launch-win.log 2>&1 < /dev/null & disown';
+
+        $plan = PostReviewEditor::resolve($command, false, []);
+
+        $this->assertSame($command, $plan->hooks[0]->command);
+    }
+
     public function test_command_template_is_kept_as_written(): void
     {
         $plan = PostReviewEditor::resolve('zed {worktree_path}', false, []);

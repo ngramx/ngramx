@@ -15,10 +15,13 @@ use Symfony\Component\Process\Process;
  * Runs host commands configured for a lifecycle event.
  *
  * Commands may include `{placeholder}` tokens substituted from the context map
- * (e.g. `{worktree_path}`, `{branch}`, `{url}`). Context values interpolated into
- * the shell command line are escaped with {@see escapeshellarg()} so metacharacters
- * in git refs or paths cannot break out of the intended command. cwd placeholders
- * are substituted without shell escaping (they are not passed through a shell).
+ * (e.g. `{worktree_path}`, `{branch}`, `{url}`). The same values are exported as
+ * `NGRAMX_*` environment variables (`{path}` is `$NGRAMX_PATH`) so a command can
+ * use them inside quotes, command substitution, or a backgrounded shell.
+ * Context values interpolated into the shell command line are escaped with
+ * {@see escapeshellarg()} so metacharacters in git refs or paths cannot break
+ * out of the intended command. cwd placeholders are substituted without shell
+ * escaping (they are not passed through a shell).
  */
 class HookRunner
 {
@@ -72,7 +75,7 @@ class HookRunner
 
         $formatter?->info('Hook [' . ($index + 1) . ']: ' . $label);
 
-        $process = Process::fromShellCommandline($command, $cwd);
+        $process = Process::fromShellCommandline($command, $cwd, $this->environment($context));
         $process->setTimeout($hook->timeout);
 
         try {
@@ -103,6 +106,30 @@ class HookRunner
         $formatter?->error("Hook failed: {$detail}");
 
         return false;
+    }
+
+    /**
+     * @param array<string, string> $context
+     *
+     * @return array<string, string>
+     */
+    private function environment(array $context): array
+    {
+        $env = getenv();
+
+        foreach ($context as $key => $value) {
+            $env[$this->environmentName($key)] = $value;
+        }
+
+        return $env;
+    }
+
+    private function environmentName(string $key): string
+    {
+        $normalized = strtoupper($key);
+        $normalized = preg_replace('/[^A-Z0-9]+/', '_', $normalized) ?? $normalized;
+
+        return 'NGRAMX_' . trim($normalized, '_');
     }
 
     /**
