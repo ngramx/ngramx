@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.57.0](https://github.com/ngramx/ngramx/compare/v2.56.0...v2.57.0) (2026-10-17)
+
+
+### Features
+
+* run any command from the post-review hook ([bcef078](https://github.com/ngramx/ngramx/commit/bcef07887717f43afc87bb41e4ffcfae84aa5694))
+
 # [2.56.0](https://github.com/ngramx/ngramx/compare/v2.55.0...v2.56.0) (2026-10-16)
 
 
