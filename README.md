@@ -391,11 +391,14 @@ hooks:
 
 | Event | Fires when |
 |-------|------------|
-| `onReview` | `ngramx review` finishes successfully (in place, or in a worktree). Runs any shell command, not only an editor. Also runs for `ngramx review -c` in place of the built-in Cursor launcher. `ngramx review --editor` replaces this list for one run. |
-| `onWorktreeCreate` | `ngramx worktree` / `ngramx review --worktree` finishes successfully (create or reuse) |
+| `onReview` | `ngramx review` finishes successfully (in place, or in a worktree). Also runs after `ngramx worktree` creates or reuses a worktree. Runs any shell command, not only an editor. Also runs for `-c` in place of the built-in Cursor launcher. `--editor` replaces this list for one run. |
+| `onWorktreeCreate` | `ngramx worktree` / `ngramx review --worktree` finishes successfully (create or reuse). This is the worktree-creation hook. It runs as well as `onReview`. |
+| `onWorktreeCleanup` | `ngramx worktree --cleanup` or `ngramx review --cleanup` has removed a worktree. Runs once per worktree that was actually removed. `{path}` is that directory, which no longer exists. |
 | `onEnvironmentUp` | `ngramx up` finishes successfully |
 
-`onReview` runs any command after a review. Leave it unset and `ngramx review -c` still opens Cursor. Set it once in `~/.ngramx.yaml` (that file is the per-user config; `~/.ngramx.yml` works too) and every review, including `-c`, runs that command. `--editor zed` (or `code`, `cursor`, or a full command) overrides it for a single run.
+`onWorktreeCreate` is the creation hook. It already runs for both `ngramx worktree` and `ngramx review --worktree`. `onReview` is the command hook from GIG-3795: leave it unset and `-c` still opens Cursor. Set it in `~/.ngramx.yaml` and both `ngramx review` and `ngramx worktree` run it, including when you pass `-c`. `--editor zed` (or `code`, `cursor`, or a full command) overrides `onReview` for a single run on either command. `onReview` stays as the name to use; it is not renamed.
+
+`onWorktreeCleanup` is separate. It runs after each worktree is removed, including when several are cleaned up at once. A failed removal does not run the hook for that worktree. The hook's own failure is ignored unless `ignore_failure` is set to `false`, and the directory is still gone. `{path}` and `$NGRAMX_PATH` are the path that was removed. The working directory of the hook is the repository, because the worktree directory no longer exists.
 
 `{path}` is replaced with the worktree path as its own shell argument. The same value is `$NGRAMX_PATH`, which can sit inside quotes. Other placeholders are exported the same way (`{branch}` is `$NGRAMX_BRANCH`). A command that launches an editor from WSL and returns immediately:
 

@@ -12,6 +12,7 @@ enum HookEvent: string
     case WorktreeCreate = 'onWorktreeCreate';
     case EnvironmentUp = 'onEnvironmentUp';
     case Review = 'onReview';
+    case WorktreeCleanup = 'onWorktreeCleanup';
 
     /**
      * @return list<string>
