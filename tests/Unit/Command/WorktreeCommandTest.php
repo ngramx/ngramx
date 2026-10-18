@@ -70,6 +70,7 @@ class WorktreeCommandTest extends TestCase
         $this->assertTrue($definition->hasOption('quick'));
         $this->assertTrue($definition->hasOption('cursor'));
         $this->assertSame('c', $definition->getOption('cursor')->getShortcut());
+        $this->assertTrue($definition->hasOption('editor'));
         $this->assertFalse($definition->hasOption('worktree'));
         $this->assertTrue($definition->hasOption('cleanup'));
         $this->assertTrue($definition->hasOption('list'));
@@ -477,6 +478,69 @@ class WorktreeCommandTest extends TestCase
 
         $this->assertSame(0, $exitCode, $tester->getDisplay());
         $this->assertStringContainsString('Reusing existing worktree', $tester->getDisplay());
+    }
+
+    public function test_it_runs_the_on_review_hook_when_a_worktree_is_ready(): void
+    {
+        mkdir($this->tmpDir . '/.ngramx');
+        file_put_contents($this->tmpDir . '/.ngramx/config.yaml', <<<'YAML'
+hooks:
+  onReview:
+    - command: "true"
+      description: "Open Zed"
+YAML);
+
+        $this->setupConfigLoader($this->createMockConfig());
+        $this->preCreateWorktreeDirectory('gig-123');
+
+        $this->gitRepositoryService->expects($this->any())
+            ->method('findBranchesForTicketPrefix')
+            ->willReturn(['gig-123-fix-thing']);
+        $this->gitRepositoryService->expects($this->any())
+            ->method('selectBranchForWorktree')
+            ->willReturn('gig-123-fix-thing');
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(true);
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'gig-123']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('Running onReview hooks', $display);
+        $this->assertStringContainsString('Open Zed', $display);
+    }
+
+    public function test_editor_flag_overrides_the_configured_hook(): void
+    {
+        mkdir($this->tmpDir . '/.ngramx');
+        file_put_contents($this->tmpDir . '/.ngramx/config.yaml', <<<'YAML'
+hooks:
+  onReview:
+    - command: "false"
+      description: "Open Zed"
+      ignore_failure: false
+YAML);
+
+        $this->setupConfigLoader($this->createMockConfig());
+        $this->preCreateWorktreeDirectory('gig-123');
+
+        $this->gitRepositoryService->expects($this->any())
+            ->method('findBranchesForTicketPrefix')
+            ->willReturn(['gig-123-fix-thing']);
+        $this->gitRepositoryService->expects($this->any())
+            ->method('selectBranchForWorktree')
+            ->willReturn('gig-123-fix-thing');
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(true);
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['ticket' => 'gig-123', '--editor' => 'true']);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertStringContainsString('Running onReview hooks', $display);
+        $this->assertStringNotContainsString('Open Zed', $display);
     }
 
     public function test_it_fails_when_fetch_fails(): void

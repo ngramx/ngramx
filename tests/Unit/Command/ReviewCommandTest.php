@@ -1197,6 +1197,37 @@ class ReviewCommandTest extends TestCase
         $this->assertDirectoryExists($worktreesDir . '/gig-2-bar');
     }
 
+    public function test_cleanup_runs_the_hook_once_per_removed_worktree(): void
+    {
+        $worktreesDir = $this->tmpDir . '/.ngramx/worktrees';
+        mkdir($worktreesDir . '/gig-1-foo', 0755, true);
+        mkdir($worktreesDir . '/gig-2-bar', 0755, true);
+        file_put_contents($this->tmpDir . '/.ngramx/config.yaml', <<<'YAML'
+hooks:
+  onWorktreeCreate:
+    - command: "false"
+      description: "Create"
+      ignore_failure: false
+  onWorktreeCleanup:
+    - command: "true"
+      description: "Close the editor"
+YAML);
+
+        $config = $this->createMockConfig([]);
+        $this->setupConfigLoader($config, $this->tmpDir . '/ngramx.yml');
+
+        $tester = new CommandTester($this->createCommand());
+        $exitCode = $tester->execute(['--cleanup' => true], ['interactive' => false]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode, $display);
+        $this->assertSame(2, substr_count($display, 'Running onWorktreeCleanup hooks'));
+        $this->assertStringContainsString('Close the editor', $display);
+        $this->assertStringNotContainsString('Running onWorktreeCreate hooks', $display);
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-1-foo');
+        $this->assertDirectoryDoesNotExist($worktreesDir . '/gig-2-bar');
+    }
+
     public function test_cleanup_sweeps_containers_by_namespace_even_without_a_lock_file(): void
     {
         // A startup that failed partway (fresh, health check) leaves containers

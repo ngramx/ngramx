@@ -256,6 +256,9 @@ agents:
 #     - command: "cursor --new-window {worktree_path}"
 #       description: "Open the worktree in Cursor"
 #     - "tmux new-window -c {worktree_path}"
+#   onWorktreeCleanup:
+#     - command: "echo removed {folder}"
+#       description: "Note that the worktree is gone"
 #   onEnvironmentUp:
 #     - command: "echo Ready at {url}"
 #       ignore_failure: true

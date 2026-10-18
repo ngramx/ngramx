@@ -830,14 +830,10 @@ class ReviewCommand extends Command
             ...self::endpointHookContext($worktreeUrls),
         ];
 
-        // `ngramx worktree -c` keeps the Cursor launcher. `ngramx review` uses
-        // the configurable post-review editor (hook, --editor, or Cursor).
-        if ($this->getName() === 'review') {
-            if (!$this->launchPostReviewEditor($input, $repositoryPath, $resolvedWorktreePath, $hookContext, $formatter)) {
-                return Command::FAILURE;
-            }
-        } elseif ((bool) $input->getOption('cursor')) {
-            $this->openCursorWindow($worktreePath, $formatter);
+        // Both `ngramx review` and `ngramx worktree` honour --editor, -c, and
+        // hooks.onReview. hooks.onWorktreeCreate still runs afterwards.
+        if (!$this->launchPostReviewEditor($input, $repositoryPath, $resolvedWorktreePath, $hookContext, $formatter)) {
+            return Command::FAILURE;
         }
 
         $hooksOk = $this->runConfiguredHooks(
@@ -1083,7 +1079,12 @@ class ReviewCommand extends Command
         $worktreePath = $matches[0];
         $formatter->section('Cleaning up worktree: ' . basename($worktreePath));
 
+        $hookContext = $this->cleanupHookContext($repositoryPath, $worktreePath);
         if (!$this->teardownWorktree($output, $formatter, $repositoryPath, $worktreePath)) {
+            return Command::FAILURE;
+        }
+
+        if (!$this->runWorktreeCleanupHook($repositoryPath, $hookContext, $formatter)) {
             return Command::FAILURE;
         }
 
@@ -1283,18 +1284,30 @@ class ReviewCommand extends Command
             : 'Cleaning up ' . count($worktreePaths) . ' worktrees');
 
         $failed = [];
+        $hookFailed = [];
         foreach ($worktreePaths as $worktreePath) {
             if (count($worktreePaths) > 1) {
                 $formatter->info('Removing worktree: ' . basename($worktreePath));
             }
 
+            $hookContext = $this->cleanupHookContext($repositoryPath, $worktreePath);
             if (!$this->teardownWorktree($output, $formatter, $repositoryPath, $worktreePath)) {
                 $failed[] = basename($worktreePath);
+                continue;
+            }
+
+            if (!$this->runWorktreeCleanupHook($repositoryPath, $hookContext, $formatter)) {
+                $hookFailed[] = basename($worktreePath);
             }
         }
 
         if ($failed !== []) {
             $formatter->error('Failed to remove ' . count($failed) . ' worktree(s): ' . implode(', ', $failed));
+            return Command::FAILURE;
+        }
+
+        if ($hookFailed !== []) {
+            $formatter->error('Cleanup hook failed for ' . implode(', ', $hookFailed));
             return Command::FAILURE;
         }
 
@@ -1326,10 +1339,17 @@ class ReviewCommand extends Command
         $formatter->section('Cleaning up all worktrees (' . count($worktrees) . ')');
 
         $failed = [];
+        $hookFailed = [];
         foreach ($worktrees as $worktreePath) {
             $formatter->info('Removing worktree: ' . basename($worktreePath));
+            $hookContext = $this->cleanupHookContext($repositoryPath, $worktreePath);
             if (!$this->teardownWorktree($output, $formatter, $repositoryPath, $worktreePath)) {
                 $failed[] = basename($worktreePath);
+                continue;
+            }
+
+            if (!$this->runWorktreeCleanupHook($repositoryPath, $hookContext, $formatter)) {
+                $hookFailed[] = basename($worktreePath);
             }
         }
 
@@ -1338,10 +1358,52 @@ class ReviewCommand extends Command
             return Command::FAILURE;
         }
 
+        if ($hookFailed !== []) {
+            $formatter->error('Cleanup hook failed for ' . implode(', ', $hookFailed));
+            return Command::FAILURE;
+        }
+
         $formatter->success('✓ Removed all worktrees (' . count($worktrees) . ')');
         $output->writeln('');
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Context for onWorktreeCleanup. Captured before the directory is removed
+     * so {path} still names the worktree that was just deleted.
+     *
+     * @return array<string, string>
+     */
+    private function cleanupHookContext(string $repositoryPath, string $worktreePath): array
+    {
+        $resolved = realpath($worktreePath) ?: $worktreePath;
+        $branches = $this->gitRepositoryService->listWorktreeBranches($repositoryPath);
+
+        return [
+            'worktree_path' => $resolved,
+            'path' => $resolved,
+            'folder' => basename($resolved),
+            'branch' => $branches[$resolved] ?? $branches[$worktreePath] ?? '',
+            'repository_path' => $repositoryPath,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $context
+     */
+    private function runWorktreeCleanupHook(
+        string $repositoryPath,
+        array $context,
+        OutputFormatter $formatter,
+    ): bool {
+        return $this->runConfiguredHooks(
+            HookEvent::WorktreeCleanup,
+            $repositoryPath,
+            $context,
+            $repositoryPath,
+            $formatter,
+        );
     }
 
     /**
