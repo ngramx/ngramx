@@ -91,6 +91,10 @@ class SetupOrchestrator
      *        (and initialize commands have run) and before the HTTP probe. Used
      *        by `ngramx up` to write `.ngramx.lock` so a later probe warning or
      *        5xx cannot leave `ngramx shell` looking at the default compose project.
+     * @param (callable(string): ?array<int, int>)|null $recoverComposeFailure
+     *        Given a compose-up error message, remaps any host port Docker
+     *        refused to publish and returns the updated port map, or null when
+     *        the failure is not a publish error. Compose is retried once.
      * @return array{time: float, namespace: string, port_offset: int, app_url_probe: ?ProbeResult} Setup results
      * @throws \RuntimeException
      * @throws ServiceNotHealthyException
@@ -107,6 +111,7 @@ class SetupOrchestrator
         array $portMap = [],
         string $configDirectory = '',
         ?callable $onReady = null,
+        ?callable $recoverComposeFailure = null,
     ): array {
         $startTime = microtime(true);
 
@@ -132,7 +137,15 @@ class SetupOrchestrator
             $this->warnAboutStaleBuildInputs($config->docker->composeFile, $namespace);
         }
 
-        $this->startDockerServices($config->docker->composeFile, $namespace, $rebuild, $timeout, $firstRun);
+        $portMap = $this->startDockerServices(
+            $config->docker->composeFile,
+            $namespace,
+            $rebuild,
+            $timeout,
+            $firstRun,
+            $portMap,
+            $recoverComposeFailure,
+        );
 
         // Phase 2.5: Detect and auto-recover network-detached containers.
         // Has to run *before* readiness waits, otherwise we'd sit watching
@@ -440,13 +453,20 @@ class SetupOrchestrator
      * creation, etc.). The panel is cleared when the command completes so
      * it leaves no trace on the console.
      */
+    /**
+     * @param array<int, int> $portMap
+     * @param (callable(string): ?array<int, int>)|null $recoverComposeFailure
+     * @return array<int, int>
+     */
     private function startDockerServices(
         string $composeFile,
         ?string $namespace = null,
         bool $rebuild = false,
         ?int $timeout = null,
-        bool $firstRun = false
-    ): void {
+        bool $firstRun = false,
+        array $portMap = [],
+        ?callable $recoverComposeFailure = null,
+    ): array {
         $this->formatter->section('Starting Docker services');
 
         if ($namespace !== null) {
@@ -479,15 +499,29 @@ class SetupOrchestrator
             // that the scoped sweep deliberately leaves alone. Either way the
             // engine has just told us exactly which entries it could not
             // resolve, so clear those and give the start one more go.
-            if (!$this->staleBindMountSweeper->recoverFromFailure($e->getMessage(), $this->formatter)) {
+            $retried = false;
+            if ($this->staleBindMountSweeper->recoverFromFailure($e->getMessage(), $this->formatter)) {
+                $this->formatter->info('Retrying now that the stale mounts are gone...');
+                $retried = true;
+            } elseif ($recoverComposeFailure !== null) {
+                $updated = $recoverComposeFailure($e->getMessage());
+                if (is_array($updated)) {
+                    $portMap = $updated;
+                    $this->formatter->info('Retrying now that the host port has been remapped...');
+                    $retried = true;
+                }
+            }
+
+            if (!$retried) {
                 throw $e;
             }
 
-            $this->formatter->info('Retrying now that the stale mounts are gone...');
             $this->runComposeUp($composeFile, $namespace, $rebuild, $effectiveTimeout);
         }
 
         $this->formatter->info('Docker services started');
+
+        return $portMap;
     }
 
     /**

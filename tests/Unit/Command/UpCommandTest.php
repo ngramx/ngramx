@@ -364,7 +364,7 @@ class UpCommandTest extends TestCase
             ->method('deriveFromDirectory')
             ->willReturn('ngramx-test-project');
 
-        $this->portOffsetManager->expects($this->once())
+        $this->portOffsetManager->expects($this->atLeastOnce())
             ->method('extractBasePorts')
             ->willReturn([80, 443]);
 
@@ -372,6 +372,10 @@ class UpCommandTest extends TestCase
             ->method('findAvailableOffset')
             ->with([80, 443])
             ->willReturn(8000);
+
+        $this->portOffsetManager->expects($this->any())
+            ->method('resolvePortConflicts')
+            ->willReturn([]);
 
         // Should generate override with both port offset and namespace prefix
         $this->overrideGenerator->expects($this->once())
@@ -466,10 +470,10 @@ class UpCommandTest extends TestCase
         $this->assertSame(0, $exitCode);
         $display = $tester->getDisplay();
         $this->assertStringContainsString('Port conflict detected', $display);
-        $this->assertStringContainsString('5432 is in use — using 5532 instead', $display);
+        $this->assertStringContainsString('5432 cannot be published — using 5532 instead', $display);
     }
 
-    public function test_it_skips_conflict_resolution_when_a_port_offset_is_given(): void
+    public function test_it_resolves_conflicts_on_offset_ports(): void
     {
         $config = $this->createMockConfig();
 
@@ -477,21 +481,93 @@ class UpCommandTest extends TestCase
         $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn('/path/to/ngramx.yml');
         $this->configLoader->expects($this->any())->method('load')->willReturn($config);
 
-        // A global offset already moves every port — no per-port scan needed.
-        $this->portOffsetManager->expects($this->never())
-            ->method('resolvePortConflicts');
+        $this->portOffsetManager->expects($this->once())
+            ->method('extractBasePorts')
+            ->willReturn([80, 56306]);
+
+        // Offset 8200: 80→8280 (fine), 56306→64506 (Windows-reserved) so only
+        // the post-offset high port is remapped.
+        $this->portOffsetManager->expects($this->once())
+            ->method('resolvePortConflicts')
+            ->with([8280, 64506])
+            ->willReturn([64506 => 14506]);
+
+        $this->overrideGenerator->expects($this->once())
+            ->method('generate')
+            ->with('docker-compose.yml', 8200, null, false, [64506 => 14506]);
 
         $this->setupOrchestrator->expects($this->any())->method('setup')->willReturn([
             'time' => 1.5,
             'namespace' => '',
-            'port_offset' => 1000,
+            'port_offset' => 8200,
         ]);
+
+        $this->lockFile->expects($this->once())
+            ->method('write')
+            ->with($this->callback(function (LockFileData $data) {
+                return $data->portOffset === 8200 && $data->portMap === [64506 => 14506];
+            }));
 
         $command = $this->createCommand();
         $tester = new CommandTester($command);
-        $exitCode = $tester->execute(['--port-offset' => '1000']);
+        $exitCode = $tester->execute(['--port-offset' => '8200']);
 
         $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('64506 cannot be published — using 14506 instead', $tester->getDisplay());
+    }
+
+    public function test_publish_recovery_repoints_the_original_offset_port(): void
+    {
+        $config = $this->createMockConfig();
+
+        $this->lockFile->expects($this->any())->method('exists')->willReturn(false);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn('/path/to/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+
+        $this->portOffsetManager->expects($this->atLeastOnce())
+            ->method('extractBasePorts')
+            ->willReturn([56306]);
+        $this->portOffsetManager->expects($this->once())
+            ->method('resolvePortConflicts')
+            ->willReturn([64506 => 14506]);
+        $this->portOffsetManager->expects($this->once())
+            ->method('allocateReplacement')
+            ->with(14506, $this->anything())
+            ->willReturn(14606);
+
+        $recoveredMap = null;
+        $this->overrideGenerator->expects($this->atLeastOnce())
+            ->method('generate')
+            ->willReturnCallback(function () use (&$recoveredMap): void {
+                $args = func_get_args();
+                $map = $args[4] ?? [];
+                if ($map === [64506 => 14606]) {
+                    $recoveredMap = $map;
+                }
+            });
+
+        $this->setupOrchestrator->expects($this->once())
+            ->method('setup')
+            ->willReturnCallback(function () {
+                $recover = func_get_arg(11);
+                $this->assertIsCallable($recover);
+                $updated = $recover(
+                    'Error response from daemon: ports are not available: '
+                    . 'exposing port TCP 0.0.0.0:14506 -> 127.0.0.1:0: '
+                    . '/forwards/expose returned unexpected status: 500'
+                );
+                $this->assertSame([64506 => 14606], $updated);
+
+                return ['time' => 1.5, 'namespace' => '', 'port_offset' => 8200];
+            });
+
+        $command = $this->createCommand();
+        $tester = new CommandTester($command);
+        $exitCode = $tester->execute(['--port-offset' => '8200']);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame([64506 => 14606], $recoveredMap);
+        $this->assertStringContainsString('Docker could not publish port 14506 — remapped to 14606', $tester->getDisplay());
     }
 
     public function test_it_does_not_generate_override_when_no_ports_conflict(): void

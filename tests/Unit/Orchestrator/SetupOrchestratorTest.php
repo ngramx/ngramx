@@ -691,6 +691,42 @@ class SetupOrchestratorTest extends TestCase
         $this->assertStringContainsString('Retrying now that the stale mounts are gone', $this->output->fetch());
     }
 
+    public function test_setup_retries_once_after_a_host_port_publish_failure(): void
+    {
+        $config = $this->createConfig();
+
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+
+        $attempts = 0;
+        $this->dockerCompose->expects($this->exactly(2))
+            ->method('up')
+            ->willReturnCallback(static function () use (&$attempts): void {
+                $attempts++;
+                if ($attempts === 1) {
+                    throw new \RuntimeException(
+                        'Error response from daemon: ports are not available: '
+                        . 'exposing port TCP 0.0.0.0:64506 -> 127.0.0.1:0: '
+                        . '/forwards/expose returned unexpected status: 500'
+                    );
+                }
+            });
+
+        $recoveredMap = null;
+        $this->createOrchestrator()->setup(
+            $config,
+            skipWait: true,
+            recoverComposeFailure: static function (string $message) use (&$recoveredMap): ?array {
+                $recoveredMap = [64506 => 14506];
+
+                return str_contains($message, '64506') ? [64506 => 14506] : null;
+            },
+        );
+
+        $this->assertSame(2, $attempts);
+        $this->assertSame([64506 => 14506], $recoveredMap);
+        $this->assertStringContainsString('Retrying now that the host port has been remapped', $this->output->fetch());
+    }
+
     public function test_setup_rethrows_start_failures_it_cannot_attribute_to_a_stale_mount(): void
     {
         $config = $this->createConfig();

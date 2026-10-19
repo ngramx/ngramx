@@ -139,9 +139,13 @@ YAML;
             elseif (isset($service['ports']) && ($portOffset > 0 || $portMap !== [])) {
                 $newPorts = [];
                 foreach ($service['ports'] as $portMapping) {
-                    $newPort = $portOffset > 0
-                        ? $this->applyOffset($portMapping, $portOffset)
-                        : $this->applyPortMap($portMapping, $portMap);
+                    $newPort = $portMapping;
+                    if ($portOffset > 0) {
+                        $newPort = $this->applyOffset($portMapping, $portOffset);
+                    }
+                    if ($newPort !== null && $portMap !== []) {
+                        $newPort = $this->applyPortMap($newPort, $portMap);
+                    }
                     if ($newPort !== null) {
                         $newPorts[] = $newPort;
                     }
@@ -423,11 +427,21 @@ YAML;
     private function remapHostSegment(string $hostPort, array $portMap): string
     {
         $number = PortMapping::hostPortNumber($hostPort);
-        if ($number === null || !isset($portMap[$number])) {
+        if ($number === null) {
             return $hostPort;
         }
 
-        return PortMapping::replaceHostPort($hostPort, $portMap[$number]);
+        $seen = [];
+        while (isset($portMap[$number]) && !isset($seen[$number])) {
+            $seen[$number] = true;
+            $number = $portMap[$number];
+        }
+
+        if ($seen === []) {
+            return $hostPort;
+        }
+
+        return PortMapping::replaceHostPort($hostPort, $number);
     }
 
     /**

@@ -402,11 +402,24 @@ class ReviewCommand extends Command
             ? 0
             : $this->resolveWorktreePortOffset($worktreePath, $config);
 
+        // Worktrees always carry a global offset. Resolve individual host
+        // ports that still cannot be published after that offset (Windows
+        // excluded ranges, WSL ephemeral band) so the override we write
+        // when skipping `up` — and the URLs we seed — match what `up`
+        // would have remapped.
+        if ($publishHostPorts) {
+            $wanted = array_values(array_unique(array_map(
+                static fn (int $port): int => $port + $portOffset,
+                $this->portOffsetManager->extractBasePorts($config->docker->composeFile),
+            )));
+            $portMap = $this->portOffsetManager->resolvePortConflicts($wanted);
+        }
+
         // Seed .env with the app's own host + offset port before startup — always a
         // valid origin. Once the stack is up we may upgrade this to the prettier
         // "<folder>.localhost" subdomain if the app turns out to be host-agnostic
         // (see the post-start resolver below).
-        $worktreeUrls = EndpointUrls::shifted($config->docker, $portOffset);
+        $worktreeUrls = EndpointUrls::shifted($config->docker, $portOffset, $portMap);
         $worktreeUrl = $worktreeUrls->primary;
 
         // Whether the worktree directory exists from a previous run or is being
@@ -543,7 +556,7 @@ class ReviewCommand extends Command
                         $runningLock->portOffset ?? $portOffset,
                         $namespace,
                         $noHostMapping || ($runningLock->noHostMapping ?? false),
-                        $runningLock->portMap ?? [],
+                        $runningLock->portMap ?? $portMap,
                     );
                 } catch (Exception $e) {
                     // Non-fatal on its own: say plainly what the consequence is,

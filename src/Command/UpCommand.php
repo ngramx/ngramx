@@ -16,8 +16,10 @@ use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Docker\DockerLauncher;
 use Ngramx\Docker\Exception\ServiceNotHealthyException;
+use Ngramx\Docker\HostPortMap;
 use Ngramx\Docker\NamespaceResolver;
 use Ngramx\Docker\PortOffsetManager;
+use Ngramx\Docker\PortPublishFailure;
 use Ngramx\Herd\HerdService;
 use Ngramx\Hooks\HookRunner;
 use Ngramx\Host\EtcHostsHint;
@@ -178,13 +180,15 @@ class UpCommand extends Command
                 $formatter->info('Host port mapping disabled - containers will not expose ports');
             }
 
-            // With no global offset in play, resolve individual port conflicts:
-            // only the conflicted ports are remapped, everything else (including
-            // container names) stays exactly as configured, so a redis conflict
-            // never pushes the web service off port 80.
+            // Resolve individual host-port conflicts on the ports we will
+            // actually publish (base + offset). Worktrees always carry a
+            // global offset; a high compose port (hydra 56306 + 8200 = 64506)
+            // still has to move when Windows has reserved it. Only the
+            // unpublishable ports are remapped — a redis conflict must not
+            // push the web service off its offset HTTP port.
             $portMap = [];
-            if (!$noHostMapping && $portOffset === 0) {
-                $portMap = $this->resolvePortConflicts($config->docker->composeFile, $formatter);
+            if (!$noHostMapping) {
+                $portMap = $this->resolvePortConflicts($config->docker->composeFile, $formatter, $portOffset);
             }
 
             // Generate override file if port offset is needed, using namespace, no host
@@ -248,7 +252,7 @@ class UpCommand extends Command
                 $namespace,
                 $portOffset,
                 $noHostMapping,
-                $portMap,
+                &$portMap,
                 $formatter,
                 $output,
             ): void {
@@ -283,6 +287,14 @@ class UpCommand extends Command
                 $portMap,
                 dirname($configPath),
                 $writeLock,
+                $this->portPublishRecovery(
+                    $config->docker->composeFile,
+                    $portOffset,
+                    $namespace,
+                    $noHostMapping,
+                    $formatter,
+                    $portMap,
+                ),
             );
 
             // Tests (and any caller that does not invoke onReady) still persist
@@ -610,20 +622,25 @@ class UpCommand extends Command
     }
 
     /**
-     * Detect host port conflicts on the ports the compose file wants to bind
-     * and resolve them individually — only the conflicted ports move, and the
-     * remap is announced so the developer knows exactly what changed.
+     * Detect host port conflicts on the ports we will actually publish
+     * (compose base + any global offset) and resolve them individually —
+     * only the unpublishable ports move, and the remap is announced.
      *
-     * @return array<int, int> conflicted base port => replacement port
+     * @return array<int, int> wanted host port => replacement port
      */
-    private function resolvePortConflicts(string $composeFile, OutputFormatter $formatter): array
+    private function resolvePortConflicts(string $composeFile, OutputFormatter $formatter, int $portOffset = 0): array
     {
         $basePorts = $this->portOffsetManager->extractBasePorts($composeFile);
         if ($basePorts === []) {
             return [];
         }
 
-        $portMap = $this->portOffsetManager->resolvePortConflicts($basePorts);
+        $wanted = array_values(array_unique(array_map(
+            static fn (int $port): int => $port + $portOffset,
+            $basePorts,
+        )));
+
+        $portMap = $this->portOffsetManager->resolvePortConflicts($wanted);
         if ($portMap === []) {
             return [];
         }
@@ -632,10 +649,63 @@ class UpCommand extends Command
             ? 'Port conflict detected — resolved automatically:'
             : count($portMap) . ' port conflicts detected — resolved automatically:');
         foreach ($portMap as $from => $to) {
-            $formatter->info("  {$from} is in use — using {$to} instead");
+            $formatter->info("  {$from} cannot be published — using {$to} instead");
         }
 
         return $portMap;
+    }
+
+    /**
+     * Remap any host port Docker Desktop refused to publish, rewrite the
+     * override, and return the updated map so the URL probe and lock file
+     * follow the replacement.
+     *
+     * @param array<int, int> $portMap
+     * @return callable(string): ?array<int, int>
+     */
+    private function portPublishRecovery(
+        string $composeFile,
+        int $portOffset,
+        ?string $namespace,
+        bool $noHostMapping,
+        OutputFormatter $formatter,
+        array &$portMap,
+    ): callable {
+        return function (string $message) use (
+            $composeFile,
+            $portOffset,
+            $namespace,
+            $noHostMapping,
+            $formatter,
+            &$portMap,
+        ): ?array {
+            $failed = PortPublishFailure::parsePorts($message);
+            if ($failed === []) {
+                return null;
+            }
+
+            $basePorts = $this->portOffsetManager->extractBasePorts($composeFile);
+            $claimed = array_values(array_unique(array_merge(
+                array_map(static fn (int $port): int => $port + $portOffset, $basePorts),
+                array_values($portMap),
+            )));
+
+            foreach ($failed as $port) {
+                $replacement = $this->portOffsetManager->allocateReplacement($port, $claimed);
+                // Re-point the post-offset original, not the current
+                // replacement. generate() / URL shifting look up the original
+                // (56306+8200 → 64506), so a second-key {14506: 14606} would
+                // leave the override publishing the port that just 500'd.
+                $portMap = HostPortMap::repointFailed($portMap, $port, $replacement);
+                $claimed[] = $port;
+                $claimed[] = $replacement;
+                $formatter->warning("Docker could not publish port {$port} — remapped to {$replacement}");
+            }
+
+            $this->overrideGenerator->generate($composeFile, $portOffset, $namespace, $noHostMapping, $portMap);
+
+            return $portMap;
+        };
     }
 
     /**

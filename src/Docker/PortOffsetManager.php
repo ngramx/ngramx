@@ -23,6 +23,16 @@ class PortOffsetManager
 
     private const MAX_PORT = 65535;
 
+    /**
+     * IANA dynamic/ephemeral start. Windows Hyper-V carves excluded ranges
+     * out of this band; Docker Desktop's WSL `/forwards/expose` proxy then
+     * 500s when Compose asks to publish one.
+     */
+    public const EPHEMERAL_START = 49152;
+
+    /** Fold unpublishable ports into this band so replacements stay recognisable. */
+    private const SAFE_BAND_START = 10000;
+
     /** @var list<int>|null */
     private ?array $usedPortsCache = null;
 
@@ -32,20 +42,42 @@ class PortOffsetManager
     /** @var \Closure(int): bool */
     private readonly \Closure $nonDockerLoopback;
 
+    private readonly WindowsExcludedPortRanges $excludedPorts;
+
+    private readonly bool $avoidEphemeralRange;
+
     /**
      * @param callable(): list<int>|null $usedPortsProvider Test seam: supplies the
      *        host ports currently in use. Defaults to querying Docker.
      * @param (callable(int): bool)|null $nonDockerLoopback Test seam: true when a
      *        process other than Docker is listening on 127.0.0.1 for that port.
+     * @param bool|null $avoidEphemeralRange Test seam. Defaults to true on WSL,
+     *        where publishing 49152–65535 routinely hits Hyper-V exclusions.
      */
-    public function __construct(?callable $usedPortsProvider = null, ?callable $nonDockerLoopback = null)
-    {
+    public function __construct(
+        ?callable $usedPortsProvider = null,
+        ?callable $nonDockerLoopback = null,
+        ?WindowsExcludedPortRanges $excludedPorts = null,
+        ?bool $avoidEphemeralRange = null,
+    ) {
         $this->usedPortsProvider = $usedPortsProvider !== null
             ? $usedPortsProvider(...)
             : fn (): array => $this->getDockerUsedPorts();
         $this->nonDockerLoopback = $nonDockerLoopback !== null
             ? $nonDockerLoopback(...)
             : (new LoopbackHold())->owns(...);
+        $this->excludedPorts = $excludedPorts ?? new WindowsExcludedPortRanges();
+        $this->avoidEphemeralRange = $avoidEphemeralRange ?? self::isWsl();
+    }
+
+    public static function isWsl(): bool
+    {
+        $distro = getenv('WSL_DISTRO_NAME');
+        if (is_string($distro) && $distro !== '') {
+            return true;
+        }
+
+        return is_file('/proc/sys/fs/binfmt_misc/WSLInterop');
     }
 
     /**
@@ -180,9 +212,39 @@ class PortOffsetManager
      * @param int[] $reserved
      * @throws \RuntimeException
      */
+    /**
+     * Public wrapper around {@see findFreePortNear()} for compose-up recovery
+     * when Docker Desktop rejects a port we thought was free.
+     *
+     * @param int[] $reserved
+     */
+    public function allocateReplacement(int $wanted, array $reserved = []): int
+    {
+        return $this->findFreePortNear($wanted, $reserved);
+    }
+
+    /**
+     * Find a free, publishable port near $basePort. Candidates that sit in
+     * the ephemeral band or a Windows excluded range are skipped — stepping
+     * *up* from 64506 would stay inside Hyper-V reservations.
+     *
+     * @param int[] $reserved
+     * @throws \RuntimeException
+     */
     private function findFreePortNear(int $basePort, array $reserved): int
     {
-        for ($candidate = $basePort + self::CONFLICT_SCAN_STEP; $candidate <= self::MAX_PORT; $candidate += self::CONFLICT_SCAN_STEP) {
+        $candidate = $basePort + self::CONFLICT_SCAN_STEP;
+        if (!$this->isPublishableHostPort($candidate)) {
+            $candidate = $this->foldIntoSafeBand($basePort);
+        }
+
+        for (; $candidate <= $this->maxPublishablePort(); $candidate += self::CONFLICT_SCAN_STEP) {
+            if (!$this->isHostPortTaken($candidate) && !in_array($candidate, $reserved, true)) {
+                return $candidate;
+            }
+        }
+
+        for ($candidate = self::SAFE_BAND_START; $candidate <= $this->maxPublishablePort(); $candidate++) {
             if (!$this->isHostPortTaken($candidate) && !in_array($candidate, $reserved, true)) {
                 return $candidate;
             }
@@ -194,14 +256,45 @@ class PortOffsetManager
     }
 
     /**
-     * A port Docker has published, or that another process holds on 127.0.0.1.
+     * A port Docker has published, another process holds on 127.0.0.1, or
+     * that this host cannot publish (Windows excluded range / WSL ephemeral).
      *
      * The loopback check stays out of {@see findAvailableOffset()}: one stolen
      * database port should move only that port, not the whole stack.
      */
     private function isHostPortTaken(int $port): bool
     {
-        return !$this->isPortAvailable($port) || ($this->nonDockerLoopback)($port);
+        return !$this->isPublishableHostPort($port)
+            || !$this->isPortAvailable($port)
+            || ($this->nonDockerLoopback)($port);
+    }
+
+    public function isPublishableHostPort(int $port): bool
+    {
+        if ($port < 1 || $port > $this->maxPublishablePort()) {
+            return false;
+        }
+
+        return !$this->excludedPorts->contains($port);
+    }
+
+    private function maxPublishablePort(): int
+    {
+        return $this->avoidEphemeralRange ? self::EPHEMERAL_START - 1 : self::MAX_PORT;
+    }
+
+    /**
+     * Keep the last four digits when folding a 64k-class port down into the
+     * safe band (64506 → 14506) so the replacement is still recognisable.
+     */
+    private function foldIntoSafeBand(int $port): int
+    {
+        $folded = self::SAFE_BAND_START + ($port % 10000);
+        if ($this->isPublishableHostPort($folded) && $folded !== $port) {
+            return $folded;
+        }
+
+        return self::SAFE_BAND_START;
     }
 
     /**
