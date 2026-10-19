@@ -29,8 +29,6 @@ Requirements:
 ## Changes
 
 - PR: https://github.com/ngramx/ngramx/pull/53
-
-
 - `src/Docker/WindowsExcludedPortRanges.php` — parse `netsh` excluded ranges.
 - `src/Docker/PortPublishFailure.php` — extract refused host ports from compose
   / Docker Desktop errors.
@@ -46,3 +44,5 @@ Requirements:
   publish remapping.
 - Unit tests for the parser, excluded ranges, offset+map, worktree remap, and
   compose-up retry.
+- Stub `resolvePortConflicts` via `expects()` so PHPStan 8.2/8.3 CI accepts the
+  UpCommand mock (direct `->method()` is not on the concrete type).

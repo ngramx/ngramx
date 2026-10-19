@@ -7,7 +7,7 @@
   "test_plan": [
     {
       "description": "A Hydra worktree no longer dies on the 56306 + offset publish",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "On Docker Desktop + WSL, confirm Windows has reserved the high band: netsh.exe interface ipv4 show excludedportrange protocol=tcp",
         "From hydra-main, run nwt gig-3816 (or ngramx worktree <ticket>) with this ngramx build",
@@ -17,7 +17,7 @@
     },
     {
       "description": "A publish 500 that slips past the pre-check is remapped and retried",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "If compose still prints 'ports are not available' / '/forwards/expose returned unexpected status: 500' for one host port",
         "Expect ngramx to warn that the port was remapped, regenerate the override, and retry compose-up once",
@@ -26,10 +26,18 @@
     },
     {
       "description": "Unrelated compose failures are not swallowed",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Force a non-publish start failure (for example a missing image or a stale bind-mount path ngramx cannot recover)",
         "Expect the original error to surface — no host-port remap messaging"
+      ]
+    },
+    {
+      "description": "PHP 8.2 and 8.3 CI (PHPStan + PHPUnit) pass after the mock stub fix",
+      "status": "active",
+      "steps": [
+        "Confirm the PHP 8.2 and PHP 8.3 GitHub Actions checks on PR #53 are green",
+        "Optionally run `composer phpstan` and `vendor/bin/phpunit tests/Unit/Command/UpCommandTest.php` locally"
       ]
     }
   ]

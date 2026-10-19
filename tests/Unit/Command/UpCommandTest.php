@@ -373,7 +373,9 @@ class UpCommandTest extends TestCase
             ->with([80, 443])
             ->willReturn(8000);
 
-        $this->portOffsetManager->method('resolvePortConflicts')->willReturn([]);
+        $this->portOffsetManager->expects($this->any())
+            ->method('resolvePortConflicts')
+            ->willReturn([]);
 
         // Should generate override with both port offset and namespace prefix
         $this->overrideGenerator->expects($this->once())
