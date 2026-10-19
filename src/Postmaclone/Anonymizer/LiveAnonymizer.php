@@ -153,8 +153,7 @@ class LiveAnonymizer
         $params = [];
         $pageWhere = $tableWhere;
         if ($lastPk !== null) {
-            $clause = $quotedPk . ' > :last_pk';
-            $pageWhere = $tableWhere === '' ? ' WHERE ' . $clause : $tableWhere . ' AND ' . $clause;
+            $pageWhere = $this->withKeyset($tableWhere, $quotedPk);
             $params[':last_pk'] = $lastPk;
         }
 
@@ -175,6 +174,23 @@ class LiveAnonymizer
         $stmt->closeCursor();
 
         return $rows;
+    }
+
+    /**
+     * Wrap the table WHERE so AND pk > :last_pk applies to the whole predicate.
+     * Without parentheses, OR in a column `where` binds looser than AND and the
+     * first page can repeat forever.
+     */
+    private function withKeyset(string $tableWhere, string $quotedPk): string
+    {
+        $keyset = $quotedPk . ' > :last_pk';
+        if ($tableWhere === '') {
+            return ' WHERE ' . $keyset;
+        }
+
+        $inner = preg_replace('/^\s*WHERE\s+/i', '', $tableWhere) ?? $tableWhere;
+
+        return ' WHERE (' . $inner . ') AND ' . $keyset;
     }
 
     /**

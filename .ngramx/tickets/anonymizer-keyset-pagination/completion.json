@@ -11,11 +11,20 @@
   "test_plan": [
     {
       "description": "Anonymize SELECTs are paged by primary key",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "In the ngramx app container run vendor/bin/phpunit tests/Unit/Postmaclone/LiveAnonymizerTest.php --no-coverage",
         "Confirm test_selects_are_paged_by_primary_key passes",
         "After release, dispatch Postmaclone produce (Hydra) and confirm bank_transactions anonymize reaches 100% without the runner process being Killed"
+      ]
+    },
+    {
+      "description": "Keyset paging parenthesizes OR where clauses",
+      "status": "active",
+      "steps": [
+        "In the ngramx app container run vendor/bin/phpunit tests/Unit/Postmaclone/LiveAnonymizerTest.php --filter test_keyset_parentheses_keep_or_where_from_repeating_the_first_page --no-coverage",
+        "Confirm later pages use WHERE (status = 'a' OR status = 'b') AND id > :last_pk",
+        "Confirm all five matching rows are updated (no infinite first-page loop)"
       ]
     }
   ]
