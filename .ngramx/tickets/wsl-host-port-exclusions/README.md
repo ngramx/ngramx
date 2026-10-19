@@ -28,6 +28,9 @@ Requirements:
 
 ## Changes
 
+- PR: https://github.com/ngramx/ngramx/pull/53
+
+
 - `src/Docker/WindowsExcludedPortRanges.php` — parse `netsh` excluded ranges.
 - `src/Docker/PortPublishFailure.php` — extract refused host ports from compose
   / Docker Desktop errors.

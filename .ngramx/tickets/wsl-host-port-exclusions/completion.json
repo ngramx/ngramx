@@ -1,7 +1,7 @@
 {
   "title": "fix(worktree): remap host ports Docker Desktop cannot publish on WSL",
   "description": "Stops ngramx worktree / nwt failing on Docker Desktop + WSL when a compose port plus offset lands in a Windows Hyper-V excluded range. Those ports are remapped before compose-up, and a /forwards/expose 500 retries once with a replacement.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/53",
   "linear_url": null,
   "test_urls": [],
   "test_plan": [
