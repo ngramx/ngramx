@@ -139,9 +139,13 @@ YAML;
             elseif (isset($service['ports']) && ($portOffset > 0 || $portMap !== [])) {
                 $newPorts = [];
                 foreach ($service['ports'] as $portMapping) {
-                    $newPort = $portOffset > 0
-                        ? $this->applyOffset($portMapping, $portOffset)
-                        : $this->applyPortMap($portMapping, $portMap);
+                    $newPort = $portMapping;
+                    if ($portOffset > 0) {
+                        $newPort = $this->applyOffset($portMapping, $portOffset);
+                    }
+                    if ($newPort !== null && $portMap !== []) {
+                        $newPort = $this->applyPortMap($newPort, $portMap);
+                    }
                     if ($newPort !== null) {
                         $newPorts[] = $newPort;
                     }

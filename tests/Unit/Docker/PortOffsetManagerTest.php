@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ngramx\Tests\Unit\Docker;
 
 use Ngramx\Docker\PortOffsetManager;
+use Ngramx\Docker\WindowsExcludedPortRanges;
 use PHPUnit\Framework\TestCase;
 
 class PortOffsetManagerTest extends TestCase
@@ -242,6 +243,49 @@ class PortOffsetManagerTest extends TestCase
         $map = $manager->resolvePortConflicts([80, 180]);
 
         $this->assertSame([80 => 280, 180 => 380], $map);
+    }
+
+    public function test_it_remaps_windows_excluded_ports(): void
+    {
+        $excluded = new WindowsExcludedPortRanges(static fn (): string => "     64480       64579\n");
+        $manager = new PortOffsetManager(
+            fn (): array => [],
+            fn (int $port): bool => false,
+            $excluded,
+            false,
+        );
+
+        $this->assertSame([64506 => 64606], $manager->resolvePortConflicts([8280, 64506]));
+    }
+
+    public function test_it_folds_ephemeral_ports_into_the_safe_band_on_wsl(): void
+    {
+        $manager = new PortOffsetManager(
+            fn (): array => [],
+            fn (int $port): bool => false,
+            new WindowsExcludedPortRanges(static fn (): string => ''),
+            true,
+        );
+
+        $this->assertFalse($manager->isPublishableHostPort(64506));
+        $this->assertSame([64506 => 14506], $manager->resolvePortConflicts([8280, 64506]));
+    }
+
+    public function test_it_skips_an_excluded_fold_target(): void
+    {
+        $excluded = new WindowsExcludedPortRanges(static fn (): string => "     14500       14599\n");
+        $manager = new PortOffsetManager(
+            fn (): array => [],
+            fn (int $port): bool => false,
+            $excluded,
+            true,
+        );
+
+        $map = $manager->resolvePortConflicts([64506]);
+
+        $this->assertArrayHasKey(64506, $map);
+        $this->assertNotSame(14506, $map[64506]);
+        $this->assertTrue($manager->isPublishableHostPort($map[64506]));
     }
 
     /**

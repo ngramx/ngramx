@@ -192,6 +192,31 @@ class ComposeOverrideGeneratorTest extends TestCase
         $this->assertEquals(['${EK_PWA_PREVIEW_PORT:-3927}:4173'], $ports);
     }
 
+    public function test_it_applies_port_map_after_a_global_offset(): void
+    {
+        $composeFile = $this->createComposeFile([
+            'services' => [
+                'app' => [
+                    'image' => 'nginx',
+                    'ports' => ['80:80', '56306:3306'],
+                ],
+            ],
+        ]);
+
+        $this->generator->generate($composeFile, 8200, null, false, [64506 => 14506]);
+
+        $overrideContent = file_get_contents($this->tempDir . '/docker-compose.override.yml');
+        $this->assertNotFalse($overrideContent, 'Failed to read override file');
+        $override = Yaml::parse($overrideContent, Yaml::PARSE_CUSTOM_TAGS);
+
+        $ports = $override['services']['app']['ports'];
+        if ($ports instanceof \Symfony\Component\Yaml\Tag\TaggedValue) {
+            $ports = $ports->getValue();
+        }
+
+        $this->assertEquals(['8280:80', '14506:3306'], $ports);
+    }
+
     public function test_it_does_not_change_container_names_when_remapping_ports(): void
     {
         $composeFile = $this->createComposeFile([

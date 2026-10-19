@@ -1,0 +1,36 @@
+{
+  "title": "fix(worktree): remap host ports Docker Desktop cannot publish on WSL",
+  "description": "Stops ngramx worktree / nwt failing on Docker Desktop + WSL when a compose port plus offset lands in a Windows Hyper-V excluded range. Those ports are remapped before compose-up, and a /forwards/expose 500 retries once with a replacement.",
+  "pr_url": "",
+  "linear_url": null,
+  "test_urls": [],
+  "test_plan": [
+    {
+      "description": "A Hydra worktree no longer dies on the 56306 + offset publish",
+      "status": "active",
+      "steps": [
+        "On Docker Desktop + WSL, confirm Windows has reserved the high band: netsh.exe interface ipv4 show excludedportrange protocol=tcp",
+        "From hydra-main, run nwt gig-3816 (or ngramx worktree <ticket>) with this ngramx build",
+        "Expect ngramx to report that 64506 (or whichever 56306+offset port) cannot be published and to use a port below 49152 instead",
+        "Expect the app container to start; docker ps should show the remapped host port, not a /forwards/expose 500"
+      ]
+    },
+    {
+      "description": "A publish 500 that slips past the pre-check is remapped and retried",
+      "status": "active",
+      "steps": [
+        "If compose still prints 'ports are not available' / '/forwards/expose returned unexpected status: 500' for one host port",
+        "Expect ngramx to warn that the port was remapped, regenerate the override, and retry compose-up once",
+        "Expect the stack to come up on the replacement port"
+      ]
+    },
+    {
+      "description": "Unrelated compose failures are not swallowed",
+      "status": "active",
+      "steps": [
+        "Force a non-publish start failure (for example a missing image or a stale bind-mount path ngramx cannot recover)",
+        "Expect the original error to surface — no host-port remap messaging"
+      ]
+    }
+  ]
+}
