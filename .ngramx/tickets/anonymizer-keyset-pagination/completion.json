@@ -1,7 +1,7 @@
 {
   "title": "Page Postmaclone Anonymize Selects So Large MySQL Tables Do Not OOM",
   "description": "Pages live anonymize SELECTs by primary key so buffered PDO MySQL does not load multi-million-row tables into PHP during factory produce.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/54",
   "test_urls": [
     {
       "label": "Hydra produce workflow",

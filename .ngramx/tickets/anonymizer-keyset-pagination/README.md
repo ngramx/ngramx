@@ -14,3 +14,4 @@ Hydra produce OOM-killed the lon1 runner while anonymizing `bank_transactions` (
 
 - `LiveAnonymizer` reads `WHERE pk > :last ORDER BY pk LIMIT chunkSize`, then UPDATEs, then the next page
 - `LiveAnonymizerTest::test_selects_are_paged_by_primary_key`
+- PR: https://github.com/ngramx/ngramx/pull/54
