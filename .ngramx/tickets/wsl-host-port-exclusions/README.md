@@ -46,3 +46,6 @@ Requirements:
   compose-up retry.
 - Stub `resolvePortConflicts` via `expects()` so PHPStan 8.2/8.3 CI accepts the
   UpCommand mock (direct `->method()` is not on the concrete type).
+- Re-point the original post-offset `port_map` key when compose-up recovery
+  retries a remapped port (Bugbot: a second-key remap left the override
+  publishing the port that just 500'd).

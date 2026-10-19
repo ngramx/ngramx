@@ -16,6 +16,7 @@ use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Docker\DockerLauncher;
 use Ngramx\Docker\Exception\ServiceNotHealthyException;
+use Ngramx\Docker\HostPortMap;
 use Ngramx\Docker\NamespaceResolver;
 use Ngramx\Docker\PortOffsetManager;
 use Ngramx\Docker\PortPublishFailure;
@@ -690,12 +691,13 @@ class UpCommand extends Command
             )));
 
             foreach ($failed as $port) {
-                if (isset($portMap[$port])) {
-                    continue;
-                }
-
                 $replacement = $this->portOffsetManager->allocateReplacement($port, $claimed);
-                $portMap[$port] = $replacement;
+                // Re-point the post-offset original, not the current
+                // replacement. generate() / URL shifting look up the original
+                // (56306+8200 → 64506), so a second-key {14506: 14606} would
+                // leave the override publishing the port that just 500'd.
+                $portMap = HostPortMap::repointFailed($portMap, $port, $replacement);
+                $claimed[] = $port;
                 $claimed[] = $replacement;
                 $formatter->warning("Docker could not publish port {$port} — remapped to {$replacement}");
             }

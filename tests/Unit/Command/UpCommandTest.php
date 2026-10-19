@@ -516,6 +516,60 @@ class UpCommandTest extends TestCase
         $this->assertStringContainsString('64506 cannot be published — using 14506 instead', $tester->getDisplay());
     }
 
+    public function test_publish_recovery_repoints_the_original_offset_port(): void
+    {
+        $config = $this->createMockConfig();
+
+        $this->lockFile->expects($this->any())->method('exists')->willReturn(false);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn('/path/to/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+
+        $this->portOffsetManager->expects($this->atLeastOnce())
+            ->method('extractBasePorts')
+            ->willReturn([56306]);
+        $this->portOffsetManager->expects($this->once())
+            ->method('resolvePortConflicts')
+            ->willReturn([64506 => 14506]);
+        $this->portOffsetManager->expects($this->once())
+            ->method('allocateReplacement')
+            ->with(14506, $this->anything())
+            ->willReturn(14606);
+
+        $recoveredMap = null;
+        $this->overrideGenerator->expects($this->atLeastOnce())
+            ->method('generate')
+            ->willReturnCallback(function () use (&$recoveredMap): void {
+                $args = func_get_args();
+                $map = $args[4] ?? [];
+                if ($map === [64506 => 14606]) {
+                    $recoveredMap = $map;
+                }
+            });
+
+        $this->setupOrchestrator->expects($this->once())
+            ->method('setup')
+            ->willReturnCallback(function () {
+                $recover = func_get_arg(11);
+                $this->assertIsCallable($recover);
+                $updated = $recover(
+                    'Error response from daemon: ports are not available: '
+                    . 'exposing port TCP 0.0.0.0:14506 -> 127.0.0.1:0: '
+                    . '/forwards/expose returned unexpected status: 500'
+                );
+                $this->assertSame([64506 => 14606], $updated);
+
+                return ['time' => 1.5, 'namespace' => '', 'port_offset' => 8200];
+            });
+
+        $command = $this->createCommand();
+        $tester = new CommandTester($command);
+        $exitCode = $tester->execute(['--port-offset' => '8200']);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame([64506 => 14606], $recoveredMap);
+        $this->assertStringContainsString('Docker could not publish port 14506 — remapped to 14606', $tester->getDisplay());
+    }
+
     public function test_it_does_not_generate_override_when_no_ports_conflict(): void
     {
         $config = $this->createMockConfig();

@@ -34,10 +34,19 @@
     },
     {
       "description": "PHP 8.2 and 8.3 CI (PHPStan + PHPUnit) pass after the mock stub fix",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Confirm the PHP 8.2 and PHP 8.3 GitHub Actions checks on PR #53 are green",
         "Optionally run `composer phpstan` and `vendor/bin/phpunit tests/Unit/Command/UpCommandTest.php` locally"
+      ]
+    },
+    {
+      "description": "Compose-up recovery re-points the original offset port when the remapped port also 500s",
+      "status": "active",
+      "steps": [
+        "On WSL, start a Hydra worktree so 56306+offset is remapped (e.g. 64506 → 14506)",
+        "If Docker Desktop then 500s on 14506, expect the override to publish a new replacement (not 14506 again)",
+        "Confirm `docker ps` and `.ngramx.lock` port_map keep the original post-offset key (64506) pointing at the new host port"
       ]
     }
   ]

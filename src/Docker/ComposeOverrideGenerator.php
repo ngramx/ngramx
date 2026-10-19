@@ -427,11 +427,21 @@ YAML;
     private function remapHostSegment(string $hostPort, array $portMap): string
     {
         $number = PortMapping::hostPortNumber($hostPort);
-        if ($number === null || !isset($portMap[$number])) {
+        if ($number === null) {
             return $hostPort;
         }
 
-        return PortMapping::replaceHostPort($hostPort, $portMap[$number]);
+        $seen = [];
+        while (isset($portMap[$number]) && !isset($seen[$number])) {
+            $seen[$number] = true;
+            $number = $portMap[$number];
+        }
+
+        if ($seen === []) {
+            return $hostPort;
+        }
+
+        return PortMapping::replaceHostPort($hostPort, $number);
     }
 
     /**
