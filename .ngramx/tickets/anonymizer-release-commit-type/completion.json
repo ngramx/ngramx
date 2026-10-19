@@ -1,0 +1,22 @@
+{
+  "title": "fix(postmaclone): Page Anonymize Selects So Large MySQL Tables Do Not OOM",
+  "description": "Follow-up Conventional Commit so semantic-release publishes the anonymizer keyset pagination fix that merged in PR #54 without a fix: prefix.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/55",
+  "test_urls": [
+    {
+      "label": "Ngramx releases",
+      "url": "https://github.com/ngramx/ngramx/releases"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Merge publishes ngramx 2.58.2",
+      "status": "active",
+      "steps": [
+        "Merge this PR to main",
+        "Confirm the Release workflow runs semantic-release and creates tag v2.58.2",
+        "Confirm https://github.com/ngramx/ngramx/releases/latest lists the anonymizer SELECT paging fix"
+      ]
+    }
+  ]
+}
