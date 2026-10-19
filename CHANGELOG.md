@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.58.2](https://github.com/ngramx/ngramx/compare/v2.58.1...v2.58.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* **postmaclone:** page anonymize SELECTs so large MySQL tables do not OOM ([762846f](https://github.com/ngramx/ngramx/commit/762846f2e3db4cb02eaa17b55aac75e9295a4152))
+
 ## [2.58.1](https://github.com/ngramx/ngramx/compare/v2.58.0...v2.58.1) (2026-10-19)
 
 
