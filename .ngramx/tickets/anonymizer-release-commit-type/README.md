@@ -12,3 +12,4 @@ PR #54 landed the anonymizer keyset pagination fix, but its commits had no Conve
 ## Changes
 
 - Conventional `fix(postmaclone):` commit to trigger the Release workflow
+- PR: https://github.com/ngramx/ngramx/pull/55
