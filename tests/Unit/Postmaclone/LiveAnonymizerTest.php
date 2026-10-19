@@ -137,6 +137,68 @@ class LiveAnonymizerTest extends TestCase
         $this->assertNotSame([], $anonymizer->warnings());
     }
 
+    public function test_selects_are_paged_by_primary_key(): void
+    {
+        $pdo = $this->sqlite();
+        $pdo->exec('CREATE TABLE people (id INTEGER PRIMARY KEY, name TEXT)');
+        for ($i = 1; $i <= 5; $i++) {
+            $pdo->exec("INSERT INTO people (id, name) VALUES ({$i}, 'n{$i}')");
+        }
+
+        $anonymizer = $this->anonymizer($pdo, chunkSize: 2);
+        $anonymizer->anonymize($pdo, [
+            'people' => new TableRule('people', [
+                'name' => new ColumnRule('name', 'clear'),
+            ], 'id'),
+        ]);
+
+        $pageSelects = array_values(array_filter(
+            $pdo->queries,
+            static fn (string $sql): bool => str_contains($sql, 'FROM "people"')
+                && str_contains($sql, 'LIMIT 2')
+        ));
+        $this->assertCount(3, $pageSelects);
+        $this->assertStringNotContainsString(':last_pk', $pageSelects[0]);
+        $this->assertStringContainsString('"id" > :last_pk', $pageSelects[1]);
+        $this->assertStringContainsString('"id" > :last_pk', $pageSelects[2]);
+        $this->assertSame(3, $pdo->updateCount);
+
+        $selected = $pdo->query('SELECT name FROM people ORDER BY id');
+        $this->assertNotFalse($selected);
+        $this->assertSame(['', '', '', '', ''], $selected->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    public function test_keyset_parentheses_keep_or_where_from_repeating_the_first_page(): void
+    {
+        $pdo = $this->sqlite();
+        $pdo->exec('CREATE TABLE people (id INTEGER PRIMARY KEY, name TEXT, status TEXT)');
+        for ($i = 1; $i <= 5; $i++) {
+            $pdo->exec("INSERT INTO people (id, name, status) VALUES ({$i}, 'n{$i}', 'a')");
+        }
+
+        $anonymizer = $this->anonymizer($pdo, chunkSize: 2);
+        $anonymizer->anonymize($pdo, [
+            'people' => new TableRule('people', [
+                'name' => new ColumnRule('name', 'clear', where: "status = 'a' OR status = 'b'"),
+            ], 'id'),
+        ]);
+
+        $keysetSelects = array_values(array_filter(
+            $pdo->queries,
+            static fn (string $sql): bool => str_contains($sql, ':last_pk')
+        ));
+        $this->assertNotSame([], $keysetSelects);
+        $this->assertStringContainsString(
+            'WHERE (status = \'a\' OR status = \'b\') AND "id" > :last_pk',
+            $keysetSelects[0]
+        );
+        $this->assertSame(3, $pdo->updateCount);
+
+        $selected = $pdo->query('SELECT name FROM people ORDER BY id');
+        $this->assertNotFalse($selected);
+        $this->assertSame(['', '', '', '', ''], $selected->fetchAll(PDO::FETCH_COLUMN));
+    }
+
     public function test_strict_batch_failure_falls_back_then_throws(): void
     {
         $pdo = $this->sqlite();
@@ -164,12 +226,16 @@ class LiveAnonymizerTest extends TestCase
         $this->assertSame(['', ''], $names);
     }
 
-    private function anonymizer(CountingPdo $pdo, int $maxBoundBytes = 1_000_000, bool $strict = false): LiveAnonymizer
-    {
+    private function anonymizer(
+        CountingPdo $pdo,
+        int $maxBoundBytes = 1_000_000,
+        bool $strict = false,
+        int $chunkSize = 50,
+    ): LiveAnonymizer {
         return new LiveAnonymizer(
             new FakerMethodResolver('en_GB', 42),
             new SqlDialect('postgres'),
-            chunkSize: 50,
+            chunkSize: $chunkSize,
             strict: $strict,
             maxBoundBytes: $maxBoundBytes,
         );
@@ -194,11 +260,15 @@ final class CountingPdo extends PDO
 
     public bool $failNextBatch = false;
 
+    /** @var list<string> */
+    public array $queries = [];
+
     /**
      * @param array<int, mixed> $options
      */
     public function prepare(string $query, array $options = []): PDOStatement|false
     {
+        $this->queries[] = $query;
         if (str_contains($query, 'information_schema.tables')) {
             $query = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = :t LIMIT 1";
         } elseif (str_contains($query, 'information_schema.columns')) {

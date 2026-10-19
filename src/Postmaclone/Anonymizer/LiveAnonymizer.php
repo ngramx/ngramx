@@ -101,7 +101,8 @@ class LiveAnonymizer
         $quoted = array_map(fn (string $c) => $this->dialect->quoteIdentifier($c), $selectCols);
         $from = ' FROM ' . $this->dialect->quoteIdentifier($table->table);
         $where = $this->tableWhere($columns);
-        $sql = 'SELECT ' . implode(', ', $quoted) . $from . $where;
+        $quotedPk = $this->dialect->quoteIdentifier($pk);
+        $selectSql = 'SELECT ' . implode(', ', $quoted) . $from;
 
         $total = $this->countRows($pdo, $from . $where);
         if ($total !== null) {
@@ -114,37 +115,82 @@ class LiveAnonymizer
             $this->progress("Anonymizing {$table->table}");
         }
 
-        $stmt = $pdo->query($sql);
-        if ($stmt === false) {
-            $this->failOrWarn("Failed to select from {$table->table}; skipping");
-
-            return;
-        }
-
         $reporter = $this->onProgress !== null && $total !== null
             ? new PercentReporter($total, "Anonymizing {$table->table}", $this->onProgress)
             : null;
 
         $usable = new TableRule($table->table, $columns, $table->primaryKey);
-        $batch = [];
+        $lastPk = null;
         while (true) {
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row === false) {
+            $rows = $this->fetchPage($pdo, $selectSql, $where, $quotedPk, $lastPk);
+            if ($rows === []) {
                 break;
             }
-            /** @var array<string, mixed> $row */
-            $batch[] = $row;
-            if (count($batch) >= $this->chunkSize) {
-                $this->applyBatch($pdo, $usable, $pk, $batch);
-                $reporter?->add(count($batch));
-                $batch = [];
+
+            $this->applyBatch($pdo, $usable, $pk, $rows);
+            $reporter?->add(count($rows));
+            $lastPk = $rows[array_key_last($rows)][$pk] ?? null;
+            if ($lastPk === null || count($rows) < $this->chunkSize) {
+                break;
             }
         }
-        if ($batch !== []) {
-            $this->applyBatch($pdo, $usable, $pk, $batch);
-            $reporter?->add(count($batch));
-        }
         $reporter?->finish();
+    }
+
+    /**
+     * Page by primary key so MySQL buffered PDO does not pull the whole table into
+     * PHP (Hydra bank_transactions is ~2.8M rows; that OOM-kills the lon1 runner).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchPage(
+        PDO $pdo,
+        string $selectSql,
+        string $tableWhere,
+        string $quotedPk,
+        mixed $lastPk,
+    ): array {
+        $params = [];
+        $pageWhere = $tableWhere;
+        if ($lastPk !== null) {
+            $pageWhere = $this->withKeyset($tableWhere, $quotedPk);
+            $params[':last_pk'] = $lastPk;
+        }
+
+        $sql = $selectSql . $pageWhere
+            . ' ORDER BY ' . $quotedPk . ' ASC'
+            . ' LIMIT ' . $this->chunkSize;
+
+        $stmt = $pdo->prepare($sql);
+        if ($stmt === false) {
+            $this->failOrWarn('Failed to prepare anonymize page select; skipping remaining rows');
+
+            return [];
+        }
+
+        $stmt->execute($params);
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->closeCursor();
+
+        return $rows;
+    }
+
+    /**
+     * Wrap the table WHERE so AND pk > :last_pk applies to the whole predicate.
+     * Without parentheses, OR in a column `where` binds looser than AND and the
+     * first page can repeat forever.
+     */
+    private function withKeyset(string $tableWhere, string $quotedPk): string
+    {
+        $keyset = $quotedPk . ' > :last_pk';
+        if ($tableWhere === '') {
+            return ' WHERE ' . $keyset;
+        }
+
+        $inner = preg_replace('/^\s*WHERE\s+/i', '', $tableWhere) ?? $tableWhere;
+
+        return ' WHERE (' . $inner . ') AND ' . $keyset;
     }
 
     /**
