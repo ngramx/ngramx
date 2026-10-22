@@ -1,7 +1,7 @@
 {
   "title": "GIG-4035: Re-Run High-Risk Review When A Pull Request Is Approved",
   "description": "The generated high-risk review caller starts again when a review is submitted or dismissed, so one approval can turn the required check green.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/56",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-4035/re-run-high-risk-review-when-a-pull-request-is-approved-so-the-check",
   "test_urls": [
     {
