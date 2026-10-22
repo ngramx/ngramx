@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.58.4](https://github.com/ngramx/ngramx/compare/v2.58.3...v2.58.4) (2026-10-22)
+
+
+### Bug Fixes
+
+* drop redundant is_array check on getenv ([890d765](https://github.com/ngramx/ngramx/commit/890d7651d3a2517927b6f0d25599271ec7223bf9))
+* export declared secrets into host pre_start commands ([3cb4b52](https://github.com/ngramx/ngramx/commit/3cb4b5291557794207e6c4138d29fe2aca3cb618))
+* restore parent auth.json after failed or skipped worktree up ([a493190](https://github.com/ngramx/ngramx/commit/a493190c3e598ff4da225dbfc1c174985193899c))
+
 ## [2.58.3](https://github.com/ngramx/ngramx/compare/v2.58.2...v2.58.3) (2026-10-22)
 
 
