@@ -1218,6 +1218,8 @@ setup:
     - command: "cp .env.example .env"
       description: "Create environment file"
       ignore_failure: true
+    # Declared `secrets` are exported into these host commands so `$NOVA_LICENSE_KEY`
+    # (and the rest) expand even when they live only in `.env`.
       
   initialize:   # Optional: Commands to run in container after services start
     - command: "composer install"
@@ -1233,7 +1235,8 @@ commands:       # Optional: Custom commands
 
 ### Command Properties
 
-- `command` (required): The command to execute
+- `command` (required): The command to execute. Host `pre_start` commands receive
+  every declared `secrets` value in their environment (shell first, then `.env`).
 - `description` (required): Human-readable description
 - `timeout` (optional, default: 600): Timeout in seconds
 - `retry` (optional): Number of times to re-run the command after a failure.

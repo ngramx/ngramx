@@ -1,0 +1,14 @@
+{
+  "id": "GIG-4063",
+  "title": "Export declared secrets into host pre_start commands",
+  "description": "Ngramx treats secrets in `.env` as present, then runs host `setup.pre_start` commands without exporting those values. Unset `$NOVA_ACCOUNT_EMAIL` / `$NOVA_LICENSE_KEY` vanish, so `composer config http-basic.nova.laravel.com $NOVA_*` becomes a GET of a missing setting and `ngramx worktree` exits 1. Worktrees also do not inherit the parent `auth.json`.\n\nExport declared secrets into the host command environment (shell first, then `.env`). Copy parent `auth.json` into the worktree before `up`, and restore it afterwards so a `composer config` SET cannot replace a working Composer login with a different `.env` account.\n\n## Goal\n\nWorktree environments must start reliably for every Laravel Nova project. Developers should not have to copy `auth.json` by hand or export secrets before `nwt`.",
+  "url": "https://linear.app/gigabyte/issue/GIG-4063/export-declared-secrets-into-host-pre-start-commands",
+  "status": "In Progress",
+  "assignee": "Cameron Smith",
+  "project": "ngramx",
+  "priority": "High",
+  "estimate": 2,
+  "labels": [
+    "Gigabyte Software"
+  ]
+}

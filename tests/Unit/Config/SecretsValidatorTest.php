@@ -230,6 +230,48 @@ class SecretsValidatorTest extends TestCase
         $this->assertSame(['.env' => ['EMPTY_SECRET']], $validator->validate($secrets, $this->tmpDir));
     }
 
+    public function test_environment_returns_dotenv_values_when_shell_is_empty(): void
+    {
+        file_put_contents($this->tmpDir . '/.env', "NOVA_ACCOUNT_EMAIL=dev@example.com\nNOVA_LICENSE_KEY=lic-123\n");
+
+        $validator = $this->createValidatorWithEnv([]);
+        $secrets = new SecretsConfig(providers: [
+            new SecretsProviderConfig(required: ['NOVA_ACCOUNT_EMAIL', 'NOVA_LICENSE_KEY']),
+        ]);
+
+        $this->assertSame(
+            [
+                'NOVA_ACCOUNT_EMAIL' => 'dev@example.com',
+                'NOVA_LICENSE_KEY' => 'lic-123',
+            ],
+            $validator->environment($secrets, $this->tmpDir)
+        );
+    }
+
+    public function test_environment_prefers_shell_over_dotenv(): void
+    {
+        file_put_contents($this->tmpDir . '/.env', "NOVA_LICENSE_KEY=from-file\n");
+
+        $validator = $this->createValidatorWithEnv([
+            'NOVA_LICENSE_KEY' => 'from-shell',
+        ]);
+        $secrets = new SecretsConfig(providers: [
+            new SecretsProviderConfig(required: ['NOVA_LICENSE_KEY']),
+        ]);
+
+        $this->assertSame(
+            ['NOVA_LICENSE_KEY' => 'from-shell'],
+            $validator->environment($secrets, $this->tmpDir)
+        );
+    }
+
+    public function test_environment_returns_empty_array_when_no_secrets_required(): void
+    {
+        $validator = new SecretsValidator();
+
+        $this->assertSame([], $validator->environment(new SecretsConfig(providers: []), $this->tmpDir));
+    }
+
     /**
      * @param array<string, string> $env
      */

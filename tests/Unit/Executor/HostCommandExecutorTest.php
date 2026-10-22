@@ -87,4 +87,20 @@ class HostCommandExecutorTest extends TestCase
         // Command should fail due to timeout
         $this->assertFalse($result->isSuccessful());
     }
+
+    public function test_it_exports_extra_env_into_the_command(): void
+    {
+        $cmd = new CommandDefinition(
+            command: 'printf %s "$NOVA_ACCOUNT_EMAIL"',
+            description: 'Echo injected secret',
+            timeout: 10
+        );
+
+        $result = $this->executor->execute($cmd, extraEnv: [
+            'NOVA_ACCOUNT_EMAIL' => 'dev@example.com',
+        ]);
+
+        $this->assertTrue($result->isSuccessful());
+        $this->assertSame('dev@example.com', $result->output);
+    }
 }

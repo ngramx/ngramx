@@ -15,13 +15,17 @@ class HostCommandExecutor
      * Execute a command on the host machine
      *
      * @param callable|null $outputCallback Optional callback for real-time output
+     * @param array<string, string> $extraEnv Exported into the command (merged with the current process env)
      */
-    public function execute(CommandDefinition $cmd, ?callable $outputCallback = null): ExecutionResult
+    public function execute(CommandDefinition $cmd, ?callable $outputCallback = null, array $extraEnv = []): ExecutionResult
     {
         $startTime = microtime(true);
 
         $process = Process::fromShellCommandline($cmd->command);
         $process->setTimeout($cmd->timeout);
+        if ($extraEnv !== []) {
+            $process->setEnv(array_merge($this->inheritedEnvironment(), $extraEnv));
+        }
 
         try {
             if ($outputCallback !== null) {
@@ -44,5 +48,15 @@ class HostCommandExecutor
             successful: $process->isSuccessful(),
             executionTime: $executionTime,
         );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function inheritedEnvironment(): array
+    {
+        $env = getenv();
+
+        return is_array($env) ? $env : [];
     }
 }

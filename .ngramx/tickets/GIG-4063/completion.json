@@ -1,0 +1,33 @@
+{
+  "title": "GIG-4063: Export Declared Secrets Into Host Pre Start Commands",
+  "description": "Exports declared ngramx secrets into host pre_start commands and seeds parent auth.json into worktrees so Nova Composer auth no longer fails when those values live only in .env.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-4063/export-declared-secrets-into-host-pre-start-commands",
+  "test_urls": [
+    {
+      "label": "SecretsValidator",
+      "url": "https://github.com/ngramx/ngramx/blob/gig-4063-export-host-pre-start-secrets/src/Config/Validator/SecretsValidator.php"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Host pre_start expands secrets that live only in .env",
+      "status": "active",
+      "steps": [
+        "In a project whose ngramx.yml requires NOVA_ACCOUNT_EMAIL and NOVA_LICENSE_KEY from .env, unset those variables in the shell",
+        "Confirm the values are present in .env",
+        "Run ngramx worktree for a ticket so pre_start runs composer config http-basic.nova.laravel.com $NOVA_ACCOUNT_EMAIL $NOVA_LICENSE_KEY",
+        "Confirm that step succeeds and the worktree has auth.json"
+      ]
+    },
+    {
+      "description": "Worktree auth.json matches the parent after up",
+      "status": "active",
+      "steps": [
+        "Confirm the parent checkout has an auth.json for nova.laravel.com",
+        "Create a worktree and wait until up finishes",
+        "Confirm the worktree auth.json username matches the parent, not a different .env account"
+      ]
+    }
+  ]
+}

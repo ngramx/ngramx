@@ -55,6 +55,51 @@ class SecretsValidator
     }
 
     /**
+     * Values to export into host setup commands so `$SECRET` in `pre_start`
+     * expands. A shell-exported value wins over the project's `.env` so an
+     * operator can override a file without editing it.
+     *
+     * @return array<string, string>
+     */
+    public function environment(SecretsConfig $secrets, string $configDirectory): array
+    {
+        if ($secrets->isEmpty()) {
+            return [];
+        }
+
+        $fromFile = $this->dotEnvFileReader->read(rtrim($configDirectory, '/') . '/.env') ?? [];
+        $resolved = [];
+
+        foreach ($secrets->providers as $providerConfig) {
+            foreach ($providerConfig->required as $name) {
+                if (array_key_exists($name, $resolved)) {
+                    continue;
+                }
+
+                $fromShell = $this->getEnvVar($name);
+                if ($this->hasNonEmptyValue($fromShell)) {
+                    $resolved[$name] = (string) $fromShell;
+                    continue;
+                }
+
+                if (
+                    !SecretsProviderConfig::isShellProvider($providerConfig->provider)
+                    && $providerConfig->provider !== SecretsProviderConfig::PROVIDER_DOTENV
+                ) {
+                    continue;
+                }
+
+                $fileValue = $fromFile[$name] ?? false;
+                if ($this->hasNonEmptyValue($fileValue)) {
+                    $resolved[$name] = (string) $fileValue;
+                }
+            }
+        }
+
+        return $resolved;
+    }
+
+    /**
      * The shell provider is satisfied by an exported variable *or* by the
      * project's own .env file. Docker Compose loads that file for interpolation
      * and build args, so a value living only there is genuinely available to the
