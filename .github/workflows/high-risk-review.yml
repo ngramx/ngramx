@@ -4,8 +4,10 @@
 # On a pull request into main, the shared workflow asks Claude to
 # apply one risk label (risk:low, risk:medium, or risk:high).
 # risk:high disables GitHub auto-merge and removes `auto-merge`.
-# The job then fails until the pull request has one approving review. The
-# author's own approval counts. Every other risk passes with no review.
+# The job then fails until the pull request has one approving review. Submitting
+# or dismissing a review re-runs the check: one approval (including the author's)
+# turns it green, and dismissing that approval turns it red again. Every other
+# risk passes with no review.
 #
 # GitHub rulesets cannot require an approval just because a label is present.
 # Make this job a required status check on main and do not require
@@ -20,9 +22,11 @@ name: high-risk-review
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled, edited]
     branches:
       - 'main'
+  pull_request_review:
+    types: [submitted, dismissed]
 
 permissions:
   contents: read
@@ -31,6 +35,10 @@ permissions:
 
 jobs:
   high-risk-review:
+    # GitHub ignores branches on pull_request_review, so the base ref is checked here.
+    # edited is included so a base change runs the gate again. A title or body edit
+    # keeps the recorded result; skipping that run would mark this check successful.
+    if: github.event_name != 'pull_request_review' || github.event.pull_request.base.ref == 'main'
     uses: gigabyte-software/shared-workflows/.github/workflows/high-risk-review.yml@main
     secrets: inherit
     with:

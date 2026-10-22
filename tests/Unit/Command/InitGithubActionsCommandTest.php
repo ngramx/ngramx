@@ -118,6 +118,11 @@ class InitGithubActionsCommandTest extends TestCase
             $gate = file_get_contents($this->testDir . '/.github/workflows/high-risk-review.yml');
             $this->assertIsString($gate);
             $this->assertStringContainsString("branches:\n      - 'main'", $gate);
+            $this->assertStringContainsString('types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled, edited]', $gate);
+            $this->assertStringContainsString('pull_request_review:', $gate);
+            $this->assertStringContainsString('types: [submitted, dismissed]', $gate);
+            $this->assertStringNotContainsString("pull_request_review:\n    types: [submitted, dismissed]\n    branches:", $gate);
+            $this->assertStringContainsString("github.event.pull_request.base.ref == 'main'", $gate);
             $this->assertStringContainsString(
                 'acme/shared-workflows/.github/workflows/high-risk-review.yml@v2',
                 $gate
@@ -167,6 +172,12 @@ class InitGithubActionsCommandTest extends TestCase
             $gate = file_get_contents($this->testDir . '/.github/workflows/high-risk-review.yml');
             $this->assertIsString($gate);
             $this->assertStringContainsString("branches:\n      - 'develop'", $gate);
+            $this->assertSame(1, substr_count($gate, "branches:\n      - 'develop'"));
+            $this->assertStringContainsString('types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled, edited]', $gate);
+            $this->assertStringContainsString('pull_request_review:', $gate);
+            $this->assertStringContainsString('types: [submitted, dismissed]', $gate);
+            $this->assertStringNotContainsString("pull_request_review:\n    types: [submitted, dismissed]\n    branches:", $gate);
+            $this->assertStringContainsString("github.event.pull_request.base.ref == 'develop'", $gate);
             $this->assertStringContainsString(
                 'acme/shared-workflows/.github/workflows/high-risk-review.yml@main',
                 $gate

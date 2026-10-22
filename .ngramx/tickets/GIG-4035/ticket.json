@@ -1,0 +1,9 @@
+{
+  "id": "GIG-4035",
+  "title": "Re-run high-risk-review when a pull request is approved so the check can go green",
+  "url": "https://linear.app/gigabyte/issue/GIG-4035/re-run-high-risk-review-when-a-pull-request-is-approved-so-the-check",
+  "status": "In Progress",
+  "team": "Gigabyte",
+  "priority": 3,
+  "estimate": 2
+}
