@@ -17,3 +17,4 @@ Do not require one approving review on every pull request. Low and medium risk s
 - The create-pr skill now says an approval of the current head commit re-runs the check, and an older approval does not count.
 - The caller checks the pull request base ref, because GitHub ignores a `branches` filter on `pull_request_review`.
 - `edited` is included so changing the base onto `main` runs the gate again.
+- A title or body edit keeps the recorded result. The job is not skipped, because a skipped required check succeeds.

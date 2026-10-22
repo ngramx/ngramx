@@ -1,6 +1,6 @@
 {
   "title": "GIG-4035: Re-Run High-Risk Review When A Pull Request Is Approved",
-  "description": "The generated caller re-runs on review only for the base branch, and runs again when a pull request is retargeted onto that branch.",
+  "description": "The generated caller re-runs on review only for the base branch. A title or body edit keeps the recorded result, and retargeting onto the base branch classifies again.",
   "pr_url": "https://github.com/ngramx/ngramx/pull/56",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-4035/re-run-high-risk-review-when-a-pull-request-is-approved-so-the-check",
   "test_urls": [
@@ -34,12 +34,22 @@
     },
     {
       "description": "Retargeting a pull request onto main runs the gate again",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Open a pull request whose base branch is not main and submit a review",
         "Confirm high-risk-review is skipped",
         "Change the base branch to main",
         "Confirm high-risk-review runs and classifies the diff",
+        "Run vendor/bin/phpunit tests/Unit/Command/InitGithubActionsCommandTest.php and confirm it passes"
+      ]
+    },
+    {
+      "description": "A title edit keeps the recorded result",
+      "status": "active",
+      "steps": [
+        "Open a pull request into main and wait until high-risk-review classifies it",
+        "Edit the title and confirm the risk label stays in place",
+        "Change a pull request base onto main and confirm high-risk-review classifies that diff",
         "Run vendor/bin/phpunit tests/Unit/Command/InitGithubActionsCommandTest.php and confirm it passes"
       ]
     }

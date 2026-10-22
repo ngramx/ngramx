@@ -36,7 +36,8 @@ permissions:
 jobs:
   high-risk-review:
     # GitHub ignores branches on pull_request_review, so the base ref is checked here.
-    # edited is included above so changing the base onto this branch runs the gate again.
+    # edited is included so a base change runs the gate again. A title or body edit
+    # keeps the recorded result; skipping that run would mark this check successful.
     if: github.event_name != 'pull_request_review' || github.event.pull_request.base.ref == '{{BASE_BRANCH}}'
     uses: {{SHARED_REPO}}/.github/workflows/high-risk-review.yml@{{SHARED_REF}}
     secrets: inherit
