@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.58.5](https://github.com/ngramx/ngramx/compare/v2.58.4...v2.58.5) (2026-10-22)
+
+
+### Bug Fixes
+
+* copy parent auth.json over the worktree file before up ([4987f1a](https://github.com/ngramx/ngramx/commit/4987f1a382f0419619cd6c7e9c5f9e3a77429919))
+* restore parent auth.json before worktree compose up ([26b2bfe](https://github.com/ngramx/ngramx/commit/26b2bfe3f9a51fc67043cbf9f1fbf872eb84457b))
+
 ## [2.58.4](https://github.com/ngramx/ngramx/compare/v2.58.3...v2.58.4) (2026-10-22)
 
 
