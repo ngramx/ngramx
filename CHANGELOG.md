@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.58.3](https://github.com/ngramx/ngramx/compare/v2.58.2...v2.58.3) (2026-10-22)
+
+
+### Bug Fixes
+
+* keep the recorded risk when a pull request title changes ([3d1c243](https://github.com/ngramx/ngramx/commit/3d1c2438790f8fcdc1930aaa7de03ae4befaedc1))
+* limit the high-risk review trigger to the base branch ([84d32aa](https://github.com/ngramx/ngramx/commit/84d32aa58671b0b1bf0baf669e2214c8c98766e2))
+* re-run high-risk-review when a pull request review changes ([3e7ff98](https://github.com/ngramx/ngramx/commit/3e7ff98aa47e00233f66af179ae9e4e24f7b4b37))
+* rerun high-risk review when a pull request is retargeted ([b3c8371](https://github.com/ngramx/ngramx/commit/b3c8371ba67006b9e97b14aab9de58d215217446))
+
 ## [2.58.2](https://github.com/ngramx/ngramx/compare/v2.58.1...v2.58.2) (2026-10-19)
 
 
