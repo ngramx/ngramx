@@ -1,7 +1,7 @@
 {
   "title": "GIG-4063: Export Declared Secrets Into Host Pre Start Commands",
   "description": "Exports declared ngramx secrets into host pre_start commands and seeds parent auth.json into worktrees so Nova Composer auth no longer fails when those values live only in .env.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/57",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-4063/export-declared-secrets-into-host-pre-start-commands",
   "test_urls": [
     {

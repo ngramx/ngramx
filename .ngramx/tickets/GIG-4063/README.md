@@ -16,3 +16,4 @@ Ngramx validates secrets from `.env` but does not export them into host `pre_sta
 - `SecretsValidator::environment()` resolves declared secrets (shell first, then `.env`).
 - Host `pre_start` commands receive those values in their process environment.
 - Worktrees copy parent `auth.json` before `up` and restore it afterwards so a `composer config` SET cannot replace a working login.
+- Opened https://github.com/ngramx/ngramx/pull/57
