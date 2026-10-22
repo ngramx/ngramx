@@ -1,6 +1,6 @@
 {
   "title": "GIG-4035: Re-Run High-Risk Review When A Pull Request Is Approved",
-  "description": "The generated high-risk review caller starts again when a review is submitted or dismissed, so one approval can turn the required check green.",
+  "description": "The generated high-risk review caller starts again when a review is submitted or dismissed, and only for pull requests into the base branch.",
   "pr_url": "https://github.com/ngramx/ngramx/pull/56",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-4035/re-run-high-risk-review-when-a-pull-request-is-approved-so-the-check",
   "test_urls": [
@@ -12,7 +12,7 @@
   "test_plan": [
     {
       "description": "An approval on a high-risk pull request turns the required check green",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Merge the shared-workflows change first so a review does not classify the diff again",
         "Open a pull request into main that high-risk-review classifies as risk:high",
@@ -20,6 +20,16 @@
         "Submit one approving review",
         "Confirm high-risk-review runs again without a new push and finishes green",
         "Dismiss that approval and confirm the check runs again and finishes red"
+      ]
+    },
+    {
+      "description": "A review of a pull request into another branch does not start the check",
+      "status": "active",
+      "steps": [
+        "Open a pull request whose base branch is not main",
+        "Submit a review",
+        "Confirm high-risk-review is skipped and no risk label is applied",
+        "Run vendor/bin/phpunit tests/Unit/Command/InitGithubActionsCommandTest.php and confirm it passes"
       ]
     }
   ]

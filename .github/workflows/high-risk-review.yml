@@ -27,8 +27,6 @@ on:
       - 'main'
   pull_request_review:
     types: [submitted, dismissed]
-    branches:
-      - 'main'
 
 permissions:
   contents: read
@@ -37,6 +35,8 @@ permissions:
 
 jobs:
   high-risk-review:
+    # GitHub ignores branches on pull_request_review, so the base ref is checked here.
+    if: github.event_name != 'pull_request_review' || github.event.pull_request.base.ref == 'main'
     uses: gigabyte-software/shared-workflows/.github/workflows/high-risk-review.yml@main
     secrets: inherit
     with:
