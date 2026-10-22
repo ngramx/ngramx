@@ -18,3 +18,4 @@ Do not require one approving review on every pull request. Low and medium risk s
 - The caller checks the pull request base ref, because GitHub ignores a `branches` filter on `pull_request_review`.
 - `edited` is included so changing the base onto `main` runs the gate again.
 - A title or body edit keeps the recorded result. The job is not skipped, because a skipped required check succeeds.
+- When this commit has no recorded result, a title or body edit classifies it, and that run does not replace a queued push.
