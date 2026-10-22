@@ -44,6 +44,9 @@ class SetupOrchestrator
     private readonly RetryPolicy $retryPolicy;
     private readonly StaleBindMountSweeper $staleBindMountSweeper;
 
+    /** @var array<string, string> */
+    private array $secretEnv = [];
+
     public function __construct(
         private readonly DockerCompose $dockerCompose,
         private readonly HostCommandExecutor $hostExecutor,
@@ -115,10 +118,15 @@ class SetupOrchestrator
     ): array {
         $startTime = microtime(true);
 
-        // Validate required secrets are available
+        // Validate required secrets are available, then export them into host
+        // pre_start commands. Presence in `.env` used to satisfy validation
+        // without putting `$SECRET` into the process environment, so commands
+        // like `composer config http-basic… $NOVA_LICENSE_KEY` became a GET.
+        $secretsDirectory = $configDirectory !== '' ? $configDirectory : (getcwd() ?: '.');
         if (!$config->secrets->isEmpty()) {
-            $this->validateSecrets($config, $configDirectory);
+            $this->validateSecrets($config, $secretsDirectory);
         }
+        $this->secretEnv = $this->secretsValidator->environment($config->secrets, $secretsDirectory);
 
         // Detect first run (no existing images)
         $firstRun = !$this->dockerCompose->hasExistingImages($config->docker->composeFile, $namespace);
@@ -397,7 +405,7 @@ class SetupOrchestrator
 
         $missingByProvider = $this->secretsValidator->validate(
             $config->secrets,
-            $configDirectory !== '' ? $configDirectory : (getcwd() ?: '.')
+            $configDirectory
         );
 
         if ($missingByProvider !== []) {
@@ -659,7 +667,7 @@ class SetupOrchestrator
             }
         };
 
-        $result = $this->hostExecutor->execute($cmd, $outputCallback);
+        $result = $this->hostExecutor->execute($cmd, $outputCallback, $this->secretEnv);
 
         if (!$result->isSuccessful() && !$cmd->ignoreFailure) {
             $this->formatter->error("Command failed: {$cmd->command}");

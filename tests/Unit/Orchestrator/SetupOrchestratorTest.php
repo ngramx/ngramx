@@ -7,9 +7,12 @@ namespace Ngramx\Tests\Unit\Orchestrator;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
+use Ngramx\Config\Schema\CommandDefinition;
 use Ngramx\Config\Schema\DockerConfig;
 use Ngramx\Config\Schema\N8nConfig;
 use Ngramx\Config\Schema\NgramxConfig;
+use Ngramx\Config\Schema\SecretsConfig;
+use Ngramx\Config\Schema\SecretsProviderConfig;
 use Ngramx\Config\Schema\ServiceWaitConfig;
 use Ngramx\Config\Schema\SetupConfig;
 use Ngramx\Docker\DockerCompose;
@@ -18,6 +21,7 @@ use Ngramx\Docker\NetworkAttachmentChecker;
 use Ngramx\Docker\NetworkAttachmentIssue;
 use Ngramx\Docker\StaleBindMountSweeper;
 use Ngramx\Executor\HostCommandExecutor;
+use Ngramx\Executor\Result\ExecutionResult;
 use Ngramx\Executor\Retry\RetryPolicy;
 use Ngramx\Http\AppUrlProbe;
 use Ngramx\Http\ProbeResult;
@@ -741,6 +745,68 @@ class SetupOrchestratorTest extends TestCase
         $this->expectExceptionMessage('port is allocated');
 
         $this->createOrchestrator()->setup($config, skipWait: true);
+    }
+
+    public function test_setup_exports_declared_secrets_to_host_pre_start_commands(): void
+    {
+        $dir = sys_get_temp_dir() . '/ngramx-setup-secrets-' . uniqid();
+        mkdir($dir, 0755, true);
+        file_put_contents($dir . '/.env', "NOVA_ACCOUNT_EMAIL=dev@example.com\nNOVA_LICENSE_KEY=lic-123\n");
+
+        $config = new NgramxConfig(
+            version: '1.0',
+            docker: new DockerConfig(
+                composeFile: 'docker-compose.yml',
+                primaryService: 'app',
+                appUrl: 'http://localhost:80',
+            ),
+            setup: new SetupConfig(
+                preStart: [
+                    new CommandDefinition(
+                        command: 'composer config http-basic.nova.laravel.com $NOVA_ACCOUNT_EMAIL $NOVA_LICENSE_KEY',
+                        description: 'Configure Nova package authentication',
+                    ),
+                ],
+                initialize: [],
+            ),
+            n8n: new N8nConfig(workflowsDir: './.n8n'),
+            secrets: new SecretsConfig(providers: [
+                new SecretsProviderConfig(
+                    provider: SecretsProviderConfig::PROVIDER_DOTENV,
+                    required: ['NOVA_ACCOUNT_EMAIL', 'NOVA_LICENSE_KEY'],
+                ),
+            ]),
+        );
+
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+        $this->dockerCompose->expects($this->once())->method('up');
+
+        $this->hostExecutor->expects($this->once())
+            ->method('execute')
+            ->with(
+                $this->callback(
+                    static fn (CommandDefinition $cmd): bool => str_contains($cmd->command, 'nova.laravel.com')
+                ),
+                $this->anything(),
+                [
+                    'NOVA_ACCOUNT_EMAIL' => 'dev@example.com',
+                    'NOVA_LICENSE_KEY' => 'lic-123',
+                ],
+            )
+            ->willReturn(new ExecutionResult(
+                exitCode: 0,
+                output: '',
+                errorOutput: '',
+                successful: true,
+                executionTime: 0.0,
+            ));
+
+        try {
+            $this->createOrchestrator()->setup($config, skipWait: true, configDirectory: $dir);
+        } finally {
+            unlink($dir . '/.env');
+            rmdir($dir);
+        }
     }
 
     /**

@@ -31,6 +31,11 @@ use Ngramx\Worktree\WorktreeIdentity;
 use Ngramx\Worktree\WorktreeOwnershipReconciler;
 use Ngramx\Worktree\WorktreeUrlResolver;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Tester\CommandTester;
 
 class ReviewCommandTest extends TestCase
@@ -1132,6 +1137,116 @@ class ReviewCommandTest extends TestCase
         $this->assertSame(0, $exitCode, $tester->getDisplay());
     }
 
+    public function test_worktree_review_restores_parent_auth_json_when_the_stack_is_already_running(): void
+    {
+        $repoName = WorktreeIdentity::sanitizeSegment(basename($this->tmpDir));
+        $folderName = WorktreeIdentity::folderName('gig-123', $repoName);
+        $worktreePath = $this->tmpDir . '/.ngramx/worktrees/' . $folderName;
+        mkdir($worktreePath, 0755, true);
+        (new LockFile($worktreePath))->write(new LockFileData(
+            namespace: 'ngramx-' . $folderName,
+            portOffset: 100,
+            startedAt: date('c'),
+        ));
+
+        $parentAuth = $this->composerNovaAuth('rob@gigabyte.software');
+        $envAuth = $this->composerNovaAuth('dan@gigabyte.software');
+        file_put_contents($this->tmpDir . '/auth.json', $parentAuth);
+        file_put_contents($worktreePath . '/auth.json', $envAuth);
+
+        $config = $this->createMockConfig([
+            'fresh' => new CommandDefinition(command: 'php artisan migrate:fresh --seed', description: 'Reset'),
+        ]);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn($this->tmpDir . '/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(true);
+
+        $certSeeder = $this->createMock(WorktreeCertSeeder::class);
+        $certSeeder->expects($this->any())->method('seed')->willReturn(false);
+        $this->commandOrchestrator->expects($this->once())->method('run')->willReturn(1.0);
+
+        $urlResolver = $this->createMock(WorktreeUrlResolver::class);
+        $urlResolver->expects($this->any())->method('resolve')->willReturn('http://localhost:80');
+
+        $reconciler = $this->createMock(WorktreeOwnershipReconciler::class);
+        $reconciler->expects($this->any())
+            ->method('reconcile')
+            ->willReturn(OwnershipReconcileResult::skipped('unit test'));
+
+        $tester = new CommandTester($this->createCommand(
+            primer: $this->createMock(WorktreeDependencyPrimer::class),
+            urlResolver: $urlResolver,
+            reconciler: $reconciler,
+            certSeeder: $certSeeder,
+        ));
+        $exitCode = $tester->execute(['ticket' => 'GIG-123', '--worktree' => true]);
+
+        $this->assertSame(0, $exitCode, $tester->getDisplay());
+        $this->assertSame($parentAuth, file_get_contents($worktreePath . '/auth.json'));
+        $this->assertStringContainsString('Restored auth.json from parent checkout', $tester->getDisplay());
+    }
+
+    public function test_worktree_review_restores_parent_auth_json_when_up_fails(): void
+    {
+        $repoName = WorktreeIdentity::sanitizeSegment(basename($this->tmpDir));
+        $folderName = WorktreeIdentity::folderName('gig-123', $repoName);
+        $worktreePath = $this->tmpDir . '/.ngramx/worktrees/' . $folderName;
+        mkdir($worktreePath, 0755, true);
+
+        $parentAuth = $this->composerNovaAuth('rob@gigabyte.software');
+        $envAuth = $this->composerNovaAuth('dan@gigabyte.software');
+        file_put_contents($this->tmpDir . '/auth.json', $parentAuth);
+
+        $this->serviceRunningQueue = [false];
+
+        $config = $this->createMockConfig([]);
+        $this->configLoader->expects($this->any())->method('findConfigFile')->willReturn($this->tmpDir . '/ngramx.yml');
+        $this->configLoader->expects($this->any())->method('load')->willReturn($config);
+        $this->gitRepositoryService->expects($this->any())->method('worktreeExists')->willReturn(true);
+
+        $review = $this->createCommand(
+            primer: $this->createMock(WorktreeDependencyPrimer::class),
+            certSeeder: $this->createMock(WorktreeCertSeeder::class),
+        );
+
+        $application = new Application();
+        $application->setAutoExit(false);
+        $application->add(new class($worktreePath . '/auth.json', $envAuth) extends Command {
+            public function __construct(
+                private readonly string $worktreeAuth,
+                private readonly string $envAuth,
+            ) {
+                parent::__construct('up');
+            }
+
+            protected function configure(): void
+            {
+                $this
+                    ->addOption('port-offset', null, InputOption::VALUE_REQUIRED)
+                    ->addOption('no-verify', null, InputOption::VALUE_NONE)
+                    ->addOption('no-prompt-secure', null, InputOption::VALUE_NONE)
+                    ->addOption('namespace', null, InputOption::VALUE_REQUIRED)
+                    ->addOption('no-host-mapping', null, InputOption::VALUE_NONE)
+                    ->addOption('anon', null, InputOption::VALUE_NONE);
+            }
+
+            protected function execute(InputInterface $input, OutputInterface $output): int
+            {
+                file_put_contents($this->worktreeAuth, $this->envAuth);
+                return Command::FAILURE;
+            }
+        });
+        $application->add($review);
+
+        $tester = new CommandTester($review);
+        $exitCode = $tester->execute(['ticket' => 'GIG-123', '--worktree' => true]);
+
+        $this->assertSame(1, $exitCode, $tester->getDisplay());
+        $this->assertStringContainsString('Failed to start the worktree environment.', $tester->getDisplay());
+        $this->assertSame($parentAuth, file_get_contents($worktreePath . '/auth.json'));
+        $this->assertStringContainsString('Restored auth.json from parent checkout', $tester->getDisplay());
+    }
+
     public function test_it_errors_when_no_ticket_and_not_cleanup(): void
     {
         $config = $this->createMockConfig([]);
@@ -1748,6 +1863,18 @@ YAML);
         $this->configLoader->expects($this->atLeastOnce())
             ->method('load')
             ->willReturn($config);
+    }
+
+    private function composerNovaAuth(string $username): string
+    {
+        return json_encode([
+            'http-basic' => [
+                'nova.laravel.com' => [
+                    'username' => $username,
+                    'password' => 'secret',
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
     }
 
     /**

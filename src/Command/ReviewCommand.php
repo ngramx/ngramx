@@ -463,6 +463,7 @@ class ReviewCommand extends Command
 
         $this->seedWorktreeConfig($repositoryPath, $worktreePath, $formatter);
         $this->seedWorktreeEnv($repositoryPath, $worktreePath, $worktreeUrl, $formatter);
+        $this->seedWorktreeComposerAuth($repositoryPath, $worktreePath, $formatter);
         // Endpoint env (`docker.env`, `docker.endpoints.*.env`) must be right
         // before `up`: compose interpolates `${VAR}` from .env at start, and a
         // Vite dev server bakes VITE_* in when it boots. Ports are final
@@ -800,6 +801,11 @@ class ReviewCommand extends Command
                 $this->completionRedirects($worktreePath, $ticketNumber, $config->docker, $worktreeUrls),
             );
         } finally {
+            // pre_start may have rewritten auth.json from `.env` (a different
+            // Nova account than the parent's working store). Restore even when
+            // `up` fails or is skipped because the stack is already running —
+            // otherwise a retry keeps the leftover `.env` account.
+            $this->seedWorktreeComposerAuth($repositoryPath, $worktreePath, $formatter, overwrite: true);
             $this->dependencyPrimer->await($formatter);
             chdir($originalCwd);
         }
@@ -1841,6 +1847,39 @@ class ReviewCommand extends Command
 
         if (@copy($parentConfig, $worktreeConfig)) {
             $formatter->info('Seeded ngramx.yml from parent checkout (branch does not track it)');
+        }
+    }
+
+    /**
+     * Composer credentials live in gitignored `auth.json`. Worktrees do not
+     * inherit that file, and `pre_start` often recreates it from `$NOVA_*`
+     * in `.env`. Copy the parent's working store first so a host command
+     * that reads existing Nova auth succeeds even before secrets are exported.
+     * Call again with `$overwrite` after the worktree `up` attempt (success,
+     * failure, or skipped because the stack is already running) so a
+     * `composer config` SET cannot leave a different `.env` account behind.
+     */
+    private function seedWorktreeComposerAuth(
+        string $repositoryPath,
+        string $worktreePath,
+        OutputFormatter $formatter,
+        bool $overwrite = false,
+    ): void {
+        $worktreeAuth = $worktreePath . '/auth.json';
+        if (!$overwrite && file_exists($worktreeAuth)) {
+            return;
+        }
+
+        $parentAuth = $repositoryPath . '/auth.json';
+        if (!file_exists($parentAuth)) {
+            return;
+        }
+
+        if (@copy($parentAuth, $worktreeAuth)) {
+            @chmod($worktreeAuth, 0600);
+            $formatter->info($overwrite
+                ? 'Restored auth.json from parent checkout'
+                : 'Copied auth.json from parent checkout');
         }
     }
 
