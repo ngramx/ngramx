@@ -18,3 +18,4 @@ Ngramx validates secrets from `.env` but does not export them into host `pre_sta
 - Worktrees copy parent `auth.json` before `up` and restore it afterwards so a `composer config` SET cannot replace a working login.
 - Opened https://github.com/ngramx/ngramx/pull/57
 - PHPStan: `getenv()` is already an array — drop the redundant `is_array()` check that failed CI on PHP 8.2
+- Restore parent `auth.json` in the worktree `finally` so a failed `up` or an already-running retry cannot leave the `.env` Nova account behind (Bugbot)

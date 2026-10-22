@@ -647,10 +647,6 @@ class ReviewCommand extends Command
                     $formatter->error('Failed to start the worktree environment.');
                     return $upExit;
                 }
-
-                // pre_start may have rewritten auth.json from `.env` (a
-                // different Nova account than the parent's working store).
-                $this->seedWorktreeComposerAuth($repositoryPath, $worktreePath, $formatter, overwrite: true);
             }
 
             // The lock file is the single source of truth for the offset that is
@@ -805,6 +801,11 @@ class ReviewCommand extends Command
                 $this->completionRedirects($worktreePath, $ticketNumber, $config->docker, $worktreeUrls),
             );
         } finally {
+            // pre_start may have rewritten auth.json from `.env` (a different
+            // Nova account than the parent's working store). Restore even when
+            // `up` fails or is skipped because the stack is already running —
+            // otherwise a retry keeps the leftover `.env` account.
+            $this->seedWorktreeComposerAuth($repositoryPath, $worktreePath, $formatter, overwrite: true);
             $this->dependencyPrimer->await($formatter);
             chdir($originalCwd);
         }
@@ -1854,8 +1855,9 @@ class ReviewCommand extends Command
      * inherit that file, and `pre_start` often recreates it from `$NOVA_*`
      * in `.env`. Copy the parent's working store first so a host command
      * that reads existing Nova auth succeeds even before secrets are exported.
-     * Call again after `up` with `$overwrite` so a `composer config` SET
-     * cannot replace the parent's credentials with a different `.env` account.
+     * Call again with `$overwrite` after the worktree `up` attempt (success,
+     * failure, or skipped because the stack is already running) so a
+     * `composer config` SET cannot leave a different `.env` account behind.
      */
     private function seedWorktreeComposerAuth(
         string $repositoryPath,

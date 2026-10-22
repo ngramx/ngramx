@@ -31,10 +31,28 @@
     },
     {
       "description": "PHPStan accepts HostCommandExecutor inherited environment",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Confirm the PHP 8.2 CI job is green",
         "Confirm composer phpstan reports no errors on src/Executor/HostCommandExecutor.php"
+      ]
+    },
+    {
+      "description": "Worktree auth.json is restored after a failed up",
+      "status": "active",
+      "steps": [
+        "Confirm the parent checkout has an auth.json for nova.laravel.com",
+        "In a worktree whose pre_start writes a different Nova account, make up fail after that step",
+        "Confirm the worktree auth.json username matches the parent, not the .env account"
+      ]
+    },
+    {
+      "description": "Worktree auth.json is restored when the stack is already running",
+      "status": "active",
+      "steps": [
+        "Leave a worktree stack running after pre_start has rewritten auth.json from .env",
+        "Re-run ngramx worktree for the same ticket so startup is skipped",
+        "Confirm the worktree auth.json username matches the parent"
       ]
     }
   ]
