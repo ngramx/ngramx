@@ -19,3 +19,4 @@ Do not require one approving review on every pull request. Low and medium risk s
 - `edited` is included so changing the base onto `main` runs the gate again.
 - A title or body edit keeps the recorded result. The job is not skipped, because a skipped required check succeeds.
 - When this commit has no recorded result, a title or body edit classifies it, and that run does not replace a queued push.
+- If a newer commit lands before that edit writes, the edit does not apply its label or comment.
