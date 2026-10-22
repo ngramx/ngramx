@@ -463,7 +463,7 @@ class ReviewCommand extends Command
 
         $this->seedWorktreeConfig($repositoryPath, $worktreePath, $formatter);
         $this->seedWorktreeEnv($repositoryPath, $worktreePath, $worktreeUrl, $formatter);
-        $this->seedWorktreeComposerAuth($repositoryPath, $worktreePath, $formatter);
+        $this->seedWorktreeComposerAuth($repositoryPath, $worktreePath, $formatter, overwrite: true);
         // Endpoint env (`docker.env`, `docker.endpoints.*.env`) must be right
         // before `up`: compose interpolates `${VAR}` from .env at start, and a
         // Vite dev server bakes VITE_* in when it boots. Ports are final
@@ -1852,12 +1852,8 @@ class ReviewCommand extends Command
 
     /**
      * Composer credentials live in gitignored `auth.json`. Worktrees do not
-     * inherit that file, and `pre_start` often recreates it from `$NOVA_*`
-     * in `.env`. Copy the parent's working store first so a host command
-     * that reads existing Nova auth succeeds even before secrets are exported.
-     * Call again with `$overwrite` after the worktree `up` attempt (success,
-     * failure, or skipped because the stack is already running) so a
-     * `composer config` SET cannot leave a different `.env` account behind.
+     * inherit that file. Copy the parent's working store over the worktree
+     * file before `up` so leftover `.env` credentials cannot win.
      */
     private function seedWorktreeComposerAuth(
         string $repositoryPath,

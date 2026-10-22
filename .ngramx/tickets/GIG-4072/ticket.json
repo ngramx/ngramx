@@ -1,0 +1,14 @@
+{
+  "id": "GIG-4072",
+  "title": "Restore parent auth.json after pre_start before compose up",
+  "description": "GIG-4063 restores parent auth.json only after the whole worktree up finishes. Apollo's container entrypoint runs composer install during that up, so a pre_start hook that wrote .env Nova credentials is what Composer uses.\n\nAlways overwrite-seed parent auth.json before up. Restore it again immediately after host pre_start and before Docker starts.\n\n## Goal\n\nWorktree composer install must use the parent checkout's working Nova credentials, not a different .env account.",
+  "url": "https://linear.app/gigabyte/issue/GIG-4072/restore-parent-authjson-after-pre-start-before-compose-up",
+  "status": "In Progress",
+  "assignee": "Cameron Smith",
+  "project": "ngramx",
+  "priority": "High",
+  "estimate": 2,
+  "labels": [
+    "Gigabyte Software"
+  ]
+}

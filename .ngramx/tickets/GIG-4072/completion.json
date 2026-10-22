@@ -1,0 +1,43 @@
+{
+  "title": "GIG-4072: Restore Parent Auth Json After Pre Start Before Compose Up",
+  "description": "Copies parent auth.json over the worktree file before up so container composer install uses the working Nova login.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/58",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-4072/restore-parent-authjson-after-pre-start-before-compose-up",
+  "test_urls": [
+    {
+      "label": "Worktree app",
+      "url": "http://apollo.gigabyte.local:180"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Worktree composer install uses parent Nova auth after pre_start rewrites it",
+      "status": "stale",
+      "steps": [
+        "Confirm the parent checkout has a working auth.json for nova.laravel.com",
+        "In a worktree, let pre_start write a different .env Nova account into auth.json",
+        "Confirm ngramx restores the parent file before docker compose up",
+        "Confirm container composer install authenticates as the parent account"
+      ]
+    },
+    {
+      "description": "Leftover worktree auth.json is replaced before up",
+      "status": "stale",
+      "steps": [
+        "Leave a worktree auth.json that uses the .env Nova account",
+        "Re-run ngramx worktree for that ticket",
+        "Confirm the worktree auth.json username matches the parent before containers start"
+      ]
+    },
+    {
+      "description": "Apollo worktree spins up with parent Nova auth",
+      "status": "active",
+      "steps": [
+        "From Apollo, run the local ngramx worktree CLI against a branch with the simple GET-or-SET hook",
+        "Confirm pre_start Configure Nova package authentication succeeds",
+        "Confirm vendor/laravel/nova is installed and worktree auth.json is rob@gigabyte.software",
+        "Confirm http://apollo.gigabyte.local:180 returns 302 to /login"
+      ]
+    }
+  ]
+}
