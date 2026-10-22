@@ -22,7 +22,7 @@ name: high-risk-review
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled, edited]
     branches:
       - '{{BASE_BRANCH}}'
   pull_request_review:
@@ -36,6 +36,7 @@ permissions:
 jobs:
   high-risk-review:
     # GitHub ignores branches on pull_request_review, so the base ref is checked here.
+    # edited is included above so changing the base onto this branch runs the gate again.
     if: github.event_name != 'pull_request_review' || github.event.pull_request.base.ref == '{{BASE_BRANCH}}'
     uses: {{SHARED_REPO}}/.github/workflows/high-risk-review.yml@{{SHARED_REF}}
     secrets: inherit

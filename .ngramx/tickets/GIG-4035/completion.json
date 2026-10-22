@@ -1,6 +1,6 @@
 {
   "title": "GIG-4035: Re-Run High-Risk Review When A Pull Request Is Approved",
-  "description": "The generated high-risk review caller starts again when a review is submitted or dismissed, and only for pull requests into the base branch.",
+  "description": "The generated caller re-runs on review only for the base branch, and runs again when a pull request is retargeted onto that branch.",
   "pr_url": "https://github.com/ngramx/ngramx/pull/56",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-4035/re-run-high-risk-review-when-a-pull-request-is-approved-so-the-check",
   "test_urls": [
@@ -24,11 +24,22 @@
     },
     {
       "description": "A review of a pull request into another branch does not start the check",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Open a pull request whose base branch is not main",
         "Submit a review",
         "Confirm high-risk-review is skipped and no risk label is applied",
+        "Run vendor/bin/phpunit tests/Unit/Command/InitGithubActionsCommandTest.php and confirm it passes"
+      ]
+    },
+    {
+      "description": "Retargeting a pull request onto main runs the gate again",
+      "status": "active",
+      "steps": [
+        "Open a pull request whose base branch is not main and submit a review",
+        "Confirm high-risk-review is skipped",
+        "Change the base branch to main",
+        "Confirm high-risk-review runs and classifies the diff",
         "Run vendor/bin/phpunit tests/Unit/Command/InitGithubActionsCommandTest.php and confirm it passes"
       ]
     }
