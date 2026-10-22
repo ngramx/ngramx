@@ -1,7 +1,7 @@
 {
   "title": "GIG-4072: Restore Parent Auth Json After Pre Start Before Compose Up",
   "description": "Overwrite-seeds parent auth.json before worktree up and restores it again after pre_start so container composer install uses the parent Nova login, not a leftover .env account.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/58",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-4072/restore-parent-authjson-after-pre-start-before-compose-up",
   "test_urls": [
     {
