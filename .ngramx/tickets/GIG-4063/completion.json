@@ -12,7 +12,7 @@
   "test_plan": [
     {
       "description": "Host pre_start expands secrets that live only in .env",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "In a project whose ngramx.yml requires NOVA_ACCOUNT_EMAIL and NOVA_LICENSE_KEY from .env, unset those variables in the shell",
         "Confirm the values are present in .env",
@@ -22,11 +22,19 @@
     },
     {
       "description": "Worktree auth.json matches the parent after up",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Confirm the parent checkout has an auth.json for nova.laravel.com",
         "Create a worktree and wait until up finishes",
         "Confirm the worktree auth.json username matches the parent, not a different .env account"
+      ]
+    },
+    {
+      "description": "PHPStan accepts HostCommandExecutor inherited environment",
+      "status": "active",
+      "steps": [
+        "Confirm the PHP 8.2 CI job is green",
+        "Confirm composer phpstan reports no errors on src/Executor/HostCommandExecutor.php"
       ]
     }
   ]

@@ -55,8 +55,6 @@ class HostCommandExecutor
      */
     private function inheritedEnvironment(): array
     {
-        $env = getenv();
-
-        return is_array($env) ? $env : [];
+        return getenv();
     }
 }
