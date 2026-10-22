@@ -1,0 +1,33 @@
+{
+  "title": "GIG-4072: Restore Parent Auth Json After Pre Start Before Compose Up",
+  "description": "Overwrite-seeds parent auth.json before worktree up and restores it again after pre_start so container composer install uses the parent Nova login, not a leftover .env account.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-4072/restore-parent-authjson-after-pre-start-before-compose-up",
+  "test_urls": [
+    {
+      "label": "WorktreeComposerAuthSeeder",
+      "url": "https://github.com/ngramx/ngramx/blob/gig-4072-restore-auth-before-compose/src/Worktree/WorktreeComposerAuthSeeder.php"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Worktree composer install uses parent Nova auth after pre_start rewrites it",
+      "status": "active",
+      "steps": [
+        "Confirm the parent checkout has a working auth.json for nova.laravel.com",
+        "In a worktree, let pre_start write a different .env Nova account into auth.json",
+        "Confirm ngramx restores the parent file before docker compose up",
+        "Confirm container composer install authenticates as the parent account"
+      ]
+    },
+    {
+      "description": "Leftover worktree auth.json is replaced before up",
+      "status": "active",
+      "steps": [
+        "Leave a worktree auth.json that uses the .env Nova account",
+        "Re-run ngramx worktree for that ticket",
+        "Confirm the worktree auth.json username matches the parent before containers start"
+      ]
+    }
+  ]
+}

@@ -809,6 +809,75 @@ class SetupOrchestratorTest extends TestCase
         }
     }
 
+    public function test_setup_restores_parent_auth_json_after_pre_start_before_compose_up(): void
+    {
+        $repo = sys_get_temp_dir() . '/ngramx-setup-auth-' . uniqid();
+        $worktree = $repo . '/.ngramx/worktrees/gig-1-repo';
+        mkdir($worktree, 0755, true);
+        file_put_contents($repo . '/auth.json', '{"username":"rob"}');
+        file_put_contents($worktree . '/.env', "NOVA_ACCOUNT_EMAIL=dan@example.com\nNOVA_LICENSE_KEY=dan-key\n");
+
+        $config = new NgramxConfig(
+            version: '1.0',
+            docker: new DockerConfig(
+                composeFile: 'docker-compose.yml',
+                primaryService: 'app',
+                appUrl: 'http://localhost:80',
+            ),
+            setup: new SetupConfig(
+                preStart: [
+                    new CommandDefinition(
+                        command: 'composer config http-basic.nova.laravel.com $NOVA_ACCOUNT_EMAIL $NOVA_LICENSE_KEY',
+                        description: 'Configure Nova package authentication',
+                    ),
+                ],
+                initialize: [],
+            ),
+            n8n: new N8nConfig(workflowsDir: './.n8n'),
+            secrets: new SecretsConfig(providers: [
+                new SecretsProviderConfig(
+                    provider: SecretsProviderConfig::PROVIDER_DOTENV,
+                    required: ['NOVA_ACCOUNT_EMAIL', 'NOVA_LICENSE_KEY'],
+                ),
+            ]),
+        );
+
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+        $upAfterRestore = false;
+        $this->dockerCompose->expects($this->once())
+            ->method('up')
+            ->willReturnCallback(function () use ($worktree, &$upAfterRestore): void {
+                $this->assertSame('{"username":"rob"}', file_get_contents($worktree . '/auth.json'));
+                $upAfterRestore = true;
+            });
+
+        $this->hostExecutor->expects($this->once())
+            ->method('execute')
+            ->willReturnCallback(function () use ($worktree): ExecutionResult {
+                file_put_contents($worktree . '/auth.json', '{"username":"dan"}');
+
+                return new ExecutionResult(
+                    exitCode: 0,
+                    output: '',
+                    errorOutput: '',
+                    successful: true,
+                    executionTime: 0.0,
+                );
+            });
+
+        $originalCwd = getcwd();
+        $this->assertNotFalse($originalCwd);
+        chdir($worktree);
+        try {
+            $this->createOrchestrator()->setup($config, skipWait: true, configDirectory: $worktree);
+        } finally {
+            chdir($originalCwd);
+            $this->removeDirectory($repo);
+        }
+
+        $this->assertTrue($upAfterRestore, 'compose up must run after parent auth.json is restored');
+    }
+
     /**
      * @param ServiceWaitConfig[] $waitFor
      */
@@ -830,5 +899,27 @@ class SetupOrchestratorTest extends TestCase
             n8n: new N8nConfig(workflowsDir: './.n8n'),
             commands: [],
         );
+    }
+
+    private function removeDirectory(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $items = scandir($dir);
+        if ($items === false) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+            $path = $dir . '/' . $item;
+            is_dir($path) ? $this->removeDirectory($path) : unlink($path);
+        }
+
+        rmdir($dir);
     }
 }
