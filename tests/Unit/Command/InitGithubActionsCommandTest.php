@@ -118,6 +118,8 @@ class InitGithubActionsCommandTest extends TestCase
             $gate = file_get_contents($this->testDir . '/.github/workflows/high-risk-review.yml');
             $this->assertIsString($gate);
             $this->assertStringContainsString("branches:\n      - 'main'", $gate);
+            $this->assertStringContainsString('pull_request_review:', $gate);
+            $this->assertStringContainsString('types: [submitted, dismissed]', $gate);
             $this->assertStringContainsString(
                 'acme/shared-workflows/.github/workflows/high-risk-review.yml@v2',
                 $gate
@@ -167,6 +169,9 @@ class InitGithubActionsCommandTest extends TestCase
             $gate = file_get_contents($this->testDir . '/.github/workflows/high-risk-review.yml');
             $this->assertIsString($gate);
             $this->assertStringContainsString("branches:\n      - 'develop'", $gate);
+            $this->assertSame(2, substr_count($gate, "branches:\n      - 'develop'"));
+            $this->assertStringContainsString('pull_request_review:', $gate);
+            $this->assertStringContainsString('types: [submitted, dismissed]', $gate);
             $this->assertStringContainsString(
                 'acme/shared-workflows/.github/workflows/high-risk-review.yml@main',
                 $gate

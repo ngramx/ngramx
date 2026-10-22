@@ -1,0 +1,26 @@
+{
+  "title": "GIG-4035: Re-Run High-Risk Review When A Pull Request Is Approved",
+  "description": "The generated high-risk review caller starts again when a review is submitted or dismissed, so one approval can turn the required check green.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-4035/re-run-high-risk-review-when-a-pull-request-is-approved-so-the-check",
+  "test_urls": [
+    {
+      "label": "ngramx high-risk-review caller",
+      "url": "https://github.com/ngramx/ngramx/blob/main/.github/workflows/high-risk-review.yml"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "An approval on a high-risk pull request turns the required check green",
+      "status": "active",
+      "steps": [
+        "Merge the shared-workflows change first so a review does not classify the diff again",
+        "Open a pull request into main that high-risk-review classifies as risk:high",
+        "Wait until the check fails",
+        "Submit one approving review",
+        "Confirm high-risk-review runs again without a new push and finishes green",
+        "Dismiss that approval and confirm the check runs again and finishes red"
+      ]
+    }
+  ]
+}

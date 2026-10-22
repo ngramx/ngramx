@@ -4,8 +4,10 @@
 # On a pull request into {{BASE_BRANCH}}, the shared workflow asks Claude to
 # apply one risk label ({{RISK_LOW_LABEL}}, risk:medium, or {{RISK_HIGH_LABEL}}).
 # {{RISK_HIGH_LABEL}} disables GitHub auto-merge and removes `{{AUTO_MERGE_LABEL}}`.
-# The job then fails until the pull request has one approving review. The
-# author's own approval counts. Every other risk passes with no review.
+# The job then fails until the pull request has one approving review. Submitting
+# or dismissing a review re-runs the check: one approval (including the author's)
+# turns it green, and dismissing that approval turns it red again. Every other
+# risk passes with no review.
 #
 # GitHub rulesets cannot require an approval just because a label is present.
 # Make this job a required status check on {{BASE_BRANCH}} and do not require
@@ -21,6 +23,10 @@ name: high-risk-review
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+    branches:
+      - '{{BASE_BRANCH}}'
+  pull_request_review:
+    types: [submitted, dismissed]
     branches:
       - '{{BASE_BRANCH}}'
 
