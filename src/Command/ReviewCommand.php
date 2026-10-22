@@ -39,7 +39,6 @@ use Ngramx\Output\OutputFormatter;
 use Ngramx\Review\PostReviewEditor;
 use Ngramx\Worktree\CursorIpcHookResolver;
 use Ngramx\Worktree\WorktreeCertSeeder;
-use Ngramx\Worktree\WorktreeComposerAuthSeeder;
 use Ngramx\Worktree\WorktreeDependencyPrimer;
 use Ngramx\Worktree\WorktreeIdentity;
 use Ngramx\Worktree\WorktreeInventory;
@@ -1853,12 +1852,8 @@ class ReviewCommand extends Command
 
     /**
      * Composer credentials live in gitignored `auth.json`. Worktrees do not
-     * inherit that file, and `pre_start` often recreates it from `$NOVA_*`
-     * in `.env`. Copy the parent's working store first so a host command
-     * that reads existing Nova auth succeeds even before secrets are exported.
-     * Always overwrite: a leftover worktree file from a previous `.env` SET
-     * must not win. Call again after `pre_start` / `up` so a `composer config`
-     * SET cannot leave a different `.env` account behind.
+     * inherit that file. Copy the parent's working store over the worktree
+     * file before `up` so leftover `.env` credentials cannot win.
      */
     private function seedWorktreeComposerAuth(
         string $repositoryPath,
@@ -1866,14 +1861,22 @@ class ReviewCommand extends Command
         OutputFormatter $formatter,
         bool $overwrite = false,
     ): void {
-        $seeder = new WorktreeComposerAuthSeeder();
-        if (!$seeder->seed($repositoryPath, $worktreePath, $overwrite)) {
+        $worktreeAuth = $worktreePath . '/auth.json';
+        if (!$overwrite && file_exists($worktreeAuth)) {
             return;
         }
 
-        $formatter->info($overwrite
-            ? 'Restored auth.json from parent checkout'
-            : 'Copied auth.json from parent checkout');
+        $parentAuth = $repositoryPath . '/auth.json';
+        if (!file_exists($parentAuth)) {
+            return;
+        }
+
+        if (@copy($parentAuth, $worktreeAuth)) {
+            @chmod($worktreeAuth, 0600);
+            $formatter->info($overwrite
+                ? 'Restored auth.json from parent checkout'
+                : 'Copied auth.json from parent checkout');
+        }
     }
 
     /**

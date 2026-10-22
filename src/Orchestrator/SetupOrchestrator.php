@@ -24,7 +24,6 @@ use Ngramx\Http\ProbeResult;
 use Ngramx\Http\UrlPortOffset;
 use Ngramx\Output\LiveLogPanel;
 use Ngramx\Output\OutputFormatter;
-use Ngramx\Worktree\WorktreeComposerAuthSeeder;
 use Symfony\Component\Process\Process;
 
 class SetupOrchestrator
@@ -44,7 +43,6 @@ class SetupOrchestrator
     private readonly NetworkAttachmentChecker $networkAttachmentChecker;
     private readonly RetryPolicy $retryPolicy;
     private readonly StaleBindMountSweeper $staleBindMountSweeper;
-    private readonly WorktreeComposerAuthSeeder $composerAuthSeeder;
 
     /** @var array<string, string> */
     private array $secretEnv = [];
@@ -61,7 +59,6 @@ class SetupOrchestrator
         ?NetworkAttachmentChecker $networkAttachmentChecker = null,
         ?RetryPolicy $retryPolicy = null,
         ?StaleBindMountSweeper $staleBindMountSweeper = null,
-        ?WorktreeComposerAuthSeeder $composerAuthSeeder = null,
         private readonly int $appUrlProbeAttempts = self::DEFAULT_APP_URL_PROBE_ATTEMPTS,
         private readonly int $appUrlProbeRetrySeconds = self::DEFAULT_APP_URL_PROBE_RETRY_SECONDS,
     ) {
@@ -76,7 +73,6 @@ class SetupOrchestrator
             ?? new NetworkAttachmentChecker($this->dockerCompose);
         $this->retryPolicy = $retryPolicy ?? new RetryPolicy();
         $this->staleBindMountSweeper = $staleBindMountSweeper ?? new StaleBindMountSweeper();
-        $this->composerAuthSeeder = $composerAuthSeeder ?? new WorktreeComposerAuthSeeder();
     }
 
     /**
@@ -142,13 +138,6 @@ class SetupOrchestrator
         // Phase 1: Pre-start commands
         if (!empty($config->setup->preStart)) {
             $this->runPreStartCommands($config->setup->preStart);
-        }
-
-        // pre_start may have rewritten auth.json from `.env`. Put the parent
-        // store back before Docker starts — the container entrypoint runs
-        // `composer install` against the bind-mounted file.
-        if ($this->composerAuthSeeder->restoreFromCwd()) {
-            $this->formatter->info('Restored auth.json from parent checkout');
         }
 
         // Phase 2: Start Docker services
