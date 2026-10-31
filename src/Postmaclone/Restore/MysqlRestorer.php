@@ -67,10 +67,14 @@ class MysqlRestorer implements RestorerInterface
             throw new PostmacloneException("Dump not found: {$dumpPath}");
         }
 
-        $in = DumpStream::open($dumpPath);
+        $in = DumpStream::open(
+            $dumpPath,
+            function ($stream) use ($dumpPath): void {
+                $this->appendProgressFilter($stream, $dumpPath);
+            },
+        );
 
         try {
-            $this->appendProgressFilter($in, $dumpPath);
             $this->sanitizer->appendFilter($in);
             $this->progress('Loading dump into scratch (this can take several hours)');
             $this->mysql->run($target, self::restoreClientArgs($target), $in, self::RESTORE_TIMEOUT_SECONDS);
@@ -96,6 +100,8 @@ class MysqlRestorer implements RestorerInterface
             return;
         }
 
+        // On-disk size. The filter sits in front of gzip inflate, so it
+        // counts compressed bytes, not decompressed SQL.
         $size = filesize($dumpPath);
         if ($size === false || $size <= 0) {
             return;
