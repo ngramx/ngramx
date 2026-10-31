@@ -12,10 +12,18 @@
   "test_plan": [
     {
       "description": "Unit tests cover clear-on-int, per-column fallback, and empty tables",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Confirm PHP 8.2 and 8.3 Tests workflow jobs pass",
         "After release, factory Hydra produce must rewrite residents.email to @example.* and delete _ts_residents"
+      ]
+    },
+    {
+      "description": "Strict per-column retry still rewrites the good columns",
+      "status": "active",
+      "steps": [
+        "Confirm test_strict_per_column_retry_finishes_remaining_columns passes",
+        "Confirm PHP 8.2 and 8.3 Tests workflow jobs pass"
       ]
     }
   ]

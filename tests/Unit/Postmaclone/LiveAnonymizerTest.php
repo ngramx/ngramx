@@ -250,6 +250,36 @@ class LiveAnonymizerTest extends TestCase
         $this->assertNotSame([], $anonymizer->warnings());
     }
 
+    public function test_strict_per_column_retry_finishes_remaining_columns(): void
+    {
+        $pdo = $this->sqlite();
+        $pdo->exec('CREATE TABLE people (id INTEGER PRIMARY KEY, email TEXT, token INTEGER NOT NULL)');
+        $pdo->exec("INSERT INTO people (id, email, token) VALUES (1, 'ann@example.com', 99)");
+
+        $pdo->failMultiColumnUpdates = true;
+        $pdo->failTokenUpdates = true;
+        $anonymizer = $this->anonymizer($pdo, strict: true);
+
+        try {
+            $anonymizer->anonymize($pdo, [
+                'people' => new TableRule('people', [
+                    'email' => new ColumnRule('email', 'clear'),
+                    'token' => new ColumnRule('token', 'clear'),
+                ], 'id'),
+            ]);
+            $this->fail('Expected PostmacloneException in strict mode');
+        } catch (PostmacloneException $e) {
+            $this->assertStringContainsString('fell back to per-row', $e->getMessage());
+        }
+
+        $selected = $pdo->query('SELECT email, token FROM people WHERE id = 1');
+        $this->assertNotFalse($selected);
+        $row = $selected->fetch(PDO::FETCH_ASSOC);
+        $this->assertIsArray($row);
+        $this->assertSame('', $row['email']);
+        $this->assertSame(99, (int) $row['token']);
+    }
+
     public function test_empty_table_deletes_all_rows(): void
     {
         $pdo = $this->sqlite();
@@ -303,6 +333,8 @@ final class CountingPdo extends PDO
 
     public bool $failMultiColumnUpdates = false;
 
+    public bool $failTokenUpdates = false;
+
     /** @var list<string> */
     public array $queries = [];
 
@@ -324,6 +356,9 @@ final class CountingPdo extends PDO
             }
             if ($this->failMultiColumnUpdates && preg_match('/SET\s+.+,/is', $query) === 1) {
                 throw new \RuntimeException('forced multi-column failure');
+            }
+            if ($this->failTokenUpdates && str_contains($query, '"token"')) {
+                throw new \RuntimeException('forced token failure');
             }
         }
 

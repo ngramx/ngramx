@@ -16,3 +16,4 @@ A single bad replacement (`clear` writing `''` into a bigint) aborted every `res
 - `clear` writes `0` for numeric cells (including PDO numeric strings).
 - Multi-column UPDATE failure retries each remaining column.
 - `tables.<name>.empty: true` deletes all rows without needing a single-column PK.
+- Bugbot: per-column retry finishes remaining columns in strict mode before throwing.

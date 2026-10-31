@@ -258,7 +258,10 @@ class LiveAnonymizer
                 $this->applyBatchedUpdate($pdo, $table, $pk, $chunk);
             } catch (Throwable $e) {
                 foreach ($chunk as $item) {
-                    $this->applySingleUpdate($pdo, $table, $pk, $item['pk'], $item['sets']);
+                    try {
+                        $this->applySingleUpdate($pdo, $table, $pk, $item['pk'], $item['sets']);
+                    } catch (Throwable) {
+                    }
                 }
                 $this->failOrWarn(
                     "Batched UPDATE failed for {$table->table}; fell back to per-row: {$e->getMessage()}"
@@ -445,8 +448,18 @@ class LiveAnonymizer
             $update->execute();
         } catch (Throwable $e) {
             if (count($sets) > 1) {
+                $firstError = null;
                 foreach ($sets as $column => $value) {
-                    $this->applySingleUpdate($pdo, $table, $pk, $pkValue, [$column => $value]);
+                    try {
+                        $this->applySingleUpdate($pdo, $table, $pk, $pkValue, [$column => $value]);
+                    } catch (Throwable $columnError) {
+                        $firstError ??= $columnError;
+                    }
+                }
+                if ($firstError !== null) {
+                    $this->failOrWarn(
+                        "UPDATE failed for {$table->table} {$pk}={$pkValue}: {$firstError->getMessage()}"
+                    );
                 }
 
                 return;
