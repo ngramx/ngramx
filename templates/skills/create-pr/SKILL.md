@@ -30,8 +30,8 @@ Every PR gets two labels — one for risk, one for size. The merge automation re
 **Risk:**
 
 - `risk:low` — docs, tests-only, comments, dependency bumps with passing CI, isolated UI tweaks, internal tooling
-- `risk:medium` — feature work, refactors, bugfixes, auth, payments, database migrations, infrastructure, deployment, customer data, and external integrations that do not send messages to external people
-- `risk:high` — outbound communication to external people (see Forced escalation). Nothing else
+- `risk:medium` — feature work, refactors, bugfixes, and ordinary production changes. Adding a column, index, nullable field, or new table is medium. A migration that only adds schema, and does not rewrite or delete existing rows, is medium
+- `risk:high` — a change that can harm production or people outside the team (see Forced escalation). Do not use it for an additive schema change
 
 **Size:**
 
@@ -42,7 +42,7 @@ Every PR gets two labels — one for risk, one for size. The merge automation re
 **Rules:**
 
 - For size, when in doubt, choose the larger size.
-- For risk, choose `risk:high` only when the diff sends, or may send, communication to external people. Otherwise choose low or medium. Do not raise auth, payments, migrations, infrastructure, or other ordinary work out of caution.
+- For risk, choose `risk:high` only when the diff clearly sends to external people, changes who can access the system, moves money, destroys or rewrites stored data, or can take production down. Adding a column is not high. Do not raise the risk out of caution.
 - Include a one-line rationale in the PR description, e.g. *"Labelled `risk:low` because only touches docs and tests."*
 - Never open a PR without both labels.
 
@@ -52,22 +52,34 @@ GitHub Actions (`high-risk-review`) classifies the diff again on open and on eve
 
 Some diffs must be labelled `risk:high` even when they are small. Auto-merge only proceeds for `risk:low` together with `size:small`, so `risk:high` keeps a person in the review.
 
-Outbound communication to external people is the only forced category. A new category belongs here only when it is another way of sending that communication.
+These are the only forced categories. An ordinary change, including adding a column, stays on the normal risk scale and the author can merge it without another approval.
 
 ### Outbound communications
 
-Label `risk:high` only when the pull request introduces or enables a process that sends messages to external people:
+Label `risk:high` when the pull request introduces or enables a process that sends messages to external people:
 
 - Email, SMS, letters, or other external dispatch. This includes a new sender, and config, flags, or schedules that turn an existing external sender on.
 - Scheduled commands, queued jobs, listeners, or webhooks whose purpose is to send those messages.
 
 Name the send path in the risk rationale, for example: *"Labelled `risk:high` because this schedules the weekly digest email to clients."*
 
-Wording, template, and copy edits stay on the normal risk scale when the sender already sends on the same trigger to the same audience.
+Wording, template, and copy edits stay on the normal risk scale when the sender already sends on the same trigger to the same audience. Internal-only messages, including team notifications and internal mail, stay on the normal risk scale.
 
-Internal-only messages, including team notifications and internal mail, stay on the normal risk scale.
+### Access
 
-Database migrations, auth, payments, infrastructure, deployment, customer-data changes, and other ordinary work stay on the normal risk scale even when they are large. The author can merge them without another approval.
+Label `risk:high` when the diff changes authentication, authorization, sessions, or secrets so that who can sign in or what they can access changes. A rename, a test, or a comment in that area stays on the normal risk scale.
+
+### Money
+
+Label `risk:high` when the diff moves money or changes what a customer is charged, refunded, or paid. Reading or displaying an existing balance stays on the normal risk scale.
+
+### Destructive data changes
+
+Label `risk:high` when the diff deletes or rewrites existing rows, drops or renames a column or table, or exports, deletes, or bulk-updates customer data. Adding a column, index, nullable field, or new table is not high.
+
+### Production availability
+
+Label `risk:high` when the diff changes infrastructure, deployment, or runtime configuration in a way that can take production down. A local development setting stays on the normal risk scale.
 
 ## Linear status — leave it alone
 

@@ -1,6 +1,6 @@
 {
   "id": "GIG-4344",
-  "title": "Only mark a pull request high-risk when it sends communication to external people",
+  "title": "Make high-risk review less sensitive without dropping real harm",
   "url": "https://linear.app/gigabyte/issue/GIG-4344/only-mark-a-pull-request-high-risk-when-it-sends-communication-to",
   "status": "In Progress",
   "team": "Gigabyte",
