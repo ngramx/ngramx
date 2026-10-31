@@ -13,6 +13,7 @@ readonly class TableRule
         public string $table,
         public array $columns,
         public ?string $primaryKey = null,
+        public bool $empty = false,
     ) {
     }
 }

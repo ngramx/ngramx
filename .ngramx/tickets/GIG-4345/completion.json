@@ -1,0 +1,30 @@
+{
+  "title": "GIG-4345: Postmaclone Must Not Leave A Table Raw When One Column Update Fails",
+  "description": "Makes clear type-safe on numeric cells, retries remaining columns after a multi-column UPDATE failure, and adds tables.empty so composite-PK history tables can be wiped.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/61",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-4345/postmaclone-must-not-leave-a-table-raw-when-one-column-update-fails",
+  "test_urls": [
+    {
+      "label": "Hydra produce workflow",
+      "url": "https://github.com/gigabyte-software/postmaclone-factory/actions/workflows/postmaclone-produce-hydra.yml"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Unit tests cover clear-on-int, per-column fallback, and empty tables",
+      "status": "stale",
+      "steps": [
+        "Confirm PHP 8.2 and 8.3 Tests workflow jobs pass",
+        "After release, factory Hydra produce must rewrite residents.email to @example.* and delete _ts_residents"
+      ]
+    },
+    {
+      "description": "Strict per-column retry still rewrites the good columns",
+      "status": "active",
+      "steps": [
+        "Confirm test_strict_per_column_retry_finishes_remaining_columns passes",
+        "Confirm PHP 8.2 and 8.3 Tests workflow jobs pass"
+      ]
+    }
+  ]
+}

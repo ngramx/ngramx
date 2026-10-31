@@ -70,15 +70,21 @@ class LiveAnonymizer
 
     private function anonymizeTable(PDO $pdo, TableRule $table): void
     {
-        $pk = $table->primaryKey ?? $this->detectPrimaryKey($pdo, $table->table);
-        if ($pk === null) {
-            $this->failOrWarn("Table '{$table->table}' has no usable primary key; set tables.{$table->table}.primary_key");
+        if (!$this->tableExists($pdo, $table->table)) {
+            $this->failOrWarn("Table '{$table->table}' does not exist; skipping");
 
             return;
         }
 
-        if (!$this->tableExists($pdo, $table->table)) {
-            $this->failOrWarn("Table '{$table->table}' does not exist; skipping");
+        if ($table->empty) {
+            $this->emptyTable($pdo, $table);
+
+            return;
+        }
+
+        $pk = $table->primaryKey ?? $this->detectPrimaryKey($pdo, $table->table);
+        if ($pk === null) {
+            $this->failOrWarn("Table '{$table->table}' has no usable primary key; set tables.{$table->table}.primary_key");
 
             return;
         }
@@ -252,7 +258,10 @@ class LiveAnonymizer
                 $this->applyBatchedUpdate($pdo, $table, $pk, $chunk);
             } catch (Throwable $e) {
                 foreach ($chunk as $item) {
-                    $this->applySingleUpdate($pdo, $table, $pk, $item['pk'], $item['sets']);
+                    try {
+                        $this->applySingleUpdate($pdo, $table, $pk, $item['pk'], $item['sets']);
+                    } catch (Throwable) {
+                    }
                 }
                 $this->failOrWarn(
                     "Batched UPDATE failed for {$table->table}; fell back to per-row: {$e->getMessage()}"
@@ -438,9 +447,37 @@ class LiveAnonymizer
             $update->bindValue(':pk', $pkValue);
             $update->execute();
         } catch (Throwable $e) {
+            if (count($sets) > 1) {
+                $firstError = null;
+                foreach ($sets as $column => $value) {
+                    try {
+                        $this->applySingleUpdate($pdo, $table, $pk, $pkValue, [$column => $value]);
+                    } catch (Throwable $columnError) {
+                        $firstError ??= $columnError;
+                    }
+                }
+                if ($firstError !== null) {
+                    $this->failOrWarn(
+                        "UPDATE failed for {$table->table} {$pk}={$pkValue}: {$firstError->getMessage()}"
+                    );
+                }
+
+                return;
+            }
             $this->failOrWarn(
                 "UPDATE failed for {$table->table} {$pk}={$pkValue}: {$e->getMessage()}"
             );
+        }
+    }
+
+    private function emptyTable(PDO $pdo, TableRule $table): void
+    {
+        $quoted = $this->dialect->quoteIdentifier($table->table);
+        $this->progress("Emptying {$table->table}");
+        try {
+            $pdo->exec('DELETE FROM ' . $quoted);
+        } catch (Throwable $e) {
+            $this->failOrWarn("Could not empty {$table->table}: {$e->getMessage()}");
         }
     }
 

@@ -59,7 +59,7 @@ class AnonymizedValueFactory
             $method = lcfirst(substr($method, 6));
         }
         if ($method === 'clear') {
-            return '';
+            return $this->clearedValue($current);
         }
         if ($method === 'password') {
             return password_hash($this->testPassword, PASSWORD_BCRYPT);
@@ -80,5 +80,25 @@ class AnonymizedValueFactory
         }
 
         return $this->faker->generate($method, $unique);
+    }
+
+    /**
+     * `clear` must be legal for the current cell type. MySQL STRICT rejects
+     * `''` on bigint (Hydra `residents.customer_payment_token`), which used
+     * to abort the whole row UPDATE and leave production emails in place.
+     */
+    private function clearedValue(mixed $current): mixed
+    {
+        if ($current === null) {
+            return null;
+        }
+        if (is_int($current) || is_float($current)) {
+            return 0;
+        }
+        if (is_string($current) && is_numeric($current)) {
+            return 0;
+        }
+
+        return '';
     }
 }

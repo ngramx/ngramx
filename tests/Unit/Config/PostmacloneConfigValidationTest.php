@@ -280,6 +280,21 @@ class PostmacloneConfigValidationTest extends TestCase
         ]));
     }
 
+    public function test_accepts_empty_table_without_columns(): void
+    {
+        $this->validator->validate($this->base([
+            'postmaclone' => [
+                'engine' => 'postgres',
+                'tables' => [
+                    '_ts_residents' => [
+                        'empty' => true,
+                    ],
+                ],
+            ],
+        ]));
+        $this->assertTrue(true);
+    }
+
     public function test_loader_builds_opt_in_columns(): void
     {
         $path = dirname(__DIR__, 2) . '/fixtures/ngramx-with-postmaclone.yml';

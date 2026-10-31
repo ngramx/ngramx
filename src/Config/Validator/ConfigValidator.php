@@ -473,9 +473,14 @@ class ConfigValidator
             if (isset($tableConfig['columns']) && is_array($tableConfig['columns'])) {
                 $columns = $tableConfig['columns'];
             }
-            unset($columns['primary_key'], $columns['columns']);
+            unset($columns['primary_key'], $columns['columns'], $columns['empty']);
 
-            if ($columns === []) {
+            if (isset($tableConfig['empty']) && !is_bool($tableConfig['empty'])) {
+                throw new ConfigException("{$prefix}.{$tableName}.empty must be a boolean");
+            }
+
+            $empty = ($tableConfig['empty'] ?? false) === true;
+            if ($columns === [] && !$empty) {
                 throw new ConfigException(
                     "{$prefix}.{$tableName} must list at least one column to anonymize"
                 );

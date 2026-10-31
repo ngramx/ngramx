@@ -753,12 +753,13 @@ class ConfigLoader
             $primaryKey = isset($tableConfig['primary_key']) && is_string($tableConfig['primary_key'])
                 ? $tableConfig['primary_key']
                 : null;
+            $empty = ($tableConfig['empty'] ?? false) === true;
 
             $columnsRaw = $tableConfig;
             if (isset($tableConfig['columns']) && is_array($tableConfig['columns'])) {
                 $columnsRaw = $tableConfig['columns'];
             }
-            unset($columnsRaw['primary_key'], $columnsRaw['columns']);
+            unset($columnsRaw['primary_key'], $columnsRaw['columns'], $columnsRaw['empty']);
 
             $columns = [];
             foreach ($columnsRaw as $columnName => $rule) {
@@ -809,6 +810,7 @@ class ConfigLoader
                 table: $tableName,
                 columns: $columns,
                 primaryKey: $primaryKey,
+                empty: $empty,
             );
         }
 
