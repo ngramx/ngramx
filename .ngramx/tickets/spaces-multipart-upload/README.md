@@ -14,3 +14,4 @@ Use S3 multipart for large artifacts. Recover the dump already on lon1 without r
 - `ngramx postmaclone produce --from-artifact` publishes a local dump and refreshes shared.
 - Recovered dump moved to `/var/lib/postmaclone-recover/hydra_anon.sql.gz` (6,755,282,413 bytes, sha256 `a2349ac43d012fc6780de25977a6fef3f891fe6f1be5e3453aba56bbddbc0113`).
 - PR: https://github.com/ngramx/ngramx/pull/60
+- Drop Guzzle Middleware::history in the uploader test; CI PHPStan 8.3 rejected the by-ref ignore that passed locally.

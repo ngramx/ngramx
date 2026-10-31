@@ -11,13 +11,21 @@
   "test_plan": [
     {
       "description": "Publish the recovered Hydra dump without repeating produce",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Merge this PR and wait for semantic-release to publish a new ngramx.phar",
         "Do not dispatch a full Hydra produce",
         "On postmaclone-lon1 run produce --dataset hydra --from-artifact /var/lib/postmaclone-recover/hydra_anon.sql.gz",
         "Confirm hydra/hydra_anon.sql.gz lands in weathered-brook-anonymized-backups and latest.json matches size 6755282413",
         "Confirm shared hydra_prod_anon refresh starts after the upload"
+      ]
+    },
+    {
+      "description": "PHPStan on PHP 8.2 and 8.3 is clean",
+      "status": "active",
+      "steps": [
+        "Confirm the Tests workflow PHP 8.2 and PHP 8.3 jobs pass",
+        "Then recover the lon1 dump with produce --from-artifact as in the previous block"
       ]
     }
   ]
