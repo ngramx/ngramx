@@ -64,7 +64,7 @@ class PostmacloneCommand extends Command
             ->addOption('all', null, InputOption::VALUE_NONE, 'With produce: process every dataset in factory postmaclone.yml')
             ->addOption('dataset', null, InputOption::VALUE_REQUIRED, 'With produce: process a single dataset name')
             ->addOption('config', 'c', InputOption::VALUE_REQUIRED, 'With produce: path to factory postmaclone.yml')
-            ->addOption('from-artifact', null, InputOption::VALUE_REQUIRED, 'With produce: publish an existing local dump and refresh shared; skip restore/anonymize/dump')
+            ->addOption('from-artifact', null, InputOption::VALUE_REQUIRED, 'With produce --dataset: publish an existing local dump and refresh shared; skip restore/anonymize/dump. Cannot be used with --all')
             ->addOption('foreground', null, InputOption::VALUE_NONE, 'With connect/tunnel: run SSH tunnel in foreground (passphrase-friendly)')
             ->addOption('no-probe', null, InputOption::VALUE_NONE, 'With connect/tunnel: skip SELECT 1 connection probe')
             ->addOption('mysql', null, InputOption::VALUE_NONE, 'With tunnel: open SSH tunnel to the shared MySQL anonymized cluster')
@@ -753,6 +753,13 @@ class PostmacloneCommand extends Command
         $all = (bool) $input->getOption('all');
         $datasetOpt = $input->getOption('dataset');
         $datasetName = is_string($datasetOpt) && $datasetOpt !== '' ? $datasetOpt : null;
+        $fromArtifactOpt = $input->getOption('from-artifact');
+        $fromArtifactRaw = is_string($fromArtifactOpt) && $fromArtifactOpt !== '' ? $fromArtifactOpt : null;
+        if ($fromArtifactRaw !== null && ($all || $datasetName === null)) {
+            $formatter->error('--from-artifact requires --dataset <name> and cannot be used with --all');
+
+            return Command::FAILURE;
+        }
         if (!$all && $datasetName === null) {
             $formatter->error('produce requires --all or --dataset <name>');
 
@@ -774,6 +781,9 @@ class PostmacloneCommand extends Command
         $workRoot = dirname($factoryPath);
         $formatter->info('Factory config: ' . $factoryPath);
 
+        $fromArtifact = $fromArtifactRaw !== null
+            ? AbsolutePath::resolve($workRoot, $fromArtifactRaw)
+            : null;
         $names = $all ? array_keys($factory->datasets) : [$datasetName];
         $failed = false;
         foreach ($names as $name) {
@@ -782,10 +792,6 @@ class PostmacloneCommand extends Command
                 $failed = true;
                 continue;
             }
-            $fromArtifactOpt = $input->getOption('from-artifact');
-            $fromArtifact = is_string($fromArtifactOpt) && $fromArtifactOpt !== ''
-                ? AbsolutePath::resolve($workRoot, $fromArtifactOpt)
-                : null;
             $formatter->info($fromArtifact !== null
                 ? "Publishing existing artifact for dataset: {$name}"
                 : "Producing dataset: {$name}");

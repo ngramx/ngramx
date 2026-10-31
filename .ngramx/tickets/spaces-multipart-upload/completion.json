@@ -22,10 +22,18 @@
     },
     {
       "description": "PHPStan on PHP 8.2 and 8.3 is clean",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Confirm the Tests workflow PHP 8.2 and PHP 8.3 jobs pass",
         "Then recover the lon1 dump with produce --from-artifact as in the previous block"
+      ]
+    },
+    {
+      "description": "--from-artifact cannot run with --all",
+      "status": "active",
+      "steps": [
+        "Confirm produce --from-artifact --all exits before touching datasets",
+        "Recover Hydra only with --dataset hydra --from-artifact /var/lib/postmaclone-recover/hydra_anon.sql.gz"
       ]
     }
   ]

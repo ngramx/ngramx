@@ -34,4 +34,18 @@ class PostmacloneProduceCommandTest extends TestCase
         $this->assertSame(1, $exit);
         $this->assertStringContainsString("Unknown dataset 'missing'", $tester->getDisplay());
     }
+
+    public function test_from_artifact_rejects_all(): void
+    {
+        $command = new PostmacloneCommand(new ConfigLoader(new ConfigValidator()));
+        $tester = new CommandTester($command);
+        $exit = $tester->execute([
+            'action' => 'produce',
+            '--all' => true,
+            '--from-artifact' => '/var/lib/postmaclone-recover/hydra_anon.sql.gz',
+        ]);
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('--from-artifact requires --dataset', $tester->getDisplay());
+        $this->assertStringContainsString('cannot be used with --all', $tester->getDisplay());
+    }
 }
