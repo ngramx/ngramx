@@ -1,7 +1,7 @@
 {
   "title": "GIG-4345: Postmaclone Must Not Leave A Table Raw When One Column Update Fails",
   "description": "Makes clear type-safe on numeric cells, retries remaining columns after a multi-column UPDATE failure, and adds tables.empty so composite-PK history tables can be wiped.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/61",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-4345/postmaclone-must-not-leave-a-table-raw-when-one-column-update-fails",
   "test_urls": [
     {
