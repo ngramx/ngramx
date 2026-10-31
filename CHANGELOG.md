@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.58.8](https://github.com/ngramx/ngramx/compare/v2.58.7...v2.58.8) (2026-10-31)
+
+
+### Bug Fixes
+
+* **postmaclone:** finish remaining columns when a strict retry fails ([a70a489](https://github.com/ngramx/ngramx/commit/a70a489bb62bbb014a83178eb82a6741f6e2870f))
+* **postmaclone:** keep other columns when one UPDATE value is illegal ([cacac16](https://github.com/ngramx/ngramx/commit/cacac16d3ceef8753d1af4bdcf8d531f790c82de))
+
 ## [2.58.7](https://github.com/ngramx/ngramx/compare/v2.58.6...v2.58.7) (2026-10-31)
 
 
