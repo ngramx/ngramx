@@ -93,6 +93,8 @@ class PostmacloneProducer
                 ? new PostgresRestorer(onProgress: $onProgress)
                 : new MysqlRestorer(onProgress: $onProgress);
             $restorer->restore($dumpPath, $target);
+            $this->progress($onProgress, 'Removing downloaded source dump');
+            $source->cleanup(false);
 
             $pdoHost = (string) ($target->meta['host_bind_host'] ?? $target->host);
             $pdoPort = (int) ($target->meta['host_bind_port'] ?? $target->port);

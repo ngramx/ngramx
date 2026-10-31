@@ -1,0 +1,24 @@
+{
+  "title": "Stream MySQL Produce Dump Through Gzip",
+  "description": "Pipes mysqldump through gzip and deletes the source dump after restore so Hydra produce fits on the 2GB lon1 droplet.",
+  "pr_url": "",
+  "test_urls": [
+    {
+      "label": "Hydra produce workflow",
+      "url": "https://github.com/gigabyte-software/postmaclone-factory/actions/workflows/postmaclone-produce-hydra.yml"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Hydra produce dump no longer buffers uncompressed SQL in PHP",
+      "status": "active",
+      "steps": [
+        "Merge this PR and wait for semantic-release to publish a new ngramx.phar",
+        "Dispatch Postmaclone produce (Hydra) on postmaclone-lon1",
+        "Confirm restore still streams the gzip dump into scratch",
+        "Confirm Dumping anonymized database writes hydra_anon.sql.gz without a sibling plain .sql and without ENOSPC or PHP OOM",
+        "Confirm the artifact uploads and shared refresh proceeds"
+      ]
+    }
+  ]
+}

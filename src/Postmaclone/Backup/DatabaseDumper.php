@@ -42,18 +42,28 @@ class DatabaseDumper
 
         if ($engine === 'postgres') {
             $this->pgDump($connectionUrl, $plain, $includeTables, $excludeTables, $onProgress);
-        } else {
-            $this->mysqlDump($connectionUrl, $plain, $includeTables, $excludeTables, $onProgress);
+            if (!$gzip) {
+                return $plain;
+            }
+            $this->gzipFile($plain, $outPath, $onProgress);
+            @unlink($plain);
+
+            return $outPath;
         }
 
-        if (!$gzip) {
-            return $plain;
-        }
+        // MySQL: stream mysqldump through gzip. Never hold the dump in PHP
+        // memory and never write uncompressed SQL (Hydra's plain dump is tens
+        // of GB; the lon1 produce droplet has 2GB RAM).
+        $this->mysqlDump(
+            $connectionUrl,
+            $gzip ? $outPath : $plain,
+            $includeTables,
+            $excludeTables,
+            $gzip,
+            $onProgress,
+        );
 
-        $this->gzipFile($plain, $outPath, $onProgress);
-        @unlink($plain);
-
-        return $outPath;
+        return $gzip ? $outPath : $plain;
     }
 
     /**
@@ -85,8 +95,14 @@ class DatabaseDumper
      * @param list<string>|null $excludeTables
      * @param (callable(string): void)|null $onProgress
      */
-    private function mysqlDump(string $url, string $out, ?array $includeTables, ?array $excludeTables, ?callable $onProgress): void
-    {
+    private function mysqlDump(
+        string $url,
+        string $out,
+        ?array $includeTables,
+        ?array $excludeTables,
+        bool $gzip,
+        ?callable $onProgress,
+    ): void {
         $parts = parse_url($url);
         if ($parts === false) {
             throw new PostmacloneException('Invalid MySQL connection URL');
@@ -115,27 +131,27 @@ class DatabaseDumper
             $cmd[] = $table;
         }
 
-        $process = new Process($cmd);
+        $errFile = $out . '.mysqldump.err';
+        $quoted = implode(' ', array_map('escapeshellarg', $cmd));
+        $script = 'set -o pipefail; ' . $quoted . ' 2> ' . escapeshellarg($errFile);
+        $script .= $gzip
+            ? ' | gzip -1 > ' . escapeshellarg($out)
+            : ' > ' . escapeshellarg($out);
+
+        $process = new Process(['bash', '-c', $script]);
         if ($pass !== '') {
             $process->setEnv(array_merge($_ENV, ['MYSQL_PWD' => $pass]));
         }
         $process->setTimeout(7200);
-        if ($onProgress !== null) {
-            $onProgress('Dumping anonymized database');
-        }
-        // mysqldump writes the whole dump to stdout. Must run() so Symfony
-        // drains the pipe; polling isRunning() + sleep lets the pipe fill
-        // and blocks the child until the two-hour timeout.
-        $process->run();
+        $process->disableOutput();
+        $this->runDumpProcess($process, $out, $onProgress, 'Dumping anonymized database');
+        $err = is_file($errFile) ? trim((string) file_get_contents($errFile)) : '';
+        @unlink($errFile);
         if (!$process->isSuccessful()) {
-            throw new PostmacloneException('mysqldump failed: ' . $process->getErrorOutput());
+            throw new PostmacloneException('mysqldump failed: ' . $err);
         }
-        if (file_put_contents($out, $process->getOutput()) === false) {
-            throw new PostmacloneException("Failed to write dump: {$out}");
-        }
-        if ($onProgress !== null) {
-            $size = is_file($out) ? (int) filesize($out) : 0;
-            $onProgress(sprintf('Dumping anonymized database finished (%s)', $this->formatBytes($size)));
+        if ($this->dumpFileSize($out) === 0) {
+            throw new PostmacloneException('mysqldump produced an empty file' . ($err !== '' ? ': ' . $err : ''));
         }
     }
 
@@ -188,8 +204,10 @@ class DatabaseDumper
         $process->start();
         while ($process->isRunning()) {
             $process->checkTimeout();
-            $process->getIncrementalOutput();
-            $process->getIncrementalErrorOutput();
+            if (!$process->isOutputDisabled()) {
+                $process->getIncrementalOutput();
+                $process->getIncrementalErrorOutput();
+            }
             $size = $this->dumpFileSize($out);
             if ($size - $lastBytes >= 256 * 1024 * 1024) {
                 $onProgress(sprintf('%s (%s written)', $label, $this->formatBytes($size)));
