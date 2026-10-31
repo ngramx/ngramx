@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.58.6](https://github.com/ngramx/ngramx/compare/v2.58.5...v2.58.6) (2026-10-31)
+
+
+### Bug Fixes
+
+* **postmaclone:** count restore progress on gzip file bytes ([49ec5fa](https://github.com/ngramx/ngramx/commit/49ec5fa9f12a83b182e3c470f05ab951e576d7ec))
+* **postmaclone:** kill dump pipeline on timeout and keep gzip errors ([05ae3c6](https://github.com/ngramx/ngramx/commit/05ae3c6be251d908d5d2d93d6faf54983c3c967f))
+* **postmaclone:** stream mysqldump through gzip so Hydra produce fits on lon1 ([c494ea3](https://github.com/ngramx/ngramx/commit/c494ea39c4f1ded346e6b2a753f8d0040704f9e4))
+
 ## [2.58.5](https://github.com/ngramx/ngramx/compare/v2.58.4...v2.58.5) (2026-10-22)
 
 
