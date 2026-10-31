@@ -1,7 +1,7 @@
 {
   "title": "Spaces Multipart Upload For Hydra Artifacts",
   "description": "Uploads artifacts larger than 5GB with the S3 multipart API and adds produce --from-artifact so the 6.3GB Hydra dump on lon1 can be published without repeating anonymisation.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/60",
   "test_urls": [
     {
       "label": "Hydra produce workflow",
