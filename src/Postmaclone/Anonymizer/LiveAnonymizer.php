@@ -70,15 +70,21 @@ class LiveAnonymizer
 
     private function anonymizeTable(PDO $pdo, TableRule $table): void
     {
-        $pk = $table->primaryKey ?? $this->detectPrimaryKey($pdo, $table->table);
-        if ($pk === null) {
-            $this->failOrWarn("Table '{$table->table}' has no usable primary key; set tables.{$table->table}.primary_key");
+        if (!$this->tableExists($pdo, $table->table)) {
+            $this->failOrWarn("Table '{$table->table}' does not exist; skipping");
 
             return;
         }
 
-        if (!$this->tableExists($pdo, $table->table)) {
-            $this->failOrWarn("Table '{$table->table}' does not exist; skipping");
+        if ($table->empty) {
+            $this->emptyTable($pdo, $table);
+
+            return;
+        }
+
+        $pk = $table->primaryKey ?? $this->detectPrimaryKey($pdo, $table->table);
+        if ($pk === null) {
+            $this->failOrWarn("Table '{$table->table}' has no usable primary key; set tables.{$table->table}.primary_key");
 
             return;
         }
@@ -438,9 +444,27 @@ class LiveAnonymizer
             $update->bindValue(':pk', $pkValue);
             $update->execute();
         } catch (Throwable $e) {
+            if (count($sets) > 1) {
+                foreach ($sets as $column => $value) {
+                    $this->applySingleUpdate($pdo, $table, $pk, $pkValue, [$column => $value]);
+                }
+
+                return;
+            }
             $this->failOrWarn(
                 "UPDATE failed for {$table->table} {$pk}={$pkValue}: {$e->getMessage()}"
             );
+        }
+    }
+
+    private function emptyTable(PDO $pdo, TableRule $table): void
+    {
+        $quoted = $this->dialect->quoteIdentifier($table->table);
+        $this->progress("Emptying {$table->table}");
+        try {
+            $pdo->exec('DELETE FROM ' . $quoted);
+        } catch (Throwable $e) {
+            $this->failOrWarn("Could not empty {$table->table}: {$e->getMessage()}");
         }
     }
 

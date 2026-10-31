@@ -17,6 +17,17 @@ class AnonymizedValueFactoryTest extends TestCase
         $this->assertSame('', $factory->value(new ColumnRule('token', 'clear'), 'live-secret'));
     }
 
+    public function test_clear_returns_zero_for_numeric_cells(): void
+    {
+        $factory = $this->factory();
+        $rule = new ColumnRule('customer_payment_token', 'clear');
+
+        $this->assertSame(0, $factory->value($rule, 184467440737));
+        $this->assertSame(0, $factory->value($rule, '991122'));
+        $this->assertSame(0, $factory->value($rule, 12.0));
+        $this->assertNull($factory->value($rule, null));
+    }
+
     public function test_email_or_name_follows_current_cell(): void
     {
         $factory = $this->factory();

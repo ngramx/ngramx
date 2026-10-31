@@ -1,0 +1,14 @@
+{
+  "id": "GIG-4345",
+  "title": "Postmaclone must not leave a table raw when one column UPDATE fails",
+  "url": "https://linear.app/gigabyte/issue/GIG-4345/postmaclone-must-not-leave-a-table-raw-when-one-column-update-fails",
+  "gitBranchName": "gig-4345-postmaclone-must-not-leave-a-table-raw-when-one-column",
+  "status": "In Progress",
+  "priority": "High",
+  "estimate": 2,
+  "project": "Ad-Hoc Jobs",
+  "team": "Gigabyte",
+  "assignee": "Cameron Smith",
+  "labels": ["Warwick"],
+  "blocks": ["GIG-4346"]
+}

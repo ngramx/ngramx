@@ -226,6 +226,47 @@ class LiveAnonymizerTest extends TestCase
         $this->assertSame(['', ''], $names);
     }
 
+    public function test_row_update_failure_retries_remaining_columns(): void
+    {
+        $pdo = $this->sqlite();
+        $pdo->exec('CREATE TABLE people (id INTEGER PRIMARY KEY, email TEXT, token INTEGER NOT NULL)');
+        $pdo->exec("INSERT INTO people (id, email, token) VALUES (1, 'ann@example.com', 99)");
+
+        $pdo->failMultiColumnUpdates = true;
+        $anonymizer = $this->anonymizer($pdo);
+        $anonymizer->anonymize($pdo, [
+            'people' => new TableRule('people', [
+                'email' => new ColumnRule('email', 'clear'),
+                'token' => new ColumnRule('token', 'clear'),
+            ], 'id'),
+        ]);
+
+        $selected = $pdo->query('SELECT email, token FROM people WHERE id = 1');
+        $this->assertNotFalse($selected);
+        $row = $selected->fetch(PDO::FETCH_ASSOC);
+        $this->assertIsArray($row);
+        $this->assertSame('', $row['email']);
+        $this->assertSame(0, (int) $row['token']);
+        $this->assertNotSame([], $anonymizer->warnings());
+    }
+
+    public function test_empty_table_deletes_all_rows(): void
+    {
+        $pdo = $this->sqlite();
+        $pdo->exec('CREATE TABLE history (id INTEGER PRIMARY KEY, email TEXT)');
+        $pdo->exec("INSERT INTO history (id, email) VALUES (1, 'ann@example.com')");
+        $pdo->exec("INSERT INTO history (id, email) VALUES (2, 'bob@example.com')");
+
+        $anonymizer = $this->anonymizer($pdo);
+        $anonymizer->anonymize($pdo, [
+            'history' => new TableRule('history', [], empty: true),
+        ]);
+
+        $count = $pdo->query('SELECT COUNT(*) FROM history');
+        $this->assertNotFalse($count);
+        $this->assertSame(0, (int) $count->fetchColumn());
+    }
+
     private function anonymizer(
         CountingPdo $pdo,
         int $maxBoundBytes = 1_000_000,
@@ -260,6 +301,8 @@ final class CountingPdo extends PDO
 
     public bool $failNextBatch = false;
 
+    public bool $failMultiColumnUpdates = false;
+
     /** @var list<string> */
     public array $queries = [];
 
@@ -278,6 +321,9 @@ final class CountingPdo extends PDO
             if ($this->failNextBatch && str_contains($query, 'CASE')) {
                 $this->failNextBatch = false;
                 throw new \RuntimeException('forced batch failure');
+            }
+            if ($this->failMultiColumnUpdates && preg_match('/SET\s+.+,/is', $query) === 1) {
+                throw new \RuntimeException('forced multi-column failure');
             }
         }
 
