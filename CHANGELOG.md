@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.58.7](https://github.com/ngramx/ngramx/compare/v2.58.6...v2.58.7) (2026-10-31)
+
+
+### Bug Fixes
+
+* **postmaclone:** upload artifacts over 5GB with S3 multipart ([66cc5cf](https://github.com/ngramx/ngramx/commit/66cc5cf7b2a238a67030294ad3021cc2fee6d359))
+
 ## [2.58.6](https://github.com/ngramx/ngramx/compare/v2.58.5...v2.58.6) (2026-10-31)
 
 
