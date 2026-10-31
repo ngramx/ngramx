@@ -1,7 +1,7 @@
 {
   "title": "Stream MySQL Produce Dump Through Gzip",
   "description": "Pipes mysqldump through gzip and deletes the source dump after restore so Hydra produce fits on the 2GB lon1 droplet.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/59",
   "test_urls": [
     {
       "label": "Hydra produce workflow",

@@ -13,3 +13,4 @@ Stream `mysqldump | gzip` to the local artifact. Delete the downloaded source du
 - MySQL dump pipes through `gzip -1` with output disabled on the Symfony process.
 - Producer removes the S3 source dump after restore, before the anon dump.
 - Unit tests for gzip/plain MySQL dump and produce cleanup order.
+- PR: https://github.com/ngramx/ngramx/pull/59
