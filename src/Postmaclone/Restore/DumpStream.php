@@ -14,26 +14,38 @@ use Ngramx\Postmaclone\Exception\PostmacloneException;
 final class DumpStream
 {
     /**
+     * @param (callable(resource): void)|null $beforeDecompress
+     *        Runs on the raw file handle before gzip inflate so callers can
+     *        count on-disk bytes for restore progress.
      * @return resource
      */
-    public static function open(string $path)
+    public static function open(string $path, ?callable $beforeDecompress = null)
     {
         if (!is_file($path)) {
             throw new PostmacloneException("Dump not found: {$path}");
         }
 
-        if (self::isGzip($path)) {
-            $real = realpath($path);
-            if ($real === false) {
-                throw new PostmacloneException("Dump not found: {$path}");
-            }
-            $stream = fopen('compress.zlib://' . $real, 'rb');
-        } else {
-            $stream = fopen($path, 'rb');
-        }
-
+        $gzip = self::isGzip($path);
+        $stream = fopen($path, 'rb');
         if ($stream === false) {
             throw new PostmacloneException("Failed to open dump: {$path}");
+        }
+
+        if ($beforeDecompress !== null) {
+            $beforeDecompress($stream);
+        }
+
+        if ($gzip) {
+            $filter = stream_filter_append(
+                $stream,
+                'zlib.inflate',
+                STREAM_FILTER_READ,
+                ['window' => 31],
+            );
+            if ($filter === false) {
+                fclose($stream);
+                throw new PostmacloneException("Failed to decompress dump: {$path}");
+            }
         }
 
         return $stream;

@@ -34,6 +34,32 @@ final class DumpStreamTest extends TestCase
         }
     }
 
+    public function test_before_decompress_runs_on_raw_gzip_bytes(): void
+    {
+        $dir = sys_get_temp_dir() . '/ngramx-dump-stream-' . uniqid('', true);
+        mkdir($dir, 0700, true);
+        $path = $dir . '/postmaclone-abc.dump';
+        $payload = "INSERT INTO users VALUES (1);\n";
+        $compressed = gzencode($payload, 6);
+        self::assertNotFalse($compressed);
+        file_put_contents($path, $compressed);
+        $calledOnRaw = false;
+
+        try {
+            $in = DumpStream::open($path, static function ($stream) use (&$calledOnRaw): void {
+                self::assertIsResource($stream);
+                $calledOnRaw = true;
+            });
+            $read = stream_get_contents($in);
+            fclose($in);
+            self::assertTrue($calledOnRaw);
+            self::assertSame($payload, $read);
+        } finally {
+            @unlink($path);
+            @rmdir($dir);
+        }
+    }
+
     public function test_opens_plain_sql_unchanged(): void
     {
         $dir = sys_get_temp_dir() . '/ngramx-dump-stream-' . uniqid('', true);

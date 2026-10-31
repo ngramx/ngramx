@@ -1,6 +1,6 @@
 {
   "title": "Stream MySQL Produce Dump Through Gzip",
-  "description": "Pipes mysqldump through gzip and deletes the source dump after restore so Hydra produce fits on the 2GB lon1 droplet.",
+  "description": "Pipes mysqldump through gzip, deletes the source dump after restore, and reports restore progress against the gzip file size so Hydra produce fits on the 2GB lon1 droplet.",
   "pr_url": "https://github.com/ngramx/ngramx/pull/59",
   "test_urls": [
     {
@@ -11,13 +11,23 @@
   "test_plan": [
     {
       "description": "Hydra produce dump no longer buffers uncompressed SQL in PHP",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Merge this PR and wait for semantic-release to publish a new ngramx.phar",
         "Dispatch Postmaclone produce (Hydra) on postmaclone-lon1",
         "Confirm restore still streams the gzip dump into scratch",
         "Confirm Dumping anonymized database writes hydra_anon.sql.gz without a sibling plain .sql and without ENOSPC or PHP OOM",
         "Confirm the artifact uploads and shared refresh proceeds"
+      ]
+    },
+    {
+      "description": "Loading dump into scratch tracks gzip file bytes",
+      "status": "active",
+      "steps": [
+        "Dispatch Postmaclone produce (Hydra) on postmaclone-lon1 after this PR is released",
+        "Watch Loading dump into scratch percent over time",
+        "Confirm it does not jump to 100% after only a few GB of a multi-GB gzip",
+        "Confirm 100% appears when the dump file has been fully read; Restore finished may still wait on MySQL COMMIT"
       ]
     }
   ]

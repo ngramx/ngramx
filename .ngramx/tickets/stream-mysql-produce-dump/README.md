@@ -14,3 +14,4 @@ Stream `mysqldump | gzip` to the local artifact. Delete the downloaded source du
 - Producer removes the S3 source dump after restore, before the anon dump.
 - Unit tests for gzip/plain MySQL dump and produce cleanup order.
 - PR: https://github.com/ngramx/ngramx/pull/59
+- Restore progress counts gzip file bytes (filter sits before inflate) so 100% means the dump has been read, not that uncompressed SQL exceeded the .gz size.

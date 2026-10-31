@@ -109,11 +109,80 @@ final class MysqlRestorerTest extends TestCase
         @unlink($dump);
     }
 
+    public function test_restore_reports_gzip_progress_against_compressed_filesize(): void
+    {
+        $payload = str_repeat("INSERT INTO t VALUES (1);\n", 200000);
+        $dump = $this->writeGzipDump($payload);
+        $messages = [];
+
+        $runner = $this->createMock(MysqlRunner::class);
+        $runner->method('run')->willReturnCallback(function ($target, array $args, $stdin): void {
+            stream_get_contents($stdin);
+        });
+
+        $restorer = new MysqlRestorer(
+            $runner,
+            onProgress: static function (string $message) use (&$messages): void {
+                $messages[] = $message;
+            },
+        );
+        $restorer->restore($dump, $this->target());
+
+        self::assertContains('Loading dump into scratch 100%', $messages);
+        self::assertContains('Restore finished', $messages);
+        @unlink($dump);
+    }
+
+    public function test_restore_does_not_treat_uncompressed_bytes_as_gzip_filesize(): void
+    {
+        $payload = str_repeat("INSERT INTO t VALUES (1);\n", 200000);
+        $dump = $this->writeGzipDump($payload);
+        $compressedSize = (int) filesize($dump);
+        self::assertLessThan(strlen($payload), $compressedSize);
+        $messages = [];
+
+        $runner = $this->createMock(MysqlRunner::class);
+        $runner->method('run')->willReturnCallback(function ($target, array $args, $stdin) use ($compressedSize): void {
+            $read = fread($stdin, 100000);
+            self::assertNotFalse($read);
+            self::assertGreaterThan($compressedSize, strlen($read));
+            throw new PostmacloneException('connection lost');
+        });
+
+        $restorer = new MysqlRestorer(
+            $runner,
+            onProgress: static function (string $message) use (&$messages): void {
+                $messages[] = $message;
+            },
+        );
+
+        try {
+            $restorer->restore($dump, $this->target());
+            self::fail('Expected restore to fail');
+        } catch (PostmacloneException $e) {
+            self::assertStringContainsString('mysql restore failed', $e->getMessage());
+        }
+
+        self::assertNotContains('Loading dump into scratch 100%', $messages);
+        @unlink($dump);
+    }
+
     private function writeDump(string $sql): string
     {
         $path = tempnam(sys_get_temp_dir(), 'ngramx-mysql-restore-');
         self::assertNotFalse($path);
         file_put_contents($path, $sql);
+
+        return $path;
+    }
+
+    private function writeGzipDump(string $sql): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'ngramx-mysql-restore-gz-');
+        self::assertNotFalse($path);
+        $compressed = gzencode($sql, 1);
+        self::assertNotFalse($compressed);
+        file_put_contents($path, $compressed);
 
         return $path;
     }
