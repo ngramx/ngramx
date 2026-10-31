@@ -1,0 +1,24 @@
+{
+  "title": "Spaces Multipart Upload For Hydra Artifacts",
+  "description": "Uploads artifacts larger than 5GB with the S3 multipart API and adds produce --from-artifact so the 6.3GB Hydra dump on lon1 can be published without repeating anonymisation.",
+  "pr_url": "",
+  "test_urls": [
+    {
+      "label": "Hydra produce workflow",
+      "url": "https://github.com/gigabyte-software/postmaclone-factory/actions/workflows/postmaclone-produce-hydra.yml"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Publish the recovered Hydra dump without repeating produce",
+      "status": "active",
+      "steps": [
+        "Merge this PR and wait for semantic-release to publish a new ngramx.phar",
+        "Do not dispatch a full Hydra produce",
+        "On postmaclone-lon1 run produce --dataset hydra --from-artifact /var/lib/postmaclone-recover/hydra_anon.sql.gz",
+        "Confirm hydra/hydra_anon.sql.gz lands in weathered-brook-anonymized-backups and latest.json matches size 6755282413",
+        "Confirm shared hydra_prod_anon refresh starts after the upload"
+      ]
+    }
+  ]
+}

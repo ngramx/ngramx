@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Ngramx\Command;
 
+use Ngramx\Codabyte\SshRunner;
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Config\Schema\Postmaclone\FactoryConfig;
+use Ngramx\Filesystem\AbsolutePath;
 use Ngramx\Output\OutputFormatter;
-use Ngramx\Codabyte\SshRunner;
 use Ngramx\Postmaclone\Backup\S3Credentials;
 use Ngramx\Postmaclone\Connect\PostmacloneConnectLockData;
 use Ngramx\Postmaclone\Connect\PostmacloneConnectService;
@@ -63,6 +64,7 @@ class PostmacloneCommand extends Command
             ->addOption('all', null, InputOption::VALUE_NONE, 'With produce: process every dataset in factory postmaclone.yml')
             ->addOption('dataset', null, InputOption::VALUE_REQUIRED, 'With produce: process a single dataset name')
             ->addOption('config', 'c', InputOption::VALUE_REQUIRED, 'With produce: path to factory postmaclone.yml')
+            ->addOption('from-artifact', null, InputOption::VALUE_REQUIRED, 'With produce: publish an existing local dump and refresh shared; skip restore/anonymize/dump')
             ->addOption('foreground', null, InputOption::VALUE_NONE, 'With connect/tunnel: run SSH tunnel in foreground (passphrase-friendly)')
             ->addOption('no-probe', null, InputOption::VALUE_NONE, 'With connect/tunnel: skip SELECT 1 connection probe')
             ->addOption('mysql', null, InputOption::VALUE_NONE, 'With tunnel: open SSH tunnel to the shared MySQL anonymized cluster')
@@ -780,16 +782,29 @@ class PostmacloneCommand extends Command
                 $failed = true;
                 continue;
             }
-            $formatter->info("Producing dataset: {$name}");
+            $fromArtifactOpt = $input->getOption('from-artifact');
+            $fromArtifact = is_string($fromArtifactOpt) && $fromArtifactOpt !== ''
+                ? AbsolutePath::resolve($workRoot, $fromArtifactOpt)
+                : null;
+            $formatter->info($fromArtifact !== null
+                ? "Publishing existing artifact for dataset: {$name}"
+                : "Producing dataset: {$name}");
             try {
-                $result = $this->producer->produceDataset(
-                    $factory->datasets[$name],
-                    $workRoot,
-                    (bool) $input->getOption('strict'),
-                    onProgress: static function (string $message) use ($formatter): void {
-                        $formatter->info($message);
-                    },
-                );
+                $onProgress = static function (string $message) use ($formatter): void {
+                    $formatter->info($message);
+                };
+                $result = $fromArtifact !== null
+                    ? $this->producer->publishExistingArtifact(
+                        $factory->datasets[$name],
+                        $fromArtifact,
+                        onProgress: $onProgress,
+                    )
+                    : $this->producer->produceDataset(
+                        $factory->datasets[$name],
+                        $workRoot,
+                        (bool) $input->getOption('strict'),
+                        onProgress: $onProgress,
+                    );
                 foreach ($result['warnings'] as $warning) {
                     $formatter->warning($warning);
                 }
