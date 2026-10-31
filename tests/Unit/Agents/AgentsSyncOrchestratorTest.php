@@ -125,8 +125,8 @@ class AgentsSyncOrchestratorTest extends TestCase
         $skill = file_get_contents($this->projectDir . '/.cursor/skills/ngramx-create-pr/SKILL.md');
         $this->assertIsString($skill);
         $this->assertStringContainsString('### Outbound communications', $skill);
-        $this->assertStringContainsString('Label `risk:high` when the pull request introduces or enables a process that sends messages to people:', $skill);
-        $this->assertStringContainsString('Add further categories in this section.', $skill);
+        $this->assertStringContainsString('Label `risk:high` only when the pull request introduces or enables a process that sends messages to external people:', $skill);
+        $this->assertStringContainsString('Outbound communication to external people is the only forced category.', $skill);
         $this->assertFileExists($this->projectDir . '/.cursor/skills/ngramx-start-ticket/SKILL.md');
         $this->assertFileExists($this->projectDir . '/.cursor/skills/ngramx-create-linear-tickets/SKILL.md');
         $this->assertFileDoesNotExist($this->projectDir . '/.cursor/skills/start-ticket/SKILL.md');

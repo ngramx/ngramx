@@ -30,8 +30,8 @@ Every PR gets two labels — one for risk, one for size. The merge automation re
 **Risk:**
 
 - `risk:low` — docs, tests-only, comments, dependency bumps with passing CI, isolated UI tweaks, internal tooling
-- `risk:medium` — feature work or refactors that touch shared code but follow established patterns
-- `risk:high` — auth, payments, migrations, infra/deployment, customer data, external integrations, outbound communications (see Forced escalation), anything that could cause an outage or data loss
+- `risk:medium` — feature work, refactors, bugfixes, auth, payments, database migrations, infrastructure, deployment, customer data, and external integrations that do not send messages to external people
+- `risk:high` — outbound communication to external people (see Forced escalation). Nothing else
 
 **Size:**
 
@@ -41,7 +41,8 @@ Every PR gets two labels — one for risk, one for size. The merge automation re
 
 **Rules:**
 
-- When in doubt, escalate. Default to higher risk and larger size.
+- For size, when in doubt, choose the larger size.
+- For risk, choose `risk:high` only when the diff sends, or may send, communication to external people. Otherwise choose low or medium. Do not raise auth, payments, migrations, infrastructure, or other ordinary work out of caution.
 - Include a one-line rationale in the PR description, e.g. *"Labelled `risk:low` because only touches docs and tests."*
 - Never open a PR without both labels.
 
@@ -51,19 +52,22 @@ GitHub Actions (`high-risk-review`) classifies the diff again on open and on eve
 
 Some diffs must be labelled `risk:high` even when they are small. Auto-merge only proceeds for `risk:low` together with `size:small`, so `risk:high` keeps a person in the review.
 
-Add further categories in this section. Each category names the label, the signals that force it, and the edits that stay on the normal risk scale.
+Outbound communication to external people is the only forced category. A new category belongs here only when it is another way of sending that communication.
 
 ### Outbound communications
 
-Label `risk:high` when the pull request introduces or enables a process that sends messages to people:
+Label `risk:high` only when the pull request introduces or enables a process that sends messages to external people:
 
-- Email, SMS, letters, or other external dispatch. This includes a new sender, and config, flags, or schedules that turn an existing sender on.
+- Email, SMS, letters, or other external dispatch. This includes a new sender, and config, flags, or schedules that turn an existing external sender on.
 - Scheduled commands, queued jobs, listeners, or webhooks whose purpose is to send those messages.
-- Bulk mail, including bulk internal mail.
 
 Name the send path in the risk rationale, for example: *"Labelled `risk:high` because this schedules the weekly digest email to clients."*
 
 Wording, template, and copy edits stay on the normal risk scale when the sender already sends on the same trigger to the same audience.
+
+Internal-only messages, including team notifications and internal mail, stay on the normal risk scale.
+
+Database migrations, auth, payments, infrastructure, deployment, customer-data changes, and other ordinary work stay on the normal risk scale even when they are large. The author can merge them without another approval.
 
 ## Linear status — leave it alone
 
