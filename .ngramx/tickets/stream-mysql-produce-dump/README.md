@@ -15,3 +15,4 @@ Stream `mysqldump | gzip` to the local artifact. Delete the downloaded source du
 - Unit tests for gzip/plain MySQL dump and produce cleanup order.
 - PR: https://github.com/ngramx/ngramx/pull/59
 - Restore progress counts gzip file bytes (filter sits before inflate) so 100% means the dump has been read, not that uncompressed SQL exceeded the .gz size.
+- Dump pipeline uses setsid + TERM trap so a timeout kills mysqldump/gzip; gzip stderr is kept in the sidecar err file. PHPStan: drop tautological assertIsResource.

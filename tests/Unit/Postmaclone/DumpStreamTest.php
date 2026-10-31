@@ -46,8 +46,7 @@ final class DumpStreamTest extends TestCase
         $calledOnRaw = false;
 
         try {
-            $in = DumpStream::open($path, static function ($stream) use (&$calledOnRaw): void {
-                self::assertIsResource($stream);
+            $in = DumpStream::open($path, static function () use (&$calledOnRaw): void {
                 $calledOnRaw = true;
             });
             $read = stream_get_contents($in);

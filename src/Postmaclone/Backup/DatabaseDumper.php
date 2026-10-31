@@ -6,6 +6,7 @@ namespace Ngramx\Postmaclone\Backup;
 
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\Progress\PercentReporter;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 /**
@@ -133,22 +134,24 @@ class DatabaseDumper
 
         $errFile = $out . '.mysqldump.err';
         $quoted = implode(' ', array_map('escapeshellarg', $cmd));
-        $script = 'set -o pipefail; ' . $quoted . ' 2> ' . escapeshellarg($errFile);
-        $script .= $gzip
-            ? ' | gzip -1 > ' . escapeshellarg($out)
-            : ' > ' . escapeshellarg($out);
+        $script = $this->mysqlDumpPipeline($quoted, $out, $errFile, $gzip);
 
-        $process = new Process(['bash', '-c', $script]);
+        $process = new Process($this->mysqlDumpShell($script));
         if ($pass !== '') {
             $process->setEnv(array_merge($_ENV, ['MYSQL_PWD' => $pass]));
         }
         $process->setTimeout(7200);
         $process->disableOutput();
-        $this->runDumpProcess($process, $out, $onProgress, 'Dumping anonymized database');
+        try {
+            $this->runDumpProcess($process, $out, $onProgress, 'Dumping anonymized database');
+        } catch (ProcessTimedOutException $e) {
+            $this->stopDumpProcessGroup($process);
+            throw new PostmacloneException('MySQL dump timed out after 7200 seconds', 0, $e);
+        }
         $err = is_file($errFile) ? trim((string) file_get_contents($errFile)) : '';
         @unlink($errFile);
         if (!$process->isSuccessful()) {
-            throw new PostmacloneException('mysqldump failed: ' . $err);
+            throw new PostmacloneException('MySQL dump failed: ' . $err);
         }
         if ($this->dumpFileSize($out) === 0) {
             throw new PostmacloneException('mysqldump produced an empty file' . ($err !== '' ? ': ' . $err : ''));
@@ -219,6 +222,48 @@ class DatabaseDumper
         if ($size > 0) {
             $onProgress(sprintf('%s finished (%s)', $label, $this->formatBytes($size)));
         }
+    }
+
+    /**
+     * New process group (setsid) plus TERM trap so a Symfony timeout kills
+     * mysqldump and gzip, not just the wrapper shell.
+     *
+     * gzip stderr is appended to the same sidecar as mysqldump; process
+     * output is disabled so we would otherwise lose ENOSPC / missing gzip.
+     */
+    private function mysqlDumpPipeline(string $quotedCmd, string $out, string $errFile, bool $gzip): string
+    {
+        $err = escapeshellarg($errFile);
+        $script = 'set -o pipefail; '
+            . 'trap \'trap - TERM; kill -- -$$ 2>/dev/null\' TERM; '
+            . $quotedCmd . ' 2> ' . $err;
+
+        return $gzip
+            ? $script . ' | gzip -1 2>> ' . $err . ' > ' . escapeshellarg($out)
+            : $script . ' > ' . escapeshellarg($out);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function mysqlDumpShell(string $script): array
+    {
+        foreach (['/usr/bin/setsid', '/bin/setsid'] as $setsid) {
+            if (is_executable($setsid)) {
+                return [$setsid, 'bash', '-c', $script];
+            }
+        }
+
+        return ['bash', '-c', $script];
+    }
+
+    private function stopDumpProcessGroup(Process $process): void
+    {
+        $pid = $process->getPid();
+        if (is_int($pid) && $pid > 1 && \function_exists('posix_kill')) {
+            posix_kill(-$pid, SIGTERM);
+        }
+        $process->stop(1.0, SIGKILL);
     }
 
     private function dumpFileSize(string $path): int

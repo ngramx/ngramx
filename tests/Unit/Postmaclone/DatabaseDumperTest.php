@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ngramx\Tests\Unit\Postmaclone;
 
 use Ngramx\Postmaclone\Backup\DatabaseDumper;
+use Ngramx\Postmaclone\Exception\PostmacloneException;
 use PHPUnit\Framework\TestCase;
 
 class DatabaseDumperTest extends TestCase
@@ -109,6 +110,79 @@ SH
 
         @unlink($bin);
         @unlink($out);
+        @rmdir($dir);
+    }
+
+    public function test_mysql_dump_pipeline_kills_process_group_and_keeps_gzip_stderr(): void
+    {
+        $dumper = new DatabaseDumper();
+        $ref = new \ReflectionClass($dumper);
+        $pipeline = $ref->getMethod('mysqlDumpPipeline');
+        $pipeline->setAccessible(true);
+        $script = $pipeline->invoke(
+            $dumper,
+            'mysqldump',
+            '/tmp/hydra_anon.sql.gz',
+            '/tmp/hydra_anon.sql.gz.mysqldump.err',
+            true,
+        );
+
+        $this->assertStringContainsString('kill -- -$$', $script);
+        $this->assertStringContainsString('gzip -1 2>>', $script);
+
+        $shell = $ref->getMethod('mysqlDumpShell');
+        $shell->setAccessible(true);
+        $cmd = $shell->invoke($dumper, $script);
+        $this->assertSame('-c', $cmd[count($cmd) - 2] ?? null);
+        $this->assertSame($script, $cmd[count($cmd) - 1] ?? null);
+        if (is_executable('/usr/bin/setsid') || is_executable('/bin/setsid')) {
+            $this->assertSame('setsid', basename((string) $cmd[0]));
+        }
+    }
+
+    public function test_mysql_dump_includes_gzip_stderr_on_failure(): void
+    {
+        $dir = sys_get_temp_dir() . '/ngramx-dumper-mysql-gzip-err-' . uniqid('', true);
+        mkdir($dir, 0700, true);
+        $mysqldump = $dir . '/mysqldump';
+        file_put_contents(
+            $mysqldump,
+            <<<'SH'
+#!/bin/sh
+printf '%s\n' '-- payload --'
+SH
+        );
+        chmod($mysqldump, 0755);
+        $gzip = $dir . '/gzip';
+        file_put_contents(
+            $gzip,
+            <<<'SH'
+#!/bin/sh
+echo 'gzip: no space left on the device' >&2
+exit 1
+SH
+        );
+        chmod($gzip, 0755);
+
+        $oldPath = getenv('PATH');
+        putenv('PATH=' . $dir . ':/usr/bin:/bin');
+        try {
+            (new DatabaseDumper())->dump(
+                'mysql://anon:secret@127.0.0.1:3306/scratch',
+                'mysql',
+                $dir . '/hydra_anon.sql.gz',
+            );
+            $this->fail('Expected dump to fail');
+        } catch (PostmacloneException $e) {
+            $this->assertStringContainsString('no space left on the device', $e->getMessage());
+        } finally {
+            putenv('PATH=' . (is_string($oldPath) ? $oldPath : '/usr/bin'));
+        }
+
+        @unlink($mysqldump);
+        @unlink($gzip);
+        @unlink($dir . '/hydra_anon.sql.gz');
+        @unlink($dir . '/hydra_anon.sql.gz.mysqldump.err');
         @rmdir($dir);
     }
 }

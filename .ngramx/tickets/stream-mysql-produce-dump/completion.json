@@ -22,12 +22,21 @@
     },
     {
       "description": "Loading dump into scratch tracks gzip file bytes",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Dispatch Postmaclone produce (Hydra) on postmaclone-lon1 after this PR is released",
         "Watch Loading dump into scratch percent over time",
         "Confirm it does not jump to 100% after only a few GB of a multi-GB gzip",
         "Confirm 100% appears when the dump file has been fully read; Restore finished may still wait on MySQL COMMIT"
+      ]
+    },
+    {
+      "description": "Dump timeout and gzip errors are visible and do not leave orphans",
+      "status": "active",
+      "steps": [
+        "Confirm Tests PHP 8.2 / 8.3 pass after the PHPStan assertIsResource fix",
+        "On a failed dump, the exception includes gzip stderr (for example ENOSPC)",
+        "If a dump times out, mysqldump and gzip on the runner do not keep running after the job fails"
       ]
     }
   ]
