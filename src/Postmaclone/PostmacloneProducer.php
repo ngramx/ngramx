@@ -231,6 +231,108 @@ class PostmacloneProducer
     }
 
     /**
+     * Publish a dump that produce already wrote locally (after a failed Spaces PUT)
+     * and refresh shared. Skips download, scratch, anonymize, and dump.
+     *
+     * @param (callable(string): void)|null $onProgress
+     * @return array{dataset: string, artifact_key: string, size: int, sha256: string, warnings: list<string>, shared_refreshed: bool, password_rotated: bool}
+     */
+    public function publishExistingArtifact(
+        FactoryDatasetConfig $dataset,
+        string $artifactLocal,
+        ?callable $onProgress = null,
+    ): array {
+        $engine = $dataset->engine ?? PostmacloneConfig::ENGINE_POSTGRES;
+        if (!is_file($artifactLocal)) {
+            throw new PostmacloneException("Artifact not found: {$artifactLocal}");
+        }
+
+        $artifactName = $dataset->publish->file ?? ($dataset->name . '_anon.sql.gz');
+        $size = (int) filesize($artifactLocal);
+        $sha256 = hash_file('sha256', $artifactLocal);
+        if (!is_string($sha256)) {
+            throw new PostmacloneException('Failed to hash published artifact');
+        }
+
+        $publishPath = rtrim((string) $dataset->publish->path, '/') . '/';
+        $locator = S3ObjectLocator::parse(
+            $publishPath . $artifactName,
+            $dataset->publish->region,
+            $dataset->publish->endpoint,
+            $dataset->publish->pathStyle,
+        );
+        $publishCredentials = new S3Credentials($dataset->publish->credentials);
+        $manifestLocator = S3ObjectLocator::parse(
+            $publishPath . 'latest.json',
+            $dataset->publish->region,
+            $dataset->publish->endpoint,
+            $dataset->publish->pathStyle,
+        );
+        $previousManifest = (new S3ManifestReader($manifestLocator, $publishCredentials))->read();
+
+        $this->progress($onProgress, 'Uploading artifact');
+        $uploader = new S3ObjectUploader($locator, $publishCredentials);
+        $uploader->putFile($artifactLocal);
+
+        $sharedRefreshed = false;
+        $passwordRotated = false;
+        $passwordRotatedAt = null;
+        if ($dataset->shared?->isConfigured() ?? false) {
+            $this->progress($onProgress, 'Refreshing shared hosted database');
+            $this->sharedRefresher->refresh($engine, $dataset->shared, $artifactLocal);
+            $sharedRefreshed = true;
+
+            $rotationStore = CredentialRotationStateStore::forPublish($dataset->publish);
+            $credentialKey = $this->passwordRotator->credentialKey($dataset->shared);
+            $lastRotatedAt = $credentialKey !== null
+                ? $rotationStore->lastRotatedAt($credentialKey)
+                : null;
+            if ($lastRotatedAt === null && $previousManifest !== null) {
+                $legacy = $previousManifest['shared_password_rotated_at'] ?? null;
+                if (is_string($legacy) && $legacy !== '') {
+                    $lastRotatedAt = $legacy;
+                }
+            }
+
+            if (!SharedDbPasswordRotator::environmentAllowsRotation()) {
+                $this->progress($onProgress, 'Skipping password rotation (ROTATE_DATABASE_PASSWORD is off)');
+            }
+            $rotation = $this->passwordRotator->rotateIfDue($engine, $dataset->shared, $lastRotatedAt);
+            $passwordRotated = $rotation['rotated'];
+            $passwordRotatedAt = $rotation['rotated_at'];
+            if ($credentialKey !== null && $passwordRotatedAt !== null) {
+                $rotationStore->recordRotatedAt($credentialKey, $passwordRotatedAt);
+            }
+        }
+
+        $manifest = [
+            'dataset' => $dataset->name,
+            'engine' => $engine,
+            'file' => $artifactName,
+            'created_at' => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('c'),
+            'size' => $size,
+            'sha256' => $sha256,
+            'include_tables' => $dataset->includeTables,
+            'exclude_tables' => $dataset->excludeTables,
+        ];
+        if ($passwordRotatedAt !== null) {
+            $manifest['shared_password_rotated_at'] = $passwordRotatedAt;
+        }
+        (new S3ObjectUploader($manifestLocator, $publishCredentials))
+            ->putBody((string) json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        return [
+            'dataset' => $dataset->name,
+            'artifact_key' => $locator->key,
+            'size' => $size,
+            'sha256' => $sha256,
+            'warnings' => [],
+            'shared_refreshed' => $sharedRefreshed,
+            'password_rotated' => $passwordRotated,
+        ];
+    }
+
+    /**
      * @param (callable(string): void)|null $onProgress
      */
     private function progress(?callable $onProgress, string $message): void
