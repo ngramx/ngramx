@@ -1,0 +1,10 @@
+{
+  "id": "GIG-4344",
+  "title": "Only mark a pull request high-risk when it sends communication to external people",
+  "url": "https://linear.app/gigabyte/issue/GIG-4344/only-mark-a-pull-request-high-risk-when-it-sends-communication-to",
+  "status": "In Progress",
+  "team": "Gigabyte",
+  "priority": 3,
+  "estimate": 2,
+  "assignee": "Guru"
+}
