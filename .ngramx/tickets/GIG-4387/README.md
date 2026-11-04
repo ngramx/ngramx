@@ -1,0 +1,17 @@
+# GIG-4387: Ping-pong Hydra postmaclone slots instead of reloading shared
+
+## Summary
+
+Stop wiping and reloading the live shared database after produce. Build in the idle slot, flip `latest.json` `shared_database`, and leave the previous copy until the next run.
+
+## Requirements
+
+- `shared.ping_pong: true` on factory datasets that can hold two copies.
+- Produce wipes only the idle slot, then flips the pointer after anonymise.
+- Connect honours `latest.json` `shared_database`.
+- Never wipe the live slot. No second restore.
+
+## Changes
+
+- Ticket folder created.
+- Added `shared.ping_pong`, SharedSlotPicker, produce idle-slot build + latest.json flip, connect reads `shared_database`.
