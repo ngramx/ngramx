@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.58.9](https://github.com/ngramx/ngramx/compare/v2.58.8...v2.58.9) (2026-11-04)
+
+
+### Bug Fixes
+
+* **postmaclone:** fence anon off idle while raw data is restored ([5cb0979](https://github.com/ngramx/ngramx/commit/5cb09790ee078c23497f1527e30e7f628cbffff2))
+* **postmaclone:** keep ping-pong latest.json valid and skip retry restore ([35898d5](https://github.com/ngramx/ngramx/commit/35898d5c75bd1019ef803b7321f368ca792ead2a))
+* **postmaclone:** ping-pong shared slots instead of reloading anon ([d91d1a3](https://github.com/ngramx/ngramx/commit/d91d1a3407015e99b241abf60bc418d1d197d57b))
+
 ## [2.58.8](https://github.com/ngramx/ngramx/compare/v2.58.7...v2.58.8) (2026-10-31)
 
 
