@@ -12,13 +12,24 @@
   "test_plan": [
     {
       "description": "Ping-pong produce promotes idle slot without reloading shared",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Confirm SharedSlotPicker tests pass",
         "After release, enable ping_pong on factory hydra and GRANT both users on both databases",
         "Run produce and confirm logs Ping-pong live … building idle … then Promoting … with no Refreshing shared hosted database",
         "Confirm latest.json has shared_database set to the idle slot that was just built",
         "Connect and confirm the session database matches latest.json"
+      ]
+    },
+    {
+      "description": "Bugbot: latest.json and --from-artifact ping-pong behaviour",
+      "status": "active",
+      "steps": [
+        "Confirm PHPStan is clean (no ?->database ?? on slot names)",
+        "Confirm PostmacloneProducerPingPongTest passes",
+        "Produce logs: no latest.json write between anonymize and dump; Promoting happens after upload with real size/sha256",
+        "If latest.json already has shared_database, --from-artifact logs keeping live and does not wipe the other slot",
+        "Bootstrap --from-artifact with no shared_database still loads idle using target.remote host/port/url"
       ]
     }
   ]

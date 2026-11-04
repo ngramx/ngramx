@@ -91,10 +91,11 @@ class PostmacloneProducer
         $promoted = false;
         $liveAfterPromote = null;
         if ($pingPong) {
+            $names = $this->pingPongSlotNames($dataset);
             $slots = SharedSlotPicker::pick(
                 $previousManifest,
-                (string) ($dataset->target->remote?->database ?? ''),
-                (string) ($dataset->shared?->connection?->database ?? ''),
+                $names['scratch'],
+                $names['shared'],
             );
             $this->progress(
                 $onProgress,
@@ -148,21 +149,7 @@ class PostmacloneProducer
             $anonymizer->anonymize($pdo, $dataset->tables);
             $warnings = $anonymizer->warnings();
 
-            if ($pingPong && is_string($liveAfterPromote)) {
-                $this->progress($onProgress, "Promoting {$liveAfterPromote} to shared");
-                $this->writeLatestManifest(
-                    $manifestLocator,
-                    $publishCredentials,
-                    $this->manifestBody(
-                        $dataset,
-                        $engine,
-                        $artifactName,
-                        0,
-                        '',
-                        $liveAfterPromote,
-                        null,
-                    ),
-                );
+            if ($pingPong) {
                 $promoted = true;
             }
 
@@ -234,6 +221,9 @@ class PostmacloneProducer
                 }
             }
 
+            if ($liveAfterPromote !== null) {
+                $this->progress($onProgress, "Promoting {$liveAfterPromote} to shared");
+            }
             $this->writeLatestManifest(
                 $manifestLocator,
                 $publishCredentials,
@@ -318,23 +308,40 @@ class PostmacloneProducer
         $liveAfterPromote = null;
         if ($dataset->shared?->isConfigured() ?? false) {
             if ($dataset->shared->pingPong) {
-                $slots = SharedSlotPicker::pick(
-                    $previousManifest,
-                    (string) ($dataset->target->remote?->database ?? ''),
-                    (string) ($dataset->shared->connection?->database ?? ''),
-                );
-                $this->progress(
-                    $onProgress,
-                    "Ping-pong live {$slots['live']}; loading idle {$slots['idle']}",
-                );
-                $idleShared = new SharedDbConfig(
-                    connection: new DbConnectionConfig(
-                        database: $slots['idle'],
-                        credentials: $dataset->target->remote?->credentials,
-                    ),
-                );
-                $this->sharedRefresher->refresh($engine, $idleShared, $artifactLocal);
-                $liveAfterPromote = $slots['idle'];
+                $existingLive = SharedSlotPicker::manifestLive($previousManifest);
+                if ($existingLive !== null) {
+                    $this->progress(
+                        $onProgress,
+                        "Ping-pong keeping live {$existingLive}; skipping idle restore",
+                    );
+                    $liveAfterPromote = $existingLive;
+                } else {
+                    $names = $this->pingPongSlotNames($dataset);
+                    $slots = SharedSlotPicker::pick(
+                        $previousManifest,
+                        $names['scratch'],
+                        $names['shared'],
+                    );
+                    $this->progress(
+                        $onProgress,
+                        "Ping-pong live {$slots['live']}; loading idle {$slots['idle']}",
+                    );
+                    $remote = $dataset->target->remote;
+                    if ($remote === null) {
+                        throw new PostmacloneException('shared.ping_pong requires target.remote');
+                    }
+                    $idleShared = new SharedDbConfig(
+                        connection: new DbConnectionConfig(
+                            url: $remote->url,
+                            host: $remote->host,
+                            port: $remote->port,
+                            database: $slots['idle'],
+                            credentials: $remote->credentials,
+                        ),
+                    );
+                    $this->sharedRefresher->refresh($engine, $idleShared, $artifactLocal);
+                    $liveAfterPromote = $slots['idle'];
+                }
             } else {
                 $this->progress($onProgress, 'Refreshing shared hosted database');
                 $this->sharedRefresher->refresh($engine, $dataset->shared, $artifactLocal);
@@ -431,6 +438,20 @@ class PostmacloneProducer
     ): void {
         (new S3ObjectUploader($locator, $credentials))
             ->putBody((string) json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * @return array{scratch: string, shared: string}
+     */
+    private function pingPongSlotNames(FactoryDatasetConfig $dataset): array
+    {
+        $remote = $dataset->target->remote;
+        $sharedConnection = $dataset->shared?->connection;
+
+        return [
+            'scratch' => $remote !== null ? (string) ($remote->database ?? '') : '',
+            'shared' => $sharedConnection !== null ? (string) ($sharedConnection->database ?? '') : '',
+        ];
     }
 
     private function withRemoteDatabase(FactoryDatasetConfig $dataset, string $database): FactoryDatasetConfig
