@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Ngramx\Postmaclone;
 
 use Ngramx\Config\Schema\Postmaclone\BackupConfig;
+use Ngramx\Config\Schema\Postmaclone\DbConnectionConfig;
 use Ngramx\Config\Schema\Postmaclone\FactoryDatasetConfig;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
+use Ngramx\Config\Schema\Postmaclone\SharedDbConfig;
 use Ngramx\Config\Schema\Postmaclone\TargetConfig;
 use Ngramx\Filesystem\AbsolutePath;
 use Ngramx\Postmaclone\Anonymizer\LiveAnonymizer;
@@ -42,6 +44,7 @@ class PostmacloneProducer
         private readonly SharedDbPasswordRotator $passwordRotator = new SharedDbPasswordRotator(),
         private readonly RemoteDbConnectionResolver $connectionResolver = new RemoteDbConnectionResolver(),
         private readonly BackupFreshnessChecker $backupFreshness = new BackupFreshnessChecker(),
+        private readonly SharedSlotPrivilegeFence $privilegeFence = new SharedSlotPrivilegeFence(),
     ) {
     }
 
@@ -73,6 +76,39 @@ class PostmacloneProducer
 
         $this->progress($onProgress, 'Checking backup freshness');
         $this->backupFreshness->assertFresh($dataset);
+
+        $artifactName = $dataset->publish->file ?? ($dataset->name . '_anon.sql.gz');
+        $publishPath = rtrim((string) $dataset->publish->path, '/') . '/';
+        $publishCredentials = new S3Credentials($dataset->publish->credentials);
+        $manifestLocator = S3ObjectLocator::parse(
+            $publishPath . 'latest.json',
+            $dataset->publish->region,
+            $dataset->publish->endpoint,
+            $dataset->publish->pathStyle,
+        );
+        $previousManifest = (new S3ManifestReader($manifestLocator, $publishCredentials))->read();
+
+        $pingPong = $dataset->shared?->pingPong === true;
+        $promoted = false;
+        $liveAfterPromote = null;
+        $previousLive = null;
+        if ($pingPong) {
+            $names = $this->pingPongSlotNames($dataset);
+            $slots = SharedSlotPicker::pick(
+                $previousManifest,
+                $names['scratch'],
+                $names['shared'],
+            );
+            $this->progress(
+                $onProgress,
+                "Ping-pong live {$slots['live']}; building idle {$slots['idle']}",
+            );
+            $this->progress($onProgress, "Revoking consumer from idle {$slots['idle']}");
+            $this->privilegeFence->revokeConsumer($engine, $dataset, $slots['idle']);
+            $dataset = $this->withRemoteDatabase($dataset, $slots['idle']);
+            $liveAfterPromote = $slots['idle'];
+            $previousLive = $slots['live'];
+        }
 
         $this->progress($onProgress, 'Downloading dump');
         $source = $this->buildBackupSource($dataset, $cacheDir, $onProgress);
@@ -118,7 +154,10 @@ class PostmacloneProducer
             $anonymizer->anonymize($pdo, $dataset->tables);
             $warnings = $anonymizer->warnings();
 
-            $artifactName = $dataset->publish->file ?? ($dataset->name . '_anon.sql.gz');
+            if ($pingPong) {
+                $promoted = true;
+            }
+
             $artifactLocal = rtrim($cacheDir, '/') . '/' . $artifactName;
             $connUrl = $this->dumpConnectionUrl($engine, $pdoHost, $pdoPort, $target);
             $this->progress($onProgress, 'Dumping anonymized database');
@@ -138,7 +177,6 @@ class PostmacloneProducer
                 throw new PostmacloneException('Failed to hash published artifact');
             }
 
-            $publishPath = rtrim((string) $dataset->publish->path, '/') . '/';
             $objectPath = $publishPath . $artifactName;
             $locator = S3ObjectLocator::parse(
                 $objectPath,
@@ -146,14 +184,6 @@ class PostmacloneProducer
                 $dataset->publish->endpoint,
                 $dataset->publish->pathStyle,
             );
-            $publishCredentials = new S3Credentials($dataset->publish->credentials);
-            $manifestLocator = S3ObjectLocator::parse(
-                $publishPath . 'latest.json',
-                $dataset->publish->region,
-                $dataset->publish->endpoint,
-                $dataset->publish->pathStyle,
-            );
-            $previousManifest = (new S3ManifestReader($manifestLocator, $publishCredentials))->read();
 
             $this->progress($onProgress, 'Uploading artifact');
             $uploader = new S3ObjectUploader($locator, $publishCredentials);
@@ -162,7 +192,7 @@ class PostmacloneProducer
             $sharedRefreshed = false;
             $passwordRotated = false;
             $passwordRotatedAt = null;
-            if ($dataset->shared?->isConfigured() ?? false) {
+            if (($dataset->shared?->isConfigured() ?? false) && !$pingPong) {
                 $this->progress($onProgress, 'Destroying scratch database before shared refresh');
                 $this->destroyScratch($dataset, $target, $engine);
                 $scratchReleased = true;
@@ -170,7 +200,9 @@ class PostmacloneProducer
                 $this->progress($onProgress, 'Refreshing shared hosted database');
                 $this->sharedRefresher->refresh($engine, $dataset->shared, $artifactLocal);
                 $sharedRefreshed = true;
+            }
 
+            if ($dataset->shared?->isConfigured() ?? false) {
                 $rotationStore = CredentialRotationStateStore::forPublish($dataset->publish);
                 $credentialKey = $this->passwordRotator->credentialKey($dataset->shared);
                 $lastRotatedAt = $credentialKey !== null
@@ -194,21 +226,28 @@ class PostmacloneProducer
                 }
             }
 
-            $manifest = [
-                'dataset' => $dataset->name,
-                'engine' => $engine,
-                'file' => $artifactName,
-                'created_at' => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('c'),
-                'size' => $size,
-                'sha256' => $sha256,
-                'include_tables' => $dataset->includeTables,
-                'exclude_tables' => $dataset->excludeTables,
-            ];
-            if ($passwordRotatedAt !== null) {
-                $manifest['shared_password_rotated_at'] = $passwordRotatedAt;
+            if ($liveAfterPromote !== null) {
+                $this->progress($onProgress, "Granting consumer on {$liveAfterPromote}");
+                $this->privilegeFence->grantConsumer($engine, $dataset, $liveAfterPromote);
+                $this->progress($onProgress, "Promoting {$liveAfterPromote} to shared");
             }
-            (new S3ObjectUploader($manifestLocator, $publishCredentials))
-                ->putBody((string) json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            $this->writeLatestManifest(
+                $manifestLocator,
+                $publishCredentials,
+                $this->manifestBody(
+                    $dataset,
+                    $engine,
+                    $artifactName,
+                    $size,
+                    $sha256,
+                    $liveAfterPromote,
+                    $passwordRotatedAt,
+                ),
+            );
+            if (is_string($previousLive) && $previousLive !== $liveAfterPromote) {
+                $this->progress($onProgress, "Revoking consumer from previous live {$previousLive}");
+                $this->privilegeFence->revokeConsumer($engine, $dataset, $previousLive);
+            }
 
             $source->cleanup(false);
             @unlink($artifactLocal);
@@ -223,7 +262,7 @@ class PostmacloneProducer
                 'password_rotated' => $passwordRotated,
             ];
         } finally {
-            if (!$scratchReleased) {
+            if (!$scratchReleased && !$promoted) {
                 $this->progress($onProgress, 'Destroying scratch database');
                 $this->destroyScratch($dataset, $target, $engine);
             }
@@ -277,10 +316,54 @@ class PostmacloneProducer
         $sharedRefreshed = false;
         $passwordRotated = false;
         $passwordRotatedAt = null;
+        $liveAfterPromote = null;
+        $previousLive = null;
         if ($dataset->shared?->isConfigured() ?? false) {
-            $this->progress($onProgress, 'Refreshing shared hosted database');
-            $this->sharedRefresher->refresh($engine, $dataset->shared, $artifactLocal);
-            $sharedRefreshed = true;
+            if ($dataset->shared->pingPong) {
+                $existingLive = SharedSlotPicker::manifestLive($previousManifest);
+                if ($existingLive !== null) {
+                    $this->progress(
+                        $onProgress,
+                        "Ping-pong keeping live {$existingLive}; skipping idle restore",
+                    );
+                    $liveAfterPromote = $existingLive;
+                } else {
+                    $names = $this->pingPongSlotNames($dataset);
+                    $slots = SharedSlotPicker::pick(
+                        $previousManifest,
+                        $names['scratch'],
+                        $names['shared'],
+                    );
+                    $this->progress(
+                        $onProgress,
+                        "Ping-pong live {$slots['live']}; loading idle {$slots['idle']}",
+                    );
+                    $this->progress($onProgress, "Revoking consumer from idle {$slots['idle']}");
+                    $this->privilegeFence->revokeConsumer($engine, $dataset, $slots['idle']);
+                    $remote = $dataset->target->remote;
+                    if ($remote === null) {
+                        throw new PostmacloneException('shared.ping_pong requires target.remote');
+                    }
+                    $idleShared = new SharedDbConfig(
+                        connection: new DbConnectionConfig(
+                            url: $remote->url,
+                            host: $remote->host,
+                            port: $remote->port,
+                            database: $slots['idle'],
+                            credentials: $remote->credentials,
+                        ),
+                    );
+                    $this->sharedRefresher->refresh($engine, $idleShared, $artifactLocal);
+                    $this->progress($onProgress, "Granting consumer on {$slots['idle']}");
+                    $this->privilegeFence->grantConsumer($engine, $dataset, $slots['idle']);
+                    $liveAfterPromote = $slots['idle'];
+                    $previousLive = $slots['live'];
+                }
+            } else {
+                $this->progress($onProgress, 'Refreshing shared hosted database');
+                $this->sharedRefresher->refresh($engine, $dataset->shared, $artifactLocal);
+                $sharedRefreshed = true;
+            }
 
             $rotationStore = CredentialRotationStateStore::forPublish($dataset->publish);
             $credentialKey = $this->passwordRotator->credentialKey($dataset->shared);
@@ -305,21 +388,23 @@ class PostmacloneProducer
             }
         }
 
-        $manifest = [
-            'dataset' => $dataset->name,
-            'engine' => $engine,
-            'file' => $artifactName,
-            'created_at' => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('c'),
-            'size' => $size,
-            'sha256' => $sha256,
-            'include_tables' => $dataset->includeTables,
-            'exclude_tables' => $dataset->excludeTables,
-        ];
-        if ($passwordRotatedAt !== null) {
-            $manifest['shared_password_rotated_at'] = $passwordRotatedAt;
+        $this->writeLatestManifest(
+            $manifestLocator,
+            $publishCredentials,
+            $this->manifestBody(
+                $dataset,
+                $engine,
+                $artifactName,
+                $size,
+                $sha256,
+                $liveAfterPromote,
+                $passwordRotatedAt,
+            ),
+        );
+        if (is_string($previousLive) && $previousLive !== $liveAfterPromote) {
+            $this->progress($onProgress, "Revoking consumer from previous live {$previousLive}");
+            $this->privilegeFence->revokeConsumer($engine, $dataset, $previousLive);
         }
-        (new S3ObjectUploader($manifestLocator, $publishCredentials))
-            ->putBody((string) json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
         return [
             'dataset' => $dataset->name,
@@ -330,6 +415,105 @@ class PostmacloneProducer
             'shared_refreshed' => $sharedRefreshed,
             'password_rotated' => $passwordRotated,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function manifestBody(
+        FactoryDatasetConfig $dataset,
+        string $engine,
+        string $artifactName,
+        int $size,
+        string $sha256,
+        ?string $sharedDatabase,
+        ?string $passwordRotatedAt,
+    ): array {
+        $manifest = [
+            'dataset' => $dataset->name,
+            'engine' => $engine,
+            'file' => $artifactName,
+            'created_at' => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('c'),
+            'size' => $size,
+            'sha256' => $sha256,
+            'include_tables' => $dataset->includeTables,
+            'exclude_tables' => $dataset->excludeTables,
+        ];
+        if ($sharedDatabase !== null && $sharedDatabase !== '') {
+            $manifest['shared_database'] = $sharedDatabase;
+        }
+        if ($passwordRotatedAt !== null) {
+            $manifest['shared_password_rotated_at'] = $passwordRotatedAt;
+        }
+
+        return $manifest;
+    }
+
+    /**
+     * @param array<string, mixed> $manifest
+     */
+    private function writeLatestManifest(
+        S3ObjectLocator $locator,
+        S3Credentials $credentials,
+        array $manifest,
+    ): void {
+        (new S3ObjectUploader($locator, $credentials))
+            ->putBody((string) json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * @return array{scratch: string, shared: string}
+     */
+    private function pingPongSlotNames(FactoryDatasetConfig $dataset): array
+    {
+        $remote = $dataset->target->remote;
+        $sharedConnection = $dataset->shared?->connection;
+
+        return [
+            'scratch' => $remote !== null ? (string) ($remote->database ?? '') : '',
+            'shared' => $sharedConnection !== null ? (string) ($sharedConnection->database ?? '') : '',
+        ];
+    }
+
+    private function withRemoteDatabase(FactoryDatasetConfig $dataset, string $database): FactoryDatasetConfig
+    {
+        $remote = $dataset->target->remote;
+        if ($remote === null) {
+            throw new PostmacloneException('shared.ping_pong requires target.remote');
+        }
+
+        $target = $dataset->target;
+
+        return new FactoryDatasetConfig(
+            name: $dataset->name,
+            engine: $dataset->engine,
+            locale: $dataset->locale,
+            seed: $dataset->seed,
+            backup: $dataset->backup,
+            publish: $dataset->publish,
+            target: new TargetConfig(
+                provider: $target->provider,
+                ttlHours: $target->ttlHours,
+                neonProjectId: $target->neonProjectId,
+                neonRegionId: $target->neonRegionId,
+                dockerImage: $target->dockerImage,
+                dockerPort: $target->dockerPort,
+                remoteUrl: $target->remoteUrl,
+                remote: new DbConnectionConfig(
+                    url: $remote->url,
+                    host: $remote->host,
+                    port: $remote->port,
+                    database: $database,
+                    credentials: $remote->credentials,
+                ),
+                remoteThresholdBytes: $target->remoteThresholdBytes,
+            ),
+            shared: $dataset->shared,
+            tables: $dataset->tables,
+            includeTables: $dataset->includeTables,
+            excludeTables: $dataset->excludeTables,
+            testPassword: $dataset->testPassword,
+        );
     }
 
     /**

@@ -605,6 +605,7 @@ class ConfigLoader
                 ? $sharedRaw['max_age_hours']
                 : null,
             passwordRotationDays: $this->loadPasswordRotationDays($sharedRaw),
+            pingPong: ($sharedRaw['ping_pong'] ?? false) === true,
         );
     }
 

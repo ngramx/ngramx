@@ -1,0 +1,14 @@
+{
+  "id": "GIG-4387",
+  "title": "Ping-pong Hydra postmaclone slots instead of reloading shared",
+  "url": "https://linear.app/gigabyte/issue/GIG-4387/ping-pong-hydra-postmaclone-slots-instead-of-reloading-shared",
+  "gitBranchName": "gig-4387-ping-pong-hydra-postmaclone-slots",
+  "status": "In Progress",
+  "priority": "High",
+  "estimate": 2,
+  "project": "Ad-Hoc Jobs",
+  "team": "Gigabyte",
+  "assignee": "Cameron Smith",
+  "labels": ["Warwick"],
+  "relatedTo": ["GIG-4345", "GIG-4378"]
+}

@@ -30,6 +30,19 @@ readonly class ParsedConnectionUrl
             : PostmacloneConfig::ENGINE_MYSQL;
     }
 
+    public function withDatabase(string $database): self
+    {
+        return new self(
+            $this->scheme,
+            $this->host,
+            $this->port,
+            $database,
+            $this->username,
+            $this->password,
+            $this->query,
+        );
+    }
+
     public function databaseUrl(string $host, int $port): string
     {
         $scheme = $this->engine() === PostmacloneConfig::ENGINE_POSTGRES ? 'postgresql' : 'mysql';

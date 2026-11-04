@@ -9,10 +9,13 @@ use Ngramx\Codabyte\ServerTargetResolver;
 use Ngramx\Config\ConfigLoader;
 use Ngramx\Config\LockFile;
 use Ngramx\Config\Schema\NgramxConfig;
-use Ngramx\Config\Validator\ConfigValidator;
-use Ngramx\Docker\DockerCompose;
 use Ngramx\Config\Schema\Postmaclone\ConnectConfig;
 use Ngramx\Config\Schema\Postmaclone\PostmacloneConfig;
+use Ngramx\Config\Validator\ConfigValidator;
+use Ngramx\Docker\DockerCompose;
+use Ngramx\Postmaclone\Backup\S3Credentials;
+use Ngramx\Postmaclone\Backup\S3ManifestReader;
+use Ngramx\Postmaclone\Backup\S3ObjectLocator;
 use Ngramx\Postmaclone\Connection\ConnectionFactory;
 use Ngramx\Postmaclone\Connection\ConnectionUrlParser;
 use Ngramx\Postmaclone\Connection\ParsedConnectionUrl;
@@ -22,6 +25,7 @@ use Ngramx\Postmaclone\EnvBinder;
 use Ngramx\Postmaclone\Exception\PostmacloneException;
 use Ngramx\Postmaclone\PostmacloneLock;
 use Ngramx\Postmaclone\PostmacloneLockData;
+use Ngramx\Postmaclone\SharedSlotPicker;
 
 class PostmacloneConnectService
 {
@@ -80,7 +84,7 @@ class PostmacloneConnectService
 
         $engine = $this->engineDetector->detect($pm->engine, $config->docker->composeFile);
         $remoteUrl = $this->connectionResolver->resolve($pm->shared?->connection, $engine);
-        $parsed = $this->urlParser->parse($remoteUrl);
+        $parsed = $this->applyManifestDatabase($pm, $this->urlParser->parse($remoteUrl), $warnings);
         $connectConfig = $pm->connect ?? new ConnectConfig();
         $direct = $this->egressDetector->isDirectMode();
 
@@ -200,7 +204,7 @@ class PostmacloneConnectService
 
         $engine = $this->engineDetector->detect($pm->engine, $config->docker->composeFile);
         $remoteUrl = $this->connectionResolver->resolve($pm->shared?->connection, $engine);
-        $parsed = $this->urlParser->parse($remoteUrl);
+        $parsed = $this->applyManifestDatabase($pm, $this->urlParser->parse($remoteUrl), $warnings);
         $connectConfig = $pm->connect ?? new ConnectConfig();
         $tunnel = new SshTunnelManager($this->resolveTunnelTarget($connectConfig));
         $localPort = $tunnel->allocateLocalPort($connectConfig->localPort);
@@ -345,6 +349,41 @@ class PostmacloneConnectService
                 'Database connection probe failed: ' . $e->getMessage()
             );
         }
+    }
+
+    /**
+     * @param list<string> $warnings
+     */
+    private function applyManifestDatabase(
+        PostmacloneConfig $pm,
+        ParsedConnectionUrl $parsed,
+        array &$warnings,
+    ): ParsedConnectionUrl {
+        $prebuilt = $pm->prebuilt;
+        if ($prebuilt === null || $prebuilt->path === null || $prebuilt->path === '') {
+            return $parsed;
+        }
+
+        try {
+            $locator = S3ObjectLocator::parse(
+                rtrim($prebuilt->path, '/') . '/latest.json',
+                $prebuilt->region,
+                $prebuilt->endpoint,
+                $prebuilt->pathStyle,
+            );
+            $manifest = (new S3ManifestReader($locator, new S3Credentials($prebuilt->credentials)))->read();
+        } catch (\Throwable $e) {
+            $warnings[] = 'Could not read latest.json for shared_database: ' . $e->getMessage();
+
+            return $parsed;
+        }
+
+        $live = SharedSlotPicker::manifestLive($manifest);
+        if ($live === null || $live === $parsed->database) {
+            return $parsed;
+        }
+
+        return $parsed->withDatabase($live);
     }
 
     private function requireSharedConfig(NgramxConfig $config): PostmacloneConfig

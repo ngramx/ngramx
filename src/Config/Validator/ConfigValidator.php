@@ -605,6 +605,9 @@ class ConfigValidator
             && (!is_int($shared['password_rotation_days']) || $shared['password_rotation_days'] < 0)) {
             throw new ConfigException("{$prefix}.password_rotation_days must be a non-negative integer or null");
         }
+        if (array_key_exists('ping_pong', $shared) && !is_bool($shared['ping_pong'])) {
+            throw new ConfigException("{$prefix}.ping_pong must be a boolean");
+        }
     }
 
     /**

@@ -1,0 +1,47 @@
+{
+  "title": "GIG-4387: Ping-Pong Hydra Postmaclone Slots Instead Of Reloading Shared",
+  "description": "Adds shared.ping_pong so produce builds in the idle database and flips latest.json instead of wiping the live shared copy for a second restore.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/62",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-4387/ping-pong-hydra-postmaclone-slots-instead-of-reloading-shared",
+  "test_urls": [
+    {
+      "label": "Hydra produce workflow",
+      "url": "https://github.com/gigabyte-software/postmaclone-factory/actions/workflows/postmaclone-produce-hydra.yml"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Ping-pong produce promotes idle slot without reloading shared",
+      "status": "stale",
+      "steps": [
+        "Confirm SharedSlotPicker tests pass",
+        "After release, enable ping_pong on factory hydra and GRANT both users on both databases",
+        "Run produce and confirm logs Ping-pong live … building idle … then Promoting … with no Refreshing shared hosted database",
+        "Confirm latest.json has shared_database set to the idle slot that was just built",
+        "Connect and confirm the session database matches latest.json"
+      ]
+    },
+    {
+      "description": "Bugbot: latest.json and --from-artifact ping-pong behaviour",
+      "status": "stale",
+      "steps": [
+        "Confirm PHPStan is clean (no ?->database ?? on slot names)",
+        "Confirm PostmacloneProducerPingPongTest passes",
+        "Produce logs: no latest.json write between anonymize and dump; Promoting happens after upload with real size/sha256",
+        "If latest.json already has shared_database, --from-artifact logs keeping live and does not wipe the other slot",
+        "Bootstrap --from-artifact with no shared_database still loads idle using target.remote host/port/url"
+      ]
+    },
+    {
+      "description": "Consumer cannot read idle while it holds raw prod",
+      "status": "active",
+      "steps": [
+        "Confirm SharedSlotPrivilegeFenceTest and PostmacloneProducerPingPongTest pass",
+        "GRANT postmaclone_scratch on both Hydra databases WITH GRANT OPTION; GRANT postmaclone_anon only on the current live slot",
+        "If anon was already granted on scratch, REVOKE it",
+        "Produce logs Revoking consumer from idle before restore, Granting consumer after upload, then Revoking consumer from previous live",
+        "While produce is restoring idle, connect as postmaclone_anon to the idle database and confirm access denied"
+      ]
+    }
+  ]
+}
