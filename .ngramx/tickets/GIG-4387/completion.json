@@ -1,0 +1,25 @@
+{
+  "title": "GIG-4387: Ping-Pong Hydra Postmaclone Slots Instead Of Reloading Shared",
+  "description": "Adds shared.ping_pong so produce builds in the idle database and flips latest.json instead of wiping the live shared copy for a second restore.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-4387/ping-pong-hydra-postmaclone-slots-instead-of-reloading-shared",
+  "test_urls": [
+    {
+      "label": "Hydra produce workflow",
+      "url": "https://github.com/gigabyte-software/postmaclone-factory/actions/workflows/postmaclone-produce-hydra.yml"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Ping-pong produce promotes idle slot without reloading shared",
+      "status": "active",
+      "steps": [
+        "Confirm SharedSlotPicker tests pass",
+        "After release, enable ping_pong on factory hydra and GRANT both users on both databases",
+        "Run produce and confirm logs Ping-pong live … building idle … then Promoting … with no Refreshing shared hosted database",
+        "Confirm latest.json has shared_database set to the idle slot that was just built",
+        "Connect and confirm the session database matches latest.json"
+      ]
+    }
+  ]
+}
