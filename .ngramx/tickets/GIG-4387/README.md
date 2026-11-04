@@ -16,3 +16,4 @@ Stop wiping and reloading the live shared database after produce. Build in the i
 - Ticket folder created.
 - Added `shared.ping_pong`, SharedSlotPicker, produce idle-slot build + latest.json flip, connect reads `shared_database`.
 - Bugbot: do not write latest.json with size 0 before dump; flip after upload. `--from-artifact` keeps an existing `shared_database` instead of restoring the other slot. Idle refresh copies host/port/url from `target.remote`. PHPStan nullsafe on slot names.
+- Devin: fence `postmaclone_anon` off idle before raw restore; GRANT only after anonymize. Scratch needs GRANT OPTION; do not permanently cross-GRANT anon.

@@ -60,6 +60,26 @@ final class PostmacloneProducerPingPongTest extends TestCase
         self::assertStringContainsString('credentials: $remote->credentials', $source);
     }
 
+    public function test_produce_revokes_consumer_from_idle_before_restore_and_grants_after_upload(): void
+    {
+        $source = $this->producerSource();
+
+        $revokeIdle = strpos($source, 'Revoking consumer from idle');
+        $restore = strpos($source, '$restorer->restore($dumpPath, $target)');
+        $grant = strpos($source, 'Granting consumer on');
+        $manifest = strpos($source, '$this->writeLatestManifest(');
+        $revokePrevious = strpos($source, 'Revoking consumer from previous live');
+
+        self::assertNotFalse($revokeIdle);
+        self::assertNotFalse($restore);
+        self::assertNotFalse($grant);
+        self::assertNotFalse($manifest);
+        self::assertNotFalse($revokePrevious);
+        self::assertTrue($revokeIdle < $restore, 'anon must lose idle before raw restore');
+        self::assertTrue($grant > $restore && $grant < $manifest, 'anon may read the new slot only after it is anonymized');
+        self::assertTrue($revokePrevious > $manifest, 'previous live is revoked after the pointer flips');
+    }
+
     private function producerSource(): string
     {
         return (string) file_get_contents(

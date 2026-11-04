@@ -44,6 +44,7 @@ class PostmacloneProducer
         private readonly SharedDbPasswordRotator $passwordRotator = new SharedDbPasswordRotator(),
         private readonly RemoteDbConnectionResolver $connectionResolver = new RemoteDbConnectionResolver(),
         private readonly BackupFreshnessChecker $backupFreshness = new BackupFreshnessChecker(),
+        private readonly SharedSlotPrivilegeFence $privilegeFence = new SharedSlotPrivilegeFence(),
     ) {
     }
 
@@ -90,6 +91,7 @@ class PostmacloneProducer
         $pingPong = $dataset->shared?->pingPong === true;
         $promoted = false;
         $liveAfterPromote = null;
+        $previousLive = null;
         if ($pingPong) {
             $names = $this->pingPongSlotNames($dataset);
             $slots = SharedSlotPicker::pick(
@@ -101,8 +103,11 @@ class PostmacloneProducer
                 $onProgress,
                 "Ping-pong live {$slots['live']}; building idle {$slots['idle']}",
             );
+            $this->progress($onProgress, "Revoking consumer from idle {$slots['idle']}");
+            $this->privilegeFence->revokeConsumer($engine, $dataset, $slots['idle']);
             $dataset = $this->withRemoteDatabase($dataset, $slots['idle']);
             $liveAfterPromote = $slots['idle'];
+            $previousLive = $slots['live'];
         }
 
         $this->progress($onProgress, 'Downloading dump');
@@ -222,6 +227,8 @@ class PostmacloneProducer
             }
 
             if ($liveAfterPromote !== null) {
+                $this->progress($onProgress, "Granting consumer on {$liveAfterPromote}");
+                $this->privilegeFence->grantConsumer($engine, $dataset, $liveAfterPromote);
                 $this->progress($onProgress, "Promoting {$liveAfterPromote} to shared");
             }
             $this->writeLatestManifest(
@@ -237,6 +244,10 @@ class PostmacloneProducer
                     $passwordRotatedAt,
                 ),
             );
+            if (is_string($previousLive) && $previousLive !== $liveAfterPromote) {
+                $this->progress($onProgress, "Revoking consumer from previous live {$previousLive}");
+                $this->privilegeFence->revokeConsumer($engine, $dataset, $previousLive);
+            }
 
             $source->cleanup(false);
             @unlink($artifactLocal);
@@ -306,6 +317,7 @@ class PostmacloneProducer
         $passwordRotated = false;
         $passwordRotatedAt = null;
         $liveAfterPromote = null;
+        $previousLive = null;
         if ($dataset->shared?->isConfigured() ?? false) {
             if ($dataset->shared->pingPong) {
                 $existingLive = SharedSlotPicker::manifestLive($previousManifest);
@@ -326,6 +338,8 @@ class PostmacloneProducer
                         $onProgress,
                         "Ping-pong live {$slots['live']}; loading idle {$slots['idle']}",
                     );
+                    $this->progress($onProgress, "Revoking consumer from idle {$slots['idle']}");
+                    $this->privilegeFence->revokeConsumer($engine, $dataset, $slots['idle']);
                     $remote = $dataset->target->remote;
                     if ($remote === null) {
                         throw new PostmacloneException('shared.ping_pong requires target.remote');
@@ -340,7 +354,10 @@ class PostmacloneProducer
                         ),
                     );
                     $this->sharedRefresher->refresh($engine, $idleShared, $artifactLocal);
+                    $this->progress($onProgress, "Granting consumer on {$slots['idle']}");
+                    $this->privilegeFence->grantConsumer($engine, $dataset, $slots['idle']);
                     $liveAfterPromote = $slots['idle'];
+                    $previousLive = $slots['live'];
                 }
             } else {
                 $this->progress($onProgress, 'Refreshing shared hosted database');
@@ -384,6 +401,10 @@ class PostmacloneProducer
                 $passwordRotatedAt,
             ),
         );
+        if (is_string($previousLive) && $previousLive !== $liveAfterPromote) {
+            $this->progress($onProgress, "Revoking consumer from previous live {$previousLive}");
+            $this->privilegeFence->revokeConsumer($engine, $dataset, $previousLive);
+        }
 
         return [
             'dataset' => $dataset->name,

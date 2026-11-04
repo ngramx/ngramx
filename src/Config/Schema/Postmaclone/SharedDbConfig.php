@@ -21,6 +21,8 @@ readonly class SharedDbConfig
         /**
          * Build in the idle slot and flip latest.json shared_database instead of
          * wiping the live shared copy and reloading the dump into it.
+         * MySQL: REVOKE the consumer user from idle before restore; GRANT after
+         * anonymize. Do not permanently GRANT the consumer on both slots.
          */
         public bool $pingPong = false,
     ) {
