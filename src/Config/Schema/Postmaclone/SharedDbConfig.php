@@ -18,6 +18,11 @@ readonly class SharedDbConfig
         public ?int $maxAgeHours = null,
         /** Rotate the DB password and update 1Password every N days. Null/default 7; 0 disables. */
         public ?int $passwordRotationDays = 7,
+        /**
+         * Build in the idle slot and flip latest.json shared_database instead of
+         * wiping the live shared copy and reloading the dump into it.
+         */
+        public bool $pingPong = false,
     ) {
     }
 

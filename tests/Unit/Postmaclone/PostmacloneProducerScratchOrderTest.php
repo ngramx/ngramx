@@ -31,7 +31,8 @@ final class PostmacloneProducerScratchOrderTest extends TestCase
         );
         self::assertNotFalse($sharedRefresh);
         self::assertTrue($destroyBefore < $sharedRefresh, 'scratch must be destroyed before shared anon restore');
-        self::assertStringContainsString('if (!$scratchReleased)', $source);
+        self::assertStringContainsString('if (($dataset->shared?->isConfigured() ?? false) && !$pingPong)', $source);
+        self::assertStringContainsString('if (!$scratchReleased && !$promoted)', $source);
 
         $restore = strpos($source, '$restorer->restore($dumpPath, $target)');
         self::assertNotFalse($restore);
