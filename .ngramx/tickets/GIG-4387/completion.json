@@ -1,7 +1,7 @@
 {
   "title": "GIG-4387: Ping-Pong Hydra Postmaclone Slots Instead Of Reloading Shared",
   "description": "Adds shared.ping_pong so produce builds in the idle database and flips latest.json instead of wiping the live shared copy for a second restore.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/62",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-4387/ping-pong-hydra-postmaclone-slots-instead-of-reloading-shared",
   "test_urls": [
     {
