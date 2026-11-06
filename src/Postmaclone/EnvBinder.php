@@ -24,7 +24,7 @@ class EnvBinder
     }
 
     /**
-     * Backup existing .env and rewrite present DB_* keys for the clone.
+     * Backup existing .env and rewrite present DB_* / APP_DATABASE_* keys for the clone.
      *
      * @return string|null backup path if .env existed
      */
@@ -59,6 +59,12 @@ class EnvBinder
             'DB_USERNAME' => $lock->username,
             'DB_PASSWORD' => $lock->password,
             'DATABASE_URL' => $lock->databaseUrl,
+            // Symfony-style projects (e.g. Hydra) use APP_DATABASE_* instead of DB_*.
+            'APP_DATABASE_HOST' => $lock->host,
+            'APP_DATABASE_PORT' => (string) $lock->port,
+            'APP_DATABASE_NAME' => $lock->database,
+            'APP_DATABASE_USER' => $lock->username,
+            'APP_DATABASE_PASSWORD' => $lock->password,
         ];
 
         $updated = $this->replacePresentKeys($original, $replacements);

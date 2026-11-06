@@ -83,4 +83,49 @@ class EnvBinderTest extends TestCase
         $this->assertStringContainsString('DB_HOST=old-host', $restored);
         $this->assertStringContainsString('DB_PASSWORD=secret', $restored);
     }
+
+    public function test_bind_rewrites_app_database_keys_used_by_symfony_projects(): void
+    {
+        file_put_contents($this->dir . '/.env', implode("\n", [
+            'APP_NAME=Test',
+            'APP_DATABASE_HOST=mysql',
+            'APP_DATABASE_PORT=3306',
+            'APP_DATABASE_NAME=hydra_warwick',
+            'APP_DATABASE_USER=hydra',
+            'APP_DATABASE_PASSWORD=hydra',
+            '',
+        ]));
+
+        $binder = new EnvBinder($this->dir);
+        $lock = new PostmacloneLockData(
+            provider: 'shared',
+            engine: 'mysql',
+            createdAt: date('c'),
+            expiresAt: date('c'),
+            host: 'db.example.com',
+            port: 25060,
+            database: 'hydra_prod_anon',
+            username: 'anon',
+            password: 'p@ss word',
+            databaseUrl: 'mysql://anon:pw@db.example.com:25060/hydra_prod_anon',
+        );
+
+        $backup = $binder->bind($lock);
+        $this->assertNotNull($backup);
+
+        $env = file_get_contents($this->dir . '/.env');
+        $this->assertIsString($env);
+        $this->assertStringContainsString("APP_DATABASE_HOST=db.example.com\n", $env);
+        $this->assertStringContainsString("APP_DATABASE_PORT=25060\n", $env);
+        $this->assertStringContainsString("APP_DATABASE_NAME=hydra_prod_anon\n", $env);
+        $this->assertStringContainsString("APP_DATABASE_USER=anon\n", $env);
+        $this->assertStringContainsString('APP_DATABASE_PASSWORD="p@ss word"', $env);
+        // Keys absent from the original .env are not appended.
+        $this->assertStringNotContainsString('DB_HOST=', $env);
+
+        $this->assertTrue($binder->restore($backup));
+        $restored = file_get_contents($this->dir . '/.env');
+        $this->assertIsString($restored);
+        $this->assertStringContainsString('APP_DATABASE_HOST=mysql', $restored);
+    }
 }
