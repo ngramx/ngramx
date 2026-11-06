@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.58.10](https://github.com/ngramx/ngramx/compare/v2.58.9...v2.58.10) (2026-11-06)
+
+
+### Bug Fixes
+
+* **postmaclone:** bind APP_DATABASE_* keys in .env so connect actually switches Symfony projects ([bbc9007](https://github.com/ngramx/ngramx/commit/bbc900709dd5264b94d6737c64ab79ce414d5237))
+
 ## [2.58.9](https://github.com/ngramx/ngramx/compare/v2.58.8...v2.58.9) (2026-11-04)
 
 
