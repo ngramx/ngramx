@@ -4,9 +4,9 @@ Optional hooks redirect Claude Code worktree creation into `.ngramx/worktrees/` 
 
 See `.ngramx/tickets/GIG-4475/README.md` for background.
 
-## Hook configuration
+## Hook configuration (recommended)
 
-Add to `.claude/settings.json` in the repository root:
+Configure once on the machine in `~/.claude/settings.json`. The hook commands ship with the ngramx CLI — no per-project scripts required:
 
 ```json
 {
@@ -16,7 +16,7 @@ Add to `.claude/settings.json` in the repository root:
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/claude-worktree-create.sh"
+            "command": "ngramx claude-worktree create"
           }
         ]
       }
@@ -26,7 +26,7 @@ Add to `.claude/settings.json` in the repository root:
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/claude-worktree-remove.sh"
+            "command": "ngramx claude-worktree remove"
           }
         ]
       }
@@ -35,7 +35,21 @@ Add to `.claude/settings.json` in the repository root:
 }
 ```
 
+Restart Claude Code / start a new session so the hooks load.
+
+`ngramx claude-worktree create` reads Claude’s JSON from stdin (`name`, `cwd`), creates a git worktree under the repo’s `.ngramx/worktrees/`, and prints the absolute path on stdout. Ticket-like names (`gig-4500-…`) use ngramx folder naming (`gig-4500-<repo>`).
+
 Do not symlink `.claude/worktrees` to `.ngramx/worktrees` — Claude Code refuses symlinked worktree paths.
+
+### Sanity check
+
+```bash
+echo '{"name":"gig-4500-hook-demo","cwd":"'"$(pwd)"'"}' | ngramx claude-worktree create
+```
+
+### Project-level scripts (optional)
+
+`scripts/claude-worktree-create.sh` and `scripts/claude-worktree-remove.sh` are thin wrappers around the same CLI commands for repos that already wire project `.claude/settings.json`. Prefer the user-level config above so every ngramx project picks this up after an upgrade.
 
 ## Adoption
 

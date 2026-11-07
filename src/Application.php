@@ -9,6 +9,8 @@ use Ngramx\Agents\AgentsSyncOrchestrator;
 use Ngramx\Caddy\CaddyService;
 use Ngramx\Codabyte\ServerTargetResolver;
 use Ngramx\Codabyte\SshRunner;
+use Ngramx\Command\ClaudeWorktree\CreateCommand as ClaudeWorktreeCreateCommand;
+use Ngramx\Command\ClaudeWorktree\RemoveCommand as ClaudeWorktreeRemoveCommand;
 use Ngramx\Command\Codabyte\LoginCommand as CodabyteLoginCommand;
 use Ngramx\Command\DownCommand;
 use Ngramx\Command\DynamicCommand;
@@ -67,6 +69,7 @@ class Application extends BaseApplication
     private const SKIP_WARNINGS_FOR = [
         'init', 'self-update', 'list', 'help', '_complete', 'completion', 'style-demo',
         'up', 'rebuild', 'codabyte:login',
+        'claude-worktree:create', 'claude-worktree:remove',
     ];
 
     /**
@@ -77,13 +80,14 @@ class Application extends BaseApplication
     private const SKIP_AGENTS_SYNC_FOR = [
         '_complete', 'completion', 'list', 'help', 'self-update', 'style-demo', 'sync-agents',
         'postmaclone', 'codabyte:login',
+        'claude-worktree:create', 'claude-worktree:remove',
     ];
 
     /**
      * Command groups that may also be typed with a space, so `ngramx codabyte
      * login` reaches `codabyte:login`.
      */
-    private const COMMAND_GROUPS = ['codabyte', 'n8n'];
+    private const COMMAND_GROUPS = ['codabyte', 'n8n', 'claude-worktree'];
 
     /** @var list<string> */
     private array $configWarnings = [];
@@ -190,6 +194,8 @@ class Application extends BaseApplication
         // Register built-in commands (these take precedence over custom commands)
         $this->add(new InitCommand());
         $this->add(new CodabyteLoginCommand(new SshRunner(), ServerTargetResolver::fromEnvironment()));
+        $this->add(new ClaudeWorktreeCreateCommand());
+        $this->add(new ClaudeWorktreeRemoveCommand());
         $this->add(new InitGithubActionsCommand());
         $this->add(new InitPostmacloneWorkflowCommand());
         $this->add(new SyncAgentsCommand());

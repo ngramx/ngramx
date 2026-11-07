@@ -348,7 +348,7 @@ ngramx worktree --cleanup           # Pick from a list (including "all")
 ngramx worktree                    # On main: interactive picker (managed + Claude worktrees + tickets)
 ```
 
-Claude Code can create worktrees under `.ngramx/worktrees/` via optional hooks; ngramx can adopt leftovers from `.claude/worktrees/`. See [docs/claude-code-integration.md](docs/claude-code-integration.md).
+Claude Code can create worktrees under `.ngramx/worktrees/` via optional hooks (`ngramx claude-worktree create|remove`, typically wired once in `~/.claude/settings.json`); ngramx can adopt leftovers from `.claude/worktrees/`. See [docs/claude-code-integration.md](docs/claude-code-integration.md).
 
 This command:
 
