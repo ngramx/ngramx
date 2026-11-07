@@ -974,4 +974,31 @@ class GitRepositoryService
 
         return $selected ?? $defaultBranch;
     }
+
+    /**
+     * Return the worktree path where $branch is currently checked out, if any.
+     */
+    public function findWorktreePathForBranch(string $repositoryPath, string $branch): ?string
+    {
+        $checkedOut = $this->mapCheckedOutBranches($repositoryPath);
+
+        return $checkedOut[$branch] ?? null;
+    }
+
+    /**
+     * Relocate a registered worktree to a new directory using `git worktree move`.
+     */
+    public function moveWorktree(string $repositoryPath, string $fromPath, string $toPath): bool
+    {
+        $parent = dirname($toPath);
+        if (!is_dir($parent)) {
+            @mkdir($parent, 0755, true);
+        }
+
+        $process = new Process(['git', 'worktree', 'move', $fromPath, $toPath], $repositoryPath);
+        $process->setTimeout(120);
+        $process->run();
+
+        return $process->isSuccessful() && is_dir($toPath);
+    }
 }

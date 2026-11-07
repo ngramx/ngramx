@@ -345,7 +345,10 @@ ngramx worktree gig-1234 --cleanup  # Tears down + removes that ticket's worktre
 ngramx worktree invoice --cleanup   # Matches on folder / namespace / branch text
 ngramx worktree 2 --cleanup         # Index from `ngramx status`
 ngramx worktree --cleanup           # Pick from a list (including "all")
+ngramx worktree                    # On main: interactive picker (managed + Claude worktrees + tickets)
 ```
+
+Claude Code can create worktrees under `.ngramx/worktrees/` via optional hooks; ngramx can adopt leftovers from `.claude/worktrees/`. See [docs/claude-code-integration.md](docs/claude-code-integration.md).
 
 This command:
 
@@ -637,6 +640,11 @@ ngramx codabyte login --dry-run             # print the ssh command instead of r
 
 Anything after `--` is forwarded verbatim, so quoting is preserved through both
 the SSH and container hops.
+
+Codabyte pushes open agent branches with the **CodaByteBot** GitHub App. The app
+must be installed on each GitHub organisation that owns target repositories (for
+example `ngramx` as well as `gigabyte-software`), or agent runs finish locally
+but fail to publish.
 
 The defaults match the current deployment. Override them per-invocation with
 `--host`, `--ssh-user`, `--port`, `--container`, `--container-user` and

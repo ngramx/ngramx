@@ -44,6 +44,7 @@ use Ngramx\Worktree\WorktreeIdentity;
 use Ngramx\Worktree\WorktreeInventory;
 use Ngramx\Worktree\WorktreeMatcher;
 use Ngramx\Worktree\WorktreeOwnershipReconciler;
+use Ngramx\Worktree\WorktreePaths;
 use Ngramx\Worktree\WorktreeUrlResolver;
 use Ngramx\Worktree\WorktreeVhostAliaser;
 use Symfony\Component\Console\Command\Command;
@@ -382,6 +383,19 @@ class ReviewCommand extends Command
         $folderName = WorktreeIdentity::folderName($ticketSlug, $repoName);
         $namespace = WorktreeIdentity::namespaceFor($folderName);
         $worktreePath = $this->worktreePathFor($repositoryPath, $ticketSlug);
+
+        // If this branch is already checked out in a managed worktree (e.g. after
+        // adopting a Claude Code leftover), reuse that path instead of creating a
+        // second checkout under a differently derived folder name.
+        $existingForBranch = $this->gitRepositoryService->findWorktreePathForBranch(
+            $repositoryPath,
+            $selectedBranch
+        );
+        if ($existingForBranch !== null && WorktreePaths::isNgramxManaged($existingForBranch)) {
+            $worktreePath = $existingForBranch;
+            $folderName = basename($existingForBranch);
+            $namespace = WorktreeIdentity::namespaceFor($folderName);
+        }
 
         $noHostMapping = (bool) $input->getOption('no-host-mapping');
         $publishHostPorts = !$noHostMapping;

@@ -9,13 +9,17 @@ use Ngramx\Config\Exception\ConfigException;
 use Ngramx\Config\Schema\NgramxConfig;
 use Ngramx\Output\EnvironmentOverviewRenderer;
 use Ngramx\Output\OutputFormatter;
+use Ngramx\Worktree\WorktreeAdopter;
 use Ngramx\Worktree\WorktreeIdentity;
+use Ngramx\Worktree\WorktreePaths;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Question\ChoiceQuestion;
 
 /**
  * `ngramx worktree <ticket>` — start (or continue) your own work on a ticket in
@@ -115,6 +119,17 @@ class WorktreeCommand extends ReviewCommand
                     ? "Using the requested branch '$pinnedBranch'."
                     : "Requested branch '$pinnedBranch' does not exist yet — it will be created.");
 
+                if (!$this->maybeAdoptClaudeWorktreeForBranch(
+                    $repositoryPath,
+                    $pinnedBranch,
+                    $ticketSlug,
+                    $input,
+                    $output,
+                    $formatter
+                )) {
+                    return Command::SUCCESS;
+                }
+
                 return $this->runWorktreeReview(
                     $input,
                     $output,
@@ -139,6 +154,17 @@ class WorktreeCommand extends ReviewCommand
                 $formatter->info($createNewBranch
                     ? "No existing branches found — a new branch '$ticketSlug' will be created."
                     : "No remote branches found — reusing the local branch '$ticketSlug'.");
+
+                if (!$this->maybeAdoptClaudeWorktreeForBranch(
+                    $repositoryPath,
+                    $ticketSlug,
+                    $ticketSlug,
+                    $input,
+                    $output,
+                    $formatter
+                )) {
+                    return Command::SUCCESS;
+                }
 
                 return $this->runWorktreeReview(
                     $input,
@@ -172,6 +198,17 @@ class WorktreeCommand extends ReviewCommand
                 $formatter->error($e->getMessage());
 
                 return Command::FAILURE;
+            }
+
+            if (!$this->maybeAdoptClaudeWorktreeForBranch(
+                $repositoryPath,
+                $selectedBranch,
+                $ticketSlug,
+                $input,
+                $output,
+                $formatter
+            )) {
+                return Command::SUCCESS;
             }
 
             return $this->runWorktreeReview(
@@ -255,10 +292,7 @@ class WorktreeCommand extends ReviewCommand
         }
 
         if ($this->gitRepositoryService->isIntegrationBranch($currentBranch)) {
-            $formatter->warning(
-                "You're on the {$currentBranch} branch. To open up a worktree, without specifying a ticket, switch to a feature branch first."
-            );
-            return Command::SUCCESS;
+            return $this->runWorktreePicker($input, $output, $formatter, $config, $repositoryPath);
         }
 
         $featureBranch = $currentBranch;
@@ -323,5 +357,188 @@ class WorktreeCommand extends ReviewCommand
             ->render($snapshot['root'], $snapshot['worktrees']);
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * When a branch is checked out under `.claude/worktrees/`, offer adoption
+     * into `.ngramx/worktrees/` instead of failing with "already checked out".
+     *
+     * @return bool False when the user cancels; true when adoption is unnecessary or completed.
+     */
+    private function maybeAdoptClaudeWorktreeForBranch(
+        string $repositoryPath,
+        string $branch,
+        string $ticketSlug,
+        InputInterface $input,
+        OutputInterface $output,
+        OutputFormatter $formatter,
+    ): bool {
+        $existingPath = $this->gitRepositoryService->findWorktreePathForBranch($repositoryPath, $branch);
+        if ($existingPath === null || !WorktreePaths::isClaudeDefault($existingPath)) {
+            return true;
+        }
+
+        $formatter->warning("Branch '{$branch}' is already checked out in a Claude Code worktree:");
+        $formatter->info($existingPath);
+
+        $question = new ChoiceQuestion(
+            'What would you like to do?',
+            ['Adopt into ngramx (move to .ngramx/worktrees/)', 'Cancel'],
+            0
+        );
+        $helper = new QuestionHelper();
+        $choice = $helper->ask($input, $output, $question);
+
+        if ($choice !== 'Adopt into ngramx (move to .ngramx/worktrees/)') {
+            $formatter->info('Cancelled.');
+
+            return false;
+        }
+
+        $preferredFolder = WorktreeIdentity::folderName(
+            $ticketSlug,
+            WorktreeIdentity::sanitizeSegment(basename($repositoryPath))
+        );
+        $adopter = new WorktreeAdopter($this->gitRepositoryService);
+
+        try {
+            $targetPath = $adopter->adopt($repositoryPath, $existingPath, $branch, $preferredFolder);
+        } catch (RuntimeException $e) {
+            $formatter->error($e->getMessage());
+
+            return false;
+        }
+
+        $formatter->success("Adopted Claude worktree into: {$targetPath}");
+
+        return true;
+    }
+
+    /**
+     * Interactive picker when no ticket argument was given on an integration branch.
+     */
+    private function runWorktreePicker(
+        InputInterface $input,
+        OutputInterface $output,
+        OutputFormatter $formatter,
+        NgramxConfig $config,
+        string $repositoryPath
+    ): int {
+        $branchMap = $this->gitRepositoryService->listWorktreeBranches($repositoryPath);
+
+        /** @var list<string> $labels */
+        $labels = [];
+        /** @var list<array{type: string, branch?: string, path?: string, ticket?: string}> $options */
+        $options = [];
+
+        foreach ($this->inventory->listWorktreeDirectories($repositoryPath) as $path) {
+            $branch = $branchMap[$path] ?? basename($path);
+            $labels[] = "Managed worktree: {$branch} ({$path})";
+            $options[] = ['type' => 'managed', 'branch' => $branch, 'path' => $path];
+        }
+
+        foreach ($this->inventory->listClaudeWorktreeDirectories($repositoryPath) as $path) {
+            $branch = $branchMap[$path] ?? basename($path);
+            $labels[] = "Claude worktree (adopt): {$branch} ({$path})";
+            $options[] = ['type' => 'claude', 'branch' => $branch, 'path' => $path];
+        }
+
+        $ticketsDir = $repositoryPath . '/.ngramx/tickets';
+        if (is_dir($ticketsDir)) {
+            $entries = scandir($ticketsDir);
+            if ($entries !== false) {
+                foreach ($entries as $entry) {
+                    if ($entry === '.' || $entry === '..') {
+                        continue;
+                    }
+
+                    if (!is_dir($ticketsDir . '/' . $entry)) {
+                        continue;
+                    }
+
+                    $labels[] = "Ticket: {$entry}";
+                    $options[] = ['type' => 'ticket', 'ticket' => $entry];
+                }
+            }
+        }
+
+        if ($labels === []) {
+            $formatter->warning(
+                'No managed worktrees, Claude worktrees, or ticket folders found. '
+                . 'Specify a ticket (for example `ngramx worktree gig-1234`) or switch to a feature branch.'
+            );
+
+            return Command::SUCCESS;
+        }
+
+        $labels[] = 'Cancel';
+        $options[] = ['type' => 'cancel'];
+
+        $question = new ChoiceQuestion('Select a worktree or ticket to continue:', $labels, count($labels) - 1);
+        $helper = new QuestionHelper();
+        $selectedLabel = $helper->ask($input, $output, $question);
+        $index = array_search($selectedLabel, $labels, true);
+        if ($index === false) {
+            return Command::FAILURE;
+        }
+
+        $selected = $options[$index];
+        if ($selected['type'] === 'cancel') {
+            $formatter->info('Cancelled.');
+
+            return Command::SUCCESS;
+        }
+
+        if ($selected['type'] === 'ticket') {
+            $ticket = $selected['ticket'] ?? null;
+            if (!is_string($ticket) || $ticket === '') {
+                $formatter->error('Invalid ticket selection.');
+
+                return Command::FAILURE;
+            }
+
+            $input->setArgument('ticket', $ticket);
+
+            return $this->execute($input, $output);
+        }
+
+        $branch = $selected['branch'] ?? '';
+        if ($branch === '' || $branch === '(detached)') {
+            $formatter->error('Could not determine the branch for the selected worktree.');
+
+            return Command::FAILURE;
+        }
+
+        $ticketSlug = WorktreeIdentity::deriveTicketSlug($branch, $branch);
+
+        if ($selected['type'] === 'claude' && isset($selected['path'])) {
+            if (!$this->maybeAdoptClaudeWorktreeForBranch(
+                $repositoryPath,
+                $branch,
+                $ticketSlug,
+                $input,
+                $output,
+                $formatter
+            )) {
+                return Command::SUCCESS;
+            }
+        }
+
+        $formatter->info('Fetching latest changes from origin...');
+        if (!$this->gitRepositoryService->fetchFromOrigin($repositoryPath)) {
+            $formatter->error('Failed to fetch from origin.');
+
+            return Command::FAILURE;
+        }
+
+        return $this->runWorktreeReview(
+            $input,
+            $output,
+            $formatter,
+            $config,
+            $repositoryPath,
+            $branch,
+            $ticketSlug
+        );
     }
 }

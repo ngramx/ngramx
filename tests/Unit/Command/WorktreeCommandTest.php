@@ -83,7 +83,7 @@ class WorktreeCommandTest extends TestCase
         $this->assertSame('b', $definition->getOption('branch')->getShortcut());
     }
 
-    public function test_it_warns_when_no_ticket_on_integration_branch(): void
+    public function test_it_offers_a_picker_when_no_ticket_on_integration_branch(): void
     {
         $this->setupConfigLoader($this->createMockConfig());
 
@@ -95,13 +95,16 @@ class WorktreeCommandTest extends TestCase
             ->method('isIntegrationBranch')
             ->with('main')
             ->willReturn(true);
+        $this->gitRepositoryService->expects($this->any())
+            ->method('listWorktreeBranches')
+            ->willReturn([]);
 
         $tester = new CommandTester($this->createCommand());
         $exitCode = $tester->execute([]);
 
         $this->assertSame(0, $exitCode);
-        $this->assertStringContainsString("You're on the main branch", $tester->getDisplay());
-        $this->assertStringContainsString('switch to a feature branch first', $tester->getDisplay());
+        $this->assertStringContainsString('No managed worktrees, Claude worktrees, or ticket folders found', $tester->getDisplay());
+        $this->assertStringContainsString('Specify a ticket', $tester->getDisplay());
     }
 
     public function test_it_moves_the_current_feature_branch_into_a_worktree(): void
