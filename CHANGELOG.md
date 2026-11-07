@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.60.0](https://github.com/ngramx/ngramx/compare/v2.59.0...v2.60.0) (2026-11-07)
+
+
+### Bug Fixes
+
+* satisfy PHPStan on Claude worktree test stubs ([f92fb73](https://github.com/ngramx/ngramx/commit/f92fb73e1b1a9f99f3036d5b0e6773d5275793d1))
+
+
+### Features
+
+* ship Claude worktree hooks as ngramx CLI commands ([e00d22a](https://github.com/ngramx/ngramx/commit/e00d22a333922d0eff05579d6d23d6cdd0e4e511))
+
 # [2.59.0](https://github.com/ngramx/ngramx/compare/v2.58.10...v2.59.0) (2026-11-07)
 
 
