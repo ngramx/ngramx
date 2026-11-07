@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.59.0](https://github.com/ngramx/ngramx/compare/v2.58.10...v2.59.0) (2026-11-07)
+
+
+### Bug Fixes
+
+* reuse adopted Claude worktrees instead of creating a second checkout ([44a36ee](https://github.com/ngramx/ngramx/commit/44a36eebd903998d9f3ad75f689597a8a665fbd9))
+* satisfy phpstan for worktree picker ticket selection ([674d800](https://github.com/ngramx/ngramx/commit/674d8006c457f7d70dd14cb07dbf3701a4934894))
+* update worktree integration-branch test for picker ([cc487ee](https://github.com/ngramx/ngramx/commit/cc487eeb3112abb5b0d812eb4512bb06c0f13a7b))
+
+
+### Features
+
+* integrate Claude Code worktrees with ngramx lifecycle ([8dc26c3](https://github.com/ngramx/ngramx/commit/8dc26c32d730554716a7feeecfe0e5e94afe603d))
+
 ## [2.58.10](https://github.com/ngramx/ngramx/compare/v2.58.9...v2.58.10) (2026-11-06)
 
 
