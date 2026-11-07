@@ -53,4 +53,19 @@ class WorktreeAdopterTest extends TestCase
 
         $this->assertSame($targetPath, $this->adopter->adopt($repo, $claudePath, 'gig-99-fix'));
     }
+
+    public function test_adopt_uses_preferred_folder_when_provided(): void
+    {
+        $repo = '/var/repo';
+        $claudePath = $repo . '/.claude/worktrees/random-name';
+        $targetPath = $repo . '/.ngramx/worktrees/gig-99-repo';
+
+        $this->gitService->expects($this->once())->method('worktreeExists')->with($repo, $claudePath)->willReturn(true);
+        $this->gitService->expects($this->once())->method('moveWorktree')->with($repo, $claudePath, $targetPath)->willReturn(true);
+
+        $this->assertSame(
+            $targetPath,
+            $this->adopter->adopt($repo, $claudePath, 'worktree-random-name', 'gig-99-repo')
+        );
+    }
 }

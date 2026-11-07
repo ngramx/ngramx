@@ -122,6 +122,7 @@ class WorktreeCommand extends ReviewCommand
                 if (!$this->maybeAdoptClaudeWorktreeForBranch(
                     $repositoryPath,
                     $pinnedBranch,
+                    $ticketSlug,
                     $input,
                     $output,
                     $formatter
@@ -156,6 +157,7 @@ class WorktreeCommand extends ReviewCommand
 
                 if (!$this->maybeAdoptClaudeWorktreeForBranch(
                     $repositoryPath,
+                    $ticketSlug,
                     $ticketSlug,
                     $input,
                     $output,
@@ -201,6 +203,7 @@ class WorktreeCommand extends ReviewCommand
             if (!$this->maybeAdoptClaudeWorktreeForBranch(
                 $repositoryPath,
                 $selectedBranch,
+                $ticketSlug,
                 $input,
                 $output,
                 $formatter
@@ -365,6 +368,7 @@ class WorktreeCommand extends ReviewCommand
     private function maybeAdoptClaudeWorktreeForBranch(
         string $repositoryPath,
         string $branch,
+        string $ticketSlug,
         InputInterface $input,
         OutputInterface $output,
         OutputFormatter $formatter,
@@ -391,10 +395,14 @@ class WorktreeCommand extends ReviewCommand
             return false;
         }
 
+        $preferredFolder = WorktreeIdentity::folderName(
+            $ticketSlug,
+            WorktreeIdentity::sanitizeSegment(basename($repositoryPath))
+        );
         $adopter = new WorktreeAdopter($this->gitRepositoryService);
 
         try {
-            $targetPath = $adopter->adopt($repositoryPath, $existingPath, $branch);
+            $targetPath = $adopter->adopt($repositoryPath, $existingPath, $branch, $preferredFolder);
         } catch (RuntimeException $e) {
             $formatter->error($e->getMessage());
 
@@ -507,6 +515,7 @@ class WorktreeCommand extends ReviewCommand
             if (!$this->maybeAdoptClaudeWorktreeForBranch(
                 $repositoryPath,
                 $branch,
+                $ticketSlug,
                 $input,
                 $output,
                 $formatter

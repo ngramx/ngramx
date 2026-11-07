@@ -20,11 +20,16 @@ final class WorktreeAdopter
 
     /**
      * Adopt $claudeWorktreePath into `.ngramx/worktrees/<folder>` and return the new path.
+     *
+     * @param ?string $preferredFolder When set (e.g. the folder `ngramx worktree`
+     *        would create for the ticket), use that name so adoption lands where
+     *        the rest of the command expects to find the worktree.
      */
     public function adopt(
         string $repositoryPath,
         string $claudeWorktreePath,
         ?string $branch = null,
+        ?string $preferredFolder = null,
     ): string {
         if (!WorktreePaths::isClaudeDefault($claudeWorktreePath)) {
             throw new RuntimeException("Worktree is not under .claude/worktrees/: {$claudeWorktreePath}");
@@ -34,7 +39,9 @@ final class WorktreeAdopter
             throw new RuntimeException("Worktree is not registered with git: {$claudeWorktreePath}");
         }
 
-        $targetFolder = $this->deriveTargetFolder($repositoryPath, $claudeWorktreePath, $branch);
+        $targetFolder = $preferredFolder !== null && $preferredFolder !== ''
+            ? WorktreeIdentity::sanitizeSegment($preferredFolder)
+            : $this->deriveTargetFolder($repositoryPath, $claudeWorktreePath, $branch);
         $targetPath = $repositoryPath . '/' . WorktreePaths::NGRAMX_WORKTREE_DIR . '/' . $targetFolder;
 
         if (is_dir($targetPath)) {
