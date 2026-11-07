@@ -482,7 +482,14 @@ class WorktreeCommand extends ReviewCommand
         }
 
         if ($selected['type'] === 'ticket') {
-            $input->setArgument('ticket', $selected['ticket']);
+            $ticket = $selected['ticket'] ?? null;
+            if (!is_string($ticket) || $ticket === '') {
+                $formatter->error('Invalid ticket selection.');
+
+                return Command::FAILURE;
+            }
+
+            $input->setArgument('ticket', $ticket);
 
             return $this->execute($input, $output);
         }
