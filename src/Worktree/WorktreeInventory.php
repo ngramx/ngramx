@@ -138,6 +138,41 @@ class WorktreeInventory
         return $paths;
     }
 
+    /**
+     * List worktree directories Claude Code created under `.claude/worktrees/`.
+     *
+     * @return list<string> Absolute paths
+     */
+    public function listClaudeWorktreeDirectories(string $repositoryPath): array
+    {
+        $worktreesDir = $repositoryPath . '/.claude/worktrees';
+
+        if (!is_dir($worktreesDir)) {
+            return [];
+        }
+
+        $entries = scandir($worktreesDir);
+        if ($entries === false) {
+            return [];
+        }
+
+        $paths = [];
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            $path = $worktreesDir . '/' . $entry;
+            if (is_dir($path)) {
+                $paths[] = $path;
+            }
+        }
+
+        sort($paths);
+
+        return $paths;
+    }
+
     private function snapshotRoot(string $repositoryPath, NgramxConfig $config, bool $isCurrent): EnvironmentSnapshot
     {
         $lock = new LockFile($repositoryPath);
