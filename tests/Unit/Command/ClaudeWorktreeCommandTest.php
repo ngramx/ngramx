@@ -14,12 +14,9 @@ class ClaudeWorktreeCommandTest extends TestCase
 {
     public function test_create_command_prints_path_on_success(): void
     {
-        $handler = new class extends ClaudeWorktreeHookHandler {
-            public function create(string $hookJson): array
-            {
-                return ['ok' => true, 'path' => '/repo/.ngramx/worktrees/gig-1-repo'];
-            }
-        };
+        $handler = new StubClaudeWorktreeHookHandler(
+            createResult: ['ok' => true, 'path' => '/repo/.ngramx/worktrees/gig-1-repo'],
+        );
 
         $tester = new CommandTester(new CreateCommand($handler, '{"name":"gig-1"}'));
         $exit = $tester->execute([]);
@@ -30,12 +27,9 @@ class ClaudeWorktreeCommandTest extends TestCase
 
     public function test_create_command_fails_on_handler_error(): void
     {
-        $handler = new class extends ClaudeWorktreeHookHandler {
-            public function create(string $hookJson): array
-            {
-                return ['ok' => false, 'error' => 'boom'];
-            }
-        };
+        $handler = new StubClaudeWorktreeHookHandler(
+            createResult: ['ok' => false, 'error' => 'boom'],
+        );
 
         $tester = new CommandTester(new CreateCommand($handler, '{}'));
         $this->assertSame(1, $tester->execute([]));
@@ -43,15 +37,40 @@ class ClaudeWorktreeCommandTest extends TestCase
 
     public function test_remove_command_succeeds_quietly(): void
     {
-        $handler = new class extends ClaudeWorktreeHookHandler {
-            public function remove(string $hookJson): array
-            {
-                return ['ok' => true, 'path' => '/repo/.ngramx/worktrees/x'];
-            }
-        };
+        $handler = new StubClaudeWorktreeHookHandler(
+            removeResult: ['ok' => true, 'path' => '/repo/.ngramx/worktrees/x'],
+        );
 
         $tester = new CommandTester(new RemoveCommand($handler, '{"worktree_path":"/repo/.ngramx/worktrees/x"}'));
         $this->assertSame(0, $tester->execute([]));
         $this->assertSame('', $tester->getDisplay());
+    }
+}
+
+/**
+ * Configurable handler for command tests — property union keeps PHPStan happy
+ * where a single-branch anonymous override would narrow the return type.
+ */
+final class StubClaudeWorktreeHookHandler extends ClaudeWorktreeHookHandler
+{
+    /**
+     * @param array{ok: true, path: string}|array{ok: false, error: string}|null $createResult
+     * @param array{ok: true, path: string}|array{ok: false, error: string}|null $removeResult
+     */
+    public function __construct(
+        private readonly ?array $createResult = null,
+        private readonly ?array $removeResult = null,
+    ) {
+        parent::__construct();
+    }
+
+    public function create(string $hookJson): array
+    {
+        return $this->createResult ?? ['ok' => false, 'error' => 'create stub not configured'];
+    }
+
+    public function remove(string $hookJson): array
+    {
+        return $this->removeResult ?? ['ok' => false, 'error' => 'remove stub not configured'];
     }
 }

@@ -194,7 +194,8 @@ class ClaudeWorktreeHookHandlerTest extends TestCase
 
             protected function resolveRepositoryRoot(string $cwd): ?string
             {
-                return $this->fixedRoot;
+                // Keep null in the return type for PHPStan (parent signature).
+                return $cwd === '' ? null : $this->fixedRoot;
             }
         };
     }
