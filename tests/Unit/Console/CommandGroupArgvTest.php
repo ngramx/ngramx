@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 
 class CommandGroupArgvTest extends TestCase
 {
-    private const GROUPS = ['codabyte', 'n8n'];
+    private const GROUPS = ['codabyte', 'n8n', 'claude-worktree'];
 
     public function testSpaceSeparatedSubcommandBecomesColonSeparated(): void
     {
@@ -85,6 +85,10 @@ class CommandGroupArgvTest extends TestCase
 
     public function testOtherGroupsWorkToo(): void
     {
+        $this->assertSame(
+            ['ngramx', 'claude-worktree:create'],
+            CommandGroupArgv::rewrite(['ngramx', 'claude-worktree', 'create'], self::GROUPS)
+        );
         $this->assertSame(
             ['ngramx', 'n8n:export'],
             CommandGroupArgv::rewrite(['ngramx', 'n8n', 'export'], self::GROUPS)
