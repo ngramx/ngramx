@@ -1,0 +1,22 @@
+{
+  "title": "GIG-4522: Fix Hydra Postmaclone Numerify And Unique Usernames",
+  "description": "Parses faker formatter arguments on simple calls such as numerify('######') so generate() matches assertMethodExists instead of failing every row.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-4522/fix-hydra-postmaclone-numerify-and-unique-usernames",
+  "test_urls": [
+    {
+      "label": "Hydra produce workflow",
+      "url": "https://github.com/gigabyte-software/postmaclone-factory/actions/workflows/postmaclone-produce-hydra.yml"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Simple numerify calls with quoted arguments generate digits",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/FakerMethodResolverTest.php --no-coverage",
+        "After ngramx release, confirm produce no longer logs Unknown faker method numerify('######')"
+      ]
+    }
+  ]
+}
