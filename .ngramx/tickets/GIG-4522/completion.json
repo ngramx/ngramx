@@ -12,10 +12,19 @@
   "test_plan": [
     {
       "description": "Simple numerify calls with quoted arguments generate digits",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run vendor/bin/phpunit tests/Unit/Postmaclone/FakerMethodResolverTest.php --no-coverage",
         "After ngramx release, confirm produce no longer logs Unknown faker method numerify('######')"
+      ]
+    },
+    {
+      "description": "Merge publishes an ngramx patch with the simple-call numerify parser",
+      "status": "active",
+      "steps": [
+        "Merge this PR to main",
+        "Confirm the Release workflow runs semantic-release and creates a new patch tag",
+        "Confirm https://github.com/ngramx/ngramx/releases/latest includes the faker argument parser"
       ]
     }
   ]

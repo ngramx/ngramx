@@ -13,3 +13,4 @@ Simple faker calls with arguments (`numerify('######')`) pass `assertMethodExist
 - Ticket folder created.
 - `FakerMethodResolver::generate()` parses simple formatter calls with arguments (`numerify('######')`) instead of treating the whole string as a formatter name.
 - PR: https://github.com/ngramx/ngramx/pull/65
+- Conventional `fix(postmaclone):` commit so semantic-release publishes the parser fix.
