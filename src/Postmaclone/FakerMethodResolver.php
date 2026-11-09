@@ -49,6 +49,18 @@ class FakerMethodResolver
             ];
         }
 
+        if ($this->isFormatterCall($method)) {
+            $this->assertMethodExists($method);
+            $unique = $uniqueFlag || $this->hasUniquePrefix($method);
+
+            return [
+                fn () => $unique && !$this->hasUniquePrefix($method)
+                    ? $this->ensureUnique($method, fn () => $this->invokeCall($method))
+                    : $this->invokeCall($method),
+                $unique,
+            ];
+        }
+
         $unique = $uniqueFlag;
         $name = $method;
 
@@ -146,6 +158,19 @@ class FakerMethodResolver
     private function isConcatExpression(string $expression): bool
     {
         return str_contains($expression, ' + ');
+    }
+
+    /**
+     * Simple formatter with arguments: numerify('######'), uniqueNumerify("###").
+     */
+    private function isFormatterCall(string $method): bool
+    {
+        $name = $method;
+        if ($this->hasUniquePrefix($name)) {
+            $name = lcfirst(substr($name, 6));
+        }
+
+        return preg_match('/^[A-Za-z_][A-Za-z0-9_]*\s*\(/', $name) === 1;
     }
 
     private function hasUniquePrefix(string $name): bool

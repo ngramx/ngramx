@@ -95,4 +95,30 @@ class FakerMethodResolverTest extends TestCase
         $this->expectException(PostmacloneException::class);
         $resolver->assertMethodExists('firstName + " " + password');
     }
+
+    public function test_simple_formatter_call_with_double_quoted_args(): void
+    {
+        $resolver = new FakerMethodResolver('en_GB', 42);
+        $resolver->faker()->seed(42);
+        $value = $resolver->generate('numerify("######")');
+
+        $this->assertMatchesRegularExpression('/^\d{6}$/', $value);
+    }
+
+    public function test_simple_formatter_call_with_single_quoted_args(): void
+    {
+        $resolver = new FakerMethodResolver('en_GB', 42);
+        $resolver->faker()->seed(42);
+        $value = $resolver->generate("numerify('##-##-##')");
+
+        $this->assertMatchesRegularExpression('/^\d{2}-\d{2}-\d{2}$/', $value);
+    }
+
+    public function test_assert_method_exists_accepts_numerify_with_args(): void
+    {
+        $resolver = new FakerMethodResolver('en_GB', 1);
+        $resolver->assertMethodExists("numerify('######')");
+        $resolver->assertMethodExists('numerify("######")');
+        $this->assertTrue(true);
+    }
 }
