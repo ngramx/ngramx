@@ -14,3 +14,4 @@ Hydra produce died wiping the idle ping-pong slot because `DatabaseWiper` capped
 
 - Ticket folder created.
 - `DatabaseWiper::MYSQL_WIPE_TIMEOUT_SECONDS` is null, same as `MysqlRestorer::RESTORE_TIMEOUT_SECONDS`.
+- PR: https://github.com/ngramx/ngramx/pull/66
