@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.60.1](https://github.com/ngramx/ngramx/compare/v2.60.0...v2.60.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **postmaclone:** parse faker formatter arguments on simple method calls ([a9998d2](https://github.com/ngramx/ngramx/commit/a9998d28bd8358154780e73d64847727d979e375))
+
 # [2.60.0](https://github.com/ngramx/ngramx/compare/v2.59.0...v2.60.0) (2026-11-07)
 
 
