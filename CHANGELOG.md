@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.60.2](https://github.com/ngramx/ngramx/compare/v2.60.1...v2.60.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **postmaclone:** remove 600s timeout from MySQL wipe ([068167c](https://github.com/ngramx/ngramx/commit/068167ce6ae38776438367dc90e7c51d24aeb6a5))
+
 ## [2.60.1](https://github.com/ngramx/ngramx/compare/v2.60.0...v2.60.1) (2026-11-09)
 
 
