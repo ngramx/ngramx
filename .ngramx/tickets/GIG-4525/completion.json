@@ -1,0 +1,22 @@
+{
+  "title": "GIG-4525: Remove 600s Timeout From MySQL Postmaclone Wipe",
+  "description": "Stops MySQL idle-slot wipe dying at 600s so Hydra ping-pong produce can drop a full copy before restore.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-4525/remove-600s-timeout-from-mysql-postmaclone-wipe",
+  "test_urls": [
+    {
+      "label": "Hydra produce workflow",
+      "url": "https://github.com/gigabyte-software/postmaclone-factory/actions/workflows/postmaclone-produce-hydra.yml"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "MySQL wipe passes no process timeout to MysqlRunner",
+      "status": "active",
+      "steps": [
+        "Run vendor/bin/phpunit tests/Unit/Postmaclone/DatabaseWiperTest.php --no-coverage",
+        "After ngramx release, rerun Hydra produce and confirm idle-slot wipe is not killed at 600s"
+      ]
+    }
+  ]
+}

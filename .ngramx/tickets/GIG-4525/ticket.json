@@ -1,0 +1,10 @@
+{
+  "id": "GIG-4525",
+  "title": "Remove 600s timeout from MySQL postmaclone wipe",
+  "url": "https://linear.app/gigabyte/issue/GIG-4525/remove-600s-timeout-from-mysql-postmaclone-wipe",
+  "gitBranchName": "gig-4525-remove-600s-timeout-from-mysql-postmaclone-wipe",
+  "status": "In Progress",
+  "priority": "Urgent",
+  "team": "Gigabyte",
+  "assignee": "Cameron Smith"
+}

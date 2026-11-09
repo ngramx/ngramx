@@ -16,6 +16,12 @@ use Ngramx\Postmaclone\Target\EphemeralTarget;
  */
 final class DatabaseWiper
 {
+    /**
+     * Hydra idle-slot DROP TABLE exceeds 600s. Null means no process timeout;
+     * the GitHub job timeout is the remaining limit (same as MysqlRestorer).
+     */
+    public const MYSQL_WIPE_TIMEOUT_SECONDS = null;
+
     public function __construct(
         private readonly PsqlRunner $psql = new PsqlRunner(),
         private readonly MysqlRunner $mysql = new MysqlRunner(),
@@ -152,6 +158,6 @@ SQL;
         }
 
         $batch = 'SET FOREIGN_KEY_CHECKS = 0; ' . implode(' ', $drops) . ' SET FOREIGN_KEY_CHECKS = 1;';
-        $this->mysql->run($target, ['-e', $batch], null, 600);
+        $this->mysql->run($target, ['-e', $batch], null, self::MYSQL_WIPE_TIMEOUT_SECONDS);
     }
 }
