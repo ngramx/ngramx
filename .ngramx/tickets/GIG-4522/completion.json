@@ -1,7 +1,7 @@
 {
   "title": "GIG-4522: Fix Hydra Postmaclone Numerify And Unique Usernames",
   "description": "Parses faker formatter arguments on simple calls such as numerify('######') so generate() matches assertMethodExists instead of failing every row.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/65",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-4522/fix-hydra-postmaclone-numerify-and-unique-usernames",
   "test_urls": [
     {
