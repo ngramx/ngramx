@@ -1,0 +1,10 @@
+{
+  "id": "GIG-4522",
+  "title": "Fix Hydra postmaclone numerify and unique usernames",
+  "url": "https://linear.app/gigabyte/issue/GIG-4522/fix-hydra-postmaclone-numerify-and-unique-usernames",
+  "gitBranchName": "gig-4522-fix-hydra-postmaclone-numerify-and-unique-usernames",
+  "status": "In Progress",
+  "priority": "High",
+  "team": "Gigabyte",
+  "assignee": "Cameron Smith"
+}

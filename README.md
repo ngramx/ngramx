@@ -835,7 +835,7 @@ postmaclone:
       # omit non-PII columns — they stay as-is
 ```
 
-Faker values may be a single formatter (`firstName`, `uniqueSafeEmail`), a `{{formatter}}` template mixed with literal text, or a ` + `-joined expression of formatters and quoted strings. Formatter args work inside both forms (`numberBetween(1, 999)`, `numerify("###")`). Set `unique: true` on the column rule to uniquify the whole composed string.
+Faker values may be a single formatter (`firstName`, `uniqueSafeEmail`), a `{{formatter}}` template mixed with literal text, or a ` + `-joined expression of formatters and quoted strings. Formatter args work on simple calls, templates, and concat (`numerify("###")`, `{{numerify("###")}}`, `numberBetween(1, 999)`). Set `unique: true` on the column rule to uniquify the whole composed string.
 
 Special formatters (not FakerPHP methods):
 
