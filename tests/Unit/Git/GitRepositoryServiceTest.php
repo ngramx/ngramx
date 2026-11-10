@@ -780,6 +780,27 @@ class GitRepositoryServiceTest extends TestCase
         $this->assertFalse($this->service->worktreeExists($this->gitRepoPath, $worktreePath));
     }
 
+    public function test_moveWorktree_force_moves_a_locked_worktree(): void
+    {
+        $fromPath = $this->tempDir . '/.claude/worktrees/ppm-landing';
+        $toPath = $this->tempDir . '/.ngramx/worktrees/gig-4596-repo';
+        $this->assertTrue($this->service->addWorktree($this->gitRepoPath, $fromPath, 'feature/TICKET-456'));
+
+        // Claude Code locks active worktrees; plain `git worktree move` refuses.
+        $this->runCommand(
+            'git worktree lock --reason ' . escapeshellarg('claude session ppm-landing')
+            . ' ' . escapeshellarg($fromPath),
+            $this->gitRepoPath
+        );
+
+        $result = $this->service->moveWorktree($this->gitRepoPath, $fromPath, $toPath);
+
+        $this->assertTrue($result, $this->service->lastMoveError());
+        $this->assertDirectoryExists($toPath);
+        $this->assertDirectoryDoesNotExist($fromPath);
+        $this->assertTrue($this->service->worktreeExists($this->gitRepoPath, $toPath));
+    }
+
     public function test_removeWorktree_returns_false_for_unknown_path(): void
     {
         $result = $this->service->removeWorktree($this->gitRepoPath, $this->tempDir . '/does-not-exist');
