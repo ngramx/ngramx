@@ -142,60 +142,50 @@ class EnvironmentOverviewRenderer
         $this->formatter->section('Worktrees (' . count($worktrees) . ')');
         $this->output->writeln('');
 
-        $nameWidth = $this->columnWidth($worktrees, static fn (EnvironmentSnapshot $w): string => $w->name, 20);
-        $branchWidth = $this->columnWidth($worktrees, static fn (EnvironmentSnapshot $w): string => $w->branch ?? '—', 20);
-
-        // The agent column only appears once something has actually recorded a
-        // run. Most people are not driving Ngramx from an agent runner, and an
-        // always-present column of dashes would cost them width for nothing.
-        $agentWidth = $this->hasAgentRuns($worktrees)
-            ? $this->columnWidth($worktrees, static fn (EnvironmentSnapshot $w): string => $w->agent?->state() ?? '—', 5)
-            : 0;
-
-        $this->output->writeln(sprintf(
-            '  <fg=' . self::COLOR_SMOKE . '>%s %-3s %s  %s  %-7s  %s%s</>',
-            ' ',
-            '#',
-            $this->pad('worktree', $nameWidth),
-            $this->pad('branch', $branchWidth),
-            'status',
-            $agentWidth > 0 ? $this->pad('agent', $agentWidth) . '  ' : '',
-            'url',
-        ));
-
         foreach ($worktrees as $i => $worktree) {
-            // The marker is what makes the overview readable from inside a
-            // worktree: the developer can see which row is the one they are
-            // standing in without comparing paths by eye.
-            $marker = $worktree->isCurrent ? '<fg=' . self::COLOR_SMOKE . '>❯</>' : ' ';
+            // The marker shows which worktree the developer is currently in
+            $marker = $worktree->isCurrent ? '<fg=' . self::COLOR_SMOKE . '>❯</> ' : '  ';
 
-            // The state is padded before it is coloured: style tags do not
-            // occupy screen columns, so padding the tagged string would push
-            // the url column out of line.
-            $state = $worktree->running ? 'running' : 'stopped';
-
-            // Pad on display width, not bytes: a multi-byte placeholder like
-            // "—" is one column wide but three bytes, and sprintf's %-Ns pads
-            // by bytes — which would pull the following columns out of line.
-            $agentState = $worktree->agent?->state() ?? '—';
-
+            // Render the worktree as a card with the index and name on the first line
             $this->output->writeln(sprintf(
-                '  %s <fg=yellow>%-3d</> %s  %s  %s  %s%s',
+                '%s<fg=yellow>[%d]</> %s',
                 $marker,
                 $i + 1,
-                $this->pad($worktree->name, $nameWidth),
-                $this->pad(OutputFormatter::escape($worktree->branch ?? '—'), $branchWidth),
-                $this->colourState($state, $worktree->running) . str_repeat(' ', max(0, 7 - mb_strwidth($state))),
-                $agentWidth > 0
-                    ? $this->colourAgentState($agentState)
-                        . str_repeat(' ', max(0, $agentWidth - mb_strwidth($agentState)))
-                        . '  '
-                    : '',
-                $worktree->url ?? '—',
+                $worktree->name
             ));
+
+            // Branch line
+            $this->output->writeln(sprintf(
+                '      <fg=' . self::COLOR_SMOKE . '>Branch:</>  %s',
+                OutputFormatter::escape($worktree->branch ?? '—')
+            ));
+
+            // Status line
+            $state = $worktree->running ? 'running' : 'stopped';
+            $this->output->writeln(sprintf(
+                '      <fg=' . self::COLOR_SMOKE . '>Status:</>  %s',
+                $this->colourState($state, $worktree->running)
+            ));
+
+            // URL line
+            $this->output->writeln(sprintf(
+                '      <fg=' . self::COLOR_SMOKE . '>URL:</>     %s',
+                $worktree->url ?? '—'
+            ));
+
+            // Agent line (only if agent runs are present)
+            if ($worktree->agent !== null) {
+                $agentState = $worktree->agent->state();
+                $this->output->writeln(sprintf(
+                    '      <fg=' . self::COLOR_SMOKE . '>Agent:</>  %s%s',
+                    $this->colourAgentState($agentState),
+                    $this->describeAgent($worktree->agent)
+                ));
+            }
+
+            $this->output->writeln('');
         }
 
-        $this->output->writeln('');
         $this->formatter->info('Clean up: ngramx worktree --cleanup [<#>|<ticket>|<text>] (no argument to choose from a list)');
         $this->output->writeln('');
     }
