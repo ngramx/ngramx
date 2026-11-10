@@ -103,7 +103,7 @@ class WorktreeCommandTest extends TestCase
         $exitCode = $tester->execute([]);
 
         $this->assertSame(0, $exitCode);
-        $this->assertStringContainsString('No managed worktrees, Claude worktrees, or ticket folders found', $tester->getDisplay());
+        $this->assertStringContainsString('No active worktrees found', $tester->getDisplay());
         $this->assertStringContainsString('Specify a ticket', $tester->getDisplay());
     }
 
