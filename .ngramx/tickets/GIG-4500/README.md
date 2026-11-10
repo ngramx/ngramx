@@ -18,3 +18,4 @@ See Linear GIG-4500 acceptance criteria (hooks, picker, adoption, no auto `up`).
 - `WorktreeInventory::listClaudeWorktreeDirectories`
 - `GitRepositoryService::findWorktreePathForBranch`, `moveWorktree`
 - `docs/claude-code-integration.md`, unit tests
+- Follow-up: `git worktree move -f -f` on adopt so Claude-locked worktrees move without closing the session (unlock alone was not enough)

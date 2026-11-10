@@ -1012,13 +1012,17 @@ class GitRepositoryService
             }
         }
 
-        // Unlock the worktree first if it's locked (e.g., by an active Claude session)
+        // Claude Code locks worktrees for active sessions. Unlock first, then
+        // force-move: git requires `-f` twice to override a lock ("move -f -f"),
+        // and unlock alone is not enough while the session may re-lock.
         $unlockProcess = new Process(['git', 'worktree', 'unlock', $fromPath], $repositoryPath);
         $unlockProcess->setTimeout(30);
         $unlockProcess->run();
-        // Ignore unlock errors - the worktree might not be locked, which is fine
 
-        $process = new Process(['git', 'worktree', 'move', $fromPath, $toPath], $repositoryPath);
+        $process = new Process(
+            ['git', 'worktree', 'move', '-f', '-f', $fromPath, $toPath],
+            $repositoryPath
+        );
         $process->setTimeout(120);
         $process->run();
 
