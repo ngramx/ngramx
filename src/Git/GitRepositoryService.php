@@ -1017,7 +1017,17 @@ class GitRepositoryService
         $process->run();
 
         if (!$process->isSuccessful()) {
-            $this->lastMoveError = trim($process->getErrorOutput() ?: $process->getOutput());
+            $errorOutput = trim($process->getErrorOutput() ?: $process->getOutput());
+
+            // Provide a more helpful message for locked worktrees
+            if (str_contains($errorOutput, 'locked working tree')) {
+                $this->lastMoveError = $errorOutput . "\n\n"
+                    . "The worktree is locked by an active session. "
+                    . "Close any Claude Code sessions using this worktree, or run:\n"
+                    . "  git worktree unlock " . basename($fromPath);
+            } else {
+                $this->lastMoveError = $errorOutput;
+            }
         }
 
         return $process->isSuccessful() && is_dir($toPath);
