@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.60.4](https://github.com/ngramx/ngramx/compare/v2.60.3...v2.60.4) (2026-11-10)
+
+
+### Bug Fixes
+
+* offer Claude worktree adoption earlier and streamline picker ([#68](https://github.com/ngramx/ngramx/issues/68)) ([1e04bcb](https://github.com/ngramx/ngramx/commit/1e04bcb8ef171b40b34e95d54f899c2be849b45d))
+
 ## [2.60.3](https://github.com/ngramx/ngramx/compare/v2.60.2...v2.60.3) (2026-11-10)
 
 
