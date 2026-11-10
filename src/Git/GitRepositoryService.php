@@ -1012,22 +1012,18 @@ class GitRepositoryService
             }
         }
 
+        // Unlock the worktree first if it's locked (e.g., by an active Claude session)
+        $unlockProcess = new Process(['git', 'worktree', 'unlock', $fromPath], $repositoryPath);
+        $unlockProcess->setTimeout(30);
+        $unlockProcess->run();
+        // Ignore unlock errors - the worktree might not be locked, which is fine
+
         $process = new Process(['git', 'worktree', 'move', $fromPath, $toPath], $repositoryPath);
         $process->setTimeout(120);
         $process->run();
 
         if (!$process->isSuccessful()) {
-            $errorOutput = trim($process->getErrorOutput() ?: $process->getOutput());
-
-            // Provide a more helpful message for locked worktrees
-            if (str_contains($errorOutput, 'locked working tree')) {
-                $this->lastMoveError = $errorOutput . "\n\n"
-                    . "The worktree is locked by an active session. "
-                    . "Close any Claude Code sessions using this worktree, or run:\n"
-                    . "  git worktree unlock " . basename($fromPath);
-            } else {
-                $this->lastMoveError = $errorOutput;
-            }
+            $this->lastMoveError = trim($process->getErrorOutput() ?: $process->getOutput());
         }
 
         return $process->isSuccessful() && is_dir($toPath);
