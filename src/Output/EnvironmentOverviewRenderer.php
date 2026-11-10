@@ -156,20 +156,20 @@ class EnvironmentOverviewRenderer
 
             // Branch line
             $this->output->writeln(sprintf(
-                '      <fg=' . self::COLOR_SMOKE . '>Branch:</>  %s',
+                '      <fg=' . self::COLOR_SMOKE . '>branch:</>  %s',
                 OutputFormatter::escape($worktree->branch ?? '—')
             ));
 
             // Status line
             $state = $worktree->running ? 'running' : 'stopped';
             $this->output->writeln(sprintf(
-                '      <fg=' . self::COLOR_SMOKE . '>Status:</>  %s',
+                '      <fg=' . self::COLOR_SMOKE . '>status:</>  %s',
                 $this->colourState($state, $worktree->running)
             ));
 
             // URL line
             $this->output->writeln(sprintf(
-                '      <fg=' . self::COLOR_SMOKE . '>URL:</>     %s',
+                '      <fg=' . self::COLOR_SMOKE . '>url:</>     %s',
                 $worktree->url ?? '—'
             ));
 
@@ -177,7 +177,7 @@ class EnvironmentOverviewRenderer
             if ($worktree->agent !== null) {
                 $agentState = $worktree->agent->state();
                 $this->output->writeln(sprintf(
-                    '      <fg=' . self::COLOR_SMOKE . '>Agent:</>  %s%s',
+                    '      <fg=' . self::COLOR_SMOKE . '>agent:</>  %s%s',
                     $this->colourAgentState($agentState),
                     $this->describeAgent($worktree->agent)
                 ));
