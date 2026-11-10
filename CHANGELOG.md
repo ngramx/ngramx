@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.60.6](https://github.com/ngramx/ngramx/compare/v2.60.5...v2.60.6) (2026-11-10)
+
+
+### Bug Fixes
+
+* improve worktree output layout with stacked card design ([5d95074](https://github.com/ngramx/ngramx/commit/5d9507442e1e78427f27c75b587b85ffe91d4b4c))
+* remove unused methods from EnvironmentOverviewRenderer ([882693a](https://github.com/ngramx/ngramx/commit/882693af9141ec91148f6e1ad37a09f6607944ce))
+* use lowercase field labels in worktree card layout ([779ac04](https://github.com/ngramx/ngramx/commit/779ac042d842c70145273ddeb2dd4f6203eccd77))
+
 ## [2.60.5](https://github.com/ngramx/ngramx/compare/v2.60.4...v2.60.5) (2026-11-10)
 
 
