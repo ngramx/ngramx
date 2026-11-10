@@ -218,20 +218,6 @@ class EnvironmentOverviewRenderer
     }
 
     /**
-     * @param list<EnvironmentSnapshot> $worktrees
-     */
-    private function hasAgentRuns(array $worktrees): bool
-    {
-        foreach ($worktrees as $worktree) {
-            if ($worktree->agent !== null) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * Colour a recorded agent state.
      *
      * `started` is deliberately not green: read from a marker file, it means the
@@ -285,17 +271,4 @@ class EnvironmentOverviewRenderer
         return $width;
     }
 
-    /**
-     * @param list<EnvironmentSnapshot> $worktrees
-     * @param callable(EnvironmentSnapshot): string $value
-     */
-    private function columnWidth(array $worktrees, callable $value, int $minimum): int
-    {
-        $width = $minimum;
-        foreach ($worktrees as $worktree) {
-            $width = max($width, mb_strwidth($value($worktree)));
-        }
-
-        return $width;
-    }
 }
