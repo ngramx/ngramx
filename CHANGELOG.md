@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.60.7](https://github.com/ngramx/ngramx/compare/v2.60.6...v2.60.7) (2026-11-10)
+
+
+### Bug Fixes
+
+* force-move locked Claude worktrees on adopt ([a6c62e3](https://github.com/ngramx/ngramx/commit/a6c62e3be8276079e520b82904c3fe6d1edc8462))
+
 ## [2.60.6](https://github.com/ngramx/ngramx/compare/v2.60.5...v2.60.6) (2026-11-10)
 
 
