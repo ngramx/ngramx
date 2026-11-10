@@ -988,8 +988,11 @@ class GitRepositoryService
     /**
      * Relocate a registered worktree to a new directory using `git worktree move`.
      */
+    private string $lastMoveError = '';
+
     public function moveWorktree(string $repositoryPath, string $fromPath, string $toPath): bool
     {
+        $this->lastMoveError = '';
         $parent = dirname($toPath);
         if (!is_dir($parent)) {
             @mkdir($parent, 0755, true);
@@ -999,6 +1002,15 @@ class GitRepositoryService
         $process->setTimeout(120);
         $process->run();
 
+        if (!$process->isSuccessful()) {
+            $this->lastMoveError = trim($process->getErrorOutput() ?: $process->getOutput());
+        }
+
         return $process->isSuccessful() && is_dir($toPath);
+    }
+
+    public function lastMoveError(): string
+    {
+        return $this->lastMoveError;
     }
 }

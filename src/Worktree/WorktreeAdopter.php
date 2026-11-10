@@ -49,7 +49,12 @@ final class WorktreeAdopter
         }
 
         if (!$this->gitRepositoryService->moveWorktree($repositoryPath, $claudeWorktreePath, $targetPath)) {
-            throw new RuntimeException("Failed to move worktree from {$claudeWorktreePath} to {$targetPath}");
+            $error = $this->gitRepositoryService->lastMoveError();
+            $message = "Failed to move worktree from {$claudeWorktreePath} to {$targetPath}";
+            if ($error !== '') {
+                $message .= ": {$error}";
+            }
+            throw new RuntimeException($message);
         }
 
         return $targetPath;
