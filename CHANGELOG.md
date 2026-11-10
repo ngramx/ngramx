@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.60.5](https://github.com/ngramx/ngramx/compare/v2.60.4...v2.60.5) (2026-11-10)
+
+
+### Bug Fixes
+
+* automatically unlock Claude worktrees before adoption ([e3b9891](https://github.com/ngramx/ngramx/commit/e3b9891ba8785460128485e7052707145034f4f3))
+* ensure .ngramx/worktrees exists before moving Claude worktrees ([988bec0](https://github.com/ngramx/ngramx/commit/988bec0ff9a8e0bc942c98ea84c0a1485248761f))
+* include git error output in worktree adoption failure message ([a634b99](https://github.com/ngramx/ngramx/commit/a634b99b2b08f26e0b5ad7c08ec197020928199a))
+* offer Claude worktree adoption earlier and streamline picker ([#69](https://github.com/ngramx/ngramx/issues/69)) ([2ec6f9d](https://github.com/ngramx/ngramx/commit/2ec6f9d3ea21f18568eb9d385702dd28e2df9620))
+* provide helpful message when Claude worktree is locked ([afa9ff8](https://github.com/ngramx/ngramx/commit/afa9ff867ec83f80de833f73b9286190d996fd23))
+
 ## [2.60.4](https://github.com/ngramx/ngramx/compare/v2.60.3...v2.60.4) (2026-11-10)
 
 
