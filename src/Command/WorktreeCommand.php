@@ -178,6 +178,35 @@ class WorktreeCommand extends ReviewCommand
                 );
             }
 
+            // Check if any matching branches are in Claude worktrees before attempting selection.
+            // This allows offering adoption rather than failing with "already checked out".
+            foreach ($branchNames as $branch) {
+                $worktreePath = $this->gitRepositoryService->findWorktreePathForBranch($repositoryPath, $branch);
+                if ($worktreePath !== null && WorktreePaths::isClaudeDefault($worktreePath)) {
+                    if (!$this->maybeAdoptClaudeWorktreeForBranch(
+                        $repositoryPath,
+                        $branch,
+                        $ticketSlug,
+                        $input,
+                        $output,
+                        $formatter
+                    )) {
+                        return Command::SUCCESS;
+                    }
+
+                    // After adoption, continue with the normal flow to bring up the environment.
+                    return $this->runWorktreeReview(
+                        $input,
+                        $output,
+                        $formatter,
+                        $config,
+                        $repositoryPath,
+                        $branch,
+                        $ticketSlug
+                    );
+                }
+            }
+
             try {
                 /** @var list<string> $matchingBranches */
                 $matchingBranches = array_values($branchNames);
@@ -198,17 +227,6 @@ class WorktreeCommand extends ReviewCommand
                 $formatter->error($e->getMessage());
 
                 return Command::FAILURE;
-            }
-
-            if (!$this->maybeAdoptClaudeWorktreeForBranch(
-                $repositoryPath,
-                $selectedBranch,
-                $ticketSlug,
-                $input,
-                $output,
-                $formatter
-            )) {
-                return Command::SUCCESS;
             }
 
             return $this->runWorktreeReview(
@@ -416,6 +434,8 @@ class WorktreeCommand extends ReviewCommand
 
     /**
      * Interactive picker when no ticket argument was given on an integration branch.
+     * Only shows currently checked-out worktrees to avoid overwhelming the user with
+     * hundreds of historical ticket folders.
      */
     private function runWorktreePicker(
         InputInterface $input,
@@ -428,7 +448,7 @@ class WorktreeCommand extends ReviewCommand
 
         /** @var list<string> $labels */
         $labels = [];
-        /** @var list<array{type: string, branch?: string, path?: string, ticket?: string}> $options */
+        /** @var list<array{type: string, branch?: string, path?: string}> $options */
         $options = [];
 
         foreach ($this->inventory->listWorktreeDirectories($repositoryPath) as $path) {
@@ -443,28 +463,9 @@ class WorktreeCommand extends ReviewCommand
             $options[] = ['type' => 'claude', 'branch' => $branch, 'path' => $path];
         }
 
-        $ticketsDir = $repositoryPath . '/.ngramx/tickets';
-        if (is_dir($ticketsDir)) {
-            $entries = scandir($ticketsDir);
-            if ($entries !== false) {
-                foreach ($entries as $entry) {
-                    if ($entry === '.' || $entry === '..') {
-                        continue;
-                    }
-
-                    if (!is_dir($ticketsDir . '/' . $entry)) {
-                        continue;
-                    }
-
-                    $labels[] = "Ticket: {$entry}";
-                    $options[] = ['type' => 'ticket', 'ticket' => $entry];
-                }
-            }
-        }
-
         if ($labels === []) {
             $formatter->warning(
-                'No managed worktrees, Claude worktrees, or ticket folders found. '
+                'No active worktrees found. '
                 . 'Specify a ticket (for example `ngramx worktree gig-1234`) or switch to a feature branch.'
             );
 
@@ -474,7 +475,7 @@ class WorktreeCommand extends ReviewCommand
         $labels[] = 'Cancel';
         $options[] = ['type' => 'cancel'];
 
-        $question = new ChoiceQuestion('Select a worktree or ticket to continue:', $labels, count($labels) - 1);
+        $question = new ChoiceQuestion('Select a worktree to continue:', $labels, count($labels) - 1);
         $helper = new QuestionHelper();
         $selectedLabel = $helper->ask($input, $output, $question);
         $index = array_search($selectedLabel, $labels, true);
@@ -487,19 +488,6 @@ class WorktreeCommand extends ReviewCommand
             $formatter->info('Cancelled.');
 
             return Command::SUCCESS;
-        }
-
-        if ($selected['type'] === 'ticket') {
-            $ticket = $selected['ticket'] ?? null;
-            if (!is_string($ticket) || $ticket === '') {
-                $formatter->error('Invalid ticket selection.');
-
-                return Command::FAILURE;
-            }
-
-            $input->setArgument('ticket', $ticket);
-
-            return $this->execute($input, $output);
         }
 
         $branch = $selected['branch'] ?? '';
