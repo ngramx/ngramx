@@ -528,6 +528,32 @@ class ReviewCommand extends Command
             }
         }
 
+        // Run pre-environment hook after worktree is created and configured,
+        // but before environment startup begins.
+        $resolvedWorktreePath = realpath($worktreePath) ?: $worktreePath;
+        $preEnvHookContext = [
+            'worktree_path' => $resolvedWorktreePath,
+            'path' => $resolvedWorktreePath,
+            'branch' => $selectedBranch,
+            'ticket' => $ticketNumber,
+            'ticket_slug' => $ticketSlug,
+            'url' => $worktreeUrl,
+            'repository_path' => $repositoryPath,
+            'folder' => $folderName,
+            ...self::endpointHookContext($worktreeUrls),
+        ];
+
+        $preEnvHooksOk = $this->runConfiguredHooks(
+            HookEvent::PreEnvironment,
+            $repositoryPath,
+            $preEnvHookContext,
+            $resolvedWorktreePath,
+            $formatter,
+        );
+        if (!$preEnvHooksOk) {
+            return Command::FAILURE;
+        }
+
         try {
             $worktreeLock = new LockFile($worktreePath);
 
@@ -755,6 +781,31 @@ class ReviewCommand extends Command
             $this->recordWorktreeUrl($worktreeLock, $worktreeUrls);
 
             $this->dependencyPrimer->await($formatter);
+
+            // Run post-environment hook after environment is fully started and
+            // configured, but before the database reset.
+            $postEnvHookContext = [
+                'worktree_path' => $resolvedWorktreePath,
+                'path' => $resolvedWorktreePath,
+                'branch' => $selectedBranch,
+                'ticket' => $ticketNumber,
+                'ticket_slug' => $ticketSlug,
+                'url' => $worktreeUrl,
+                'repository_path' => $repositoryPath,
+                'folder' => $folderName,
+                ...self::endpointHookContext($worktreeUrls),
+            ];
+
+            $postEnvHooksOk = $this->runConfiguredHooks(
+                HookEvent::PostEnvironment,
+                $repositoryPath,
+                $postEnvHookContext,
+                $resolvedWorktreePath,
+                $formatter,
+            );
+            if (!$postEnvHooksOk) {
+                return Command::FAILURE;
+            }
 
             $resetResult = $this->runReset(
                 $input,

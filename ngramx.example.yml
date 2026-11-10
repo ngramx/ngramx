@@ -247,6 +247,14 @@ agents:
 # $NGRAMX_BRANCH. Use the variable when the path has to sit inside quotes.
 #
 # hooks:
+#   # Runs after worktree is created but before environment starts
+#   onPreEnvironment:
+#     - command: "echo Preparing {folder}"
+#       description: "Pre-environment setup"
+#   # Runs after environment starts but before database reset
+#   onPostEnvironment:
+#     - command: "echo Environment ready at {url}"
+#       description: "Post-environment notification"
 #   onReview:
 #     - command: "zed {path}"
 #       description: "Open the review in Zed"

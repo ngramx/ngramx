@@ -9,6 +9,8 @@ namespace Ngramx\Config\Schema;
  */
 enum HookEvent: string
 {
+    case PreEnvironment = 'onPreEnvironment';
+    case PostEnvironment = 'onPostEnvironment';
     case WorktreeCreate = 'onWorktreeCreate';
     case EnvironmentUp = 'onEnvironmentUp';
     case Review = 'onReview';

@@ -383,6 +383,12 @@ Sources are **deep-merged**. Sibling event keys are kept; when the same event ap
 ```yaml
 # ~/.ngramx.yaml
 hooks:
+  onPreEnvironment:
+    - command: "echo Preparing {folder}"
+      description: "Pre-environment setup"
+  onPostEnvironment:
+    - command: "echo Environment ready at {url}"
+      description: "Post-environment notification"
   onReview:
     - command: "zed {path}"
       description: "Open Zed"
@@ -394,6 +400,8 @@ hooks:
 
 | Event | Fires when |
 |-------|------------|
+| `onPreEnvironment` | `ngramx worktree` / `ngramx review --worktree` after the branch is checked out and configured, but before environment startup begins |
+| `onPostEnvironment` | `ngramx worktree` / `ngramx review --worktree` after the environment has finished starting and is fully configured, but before the database reset |
 | `onReview` | `ngramx review` finishes successfully (in place, or in a worktree). Also runs after `ngramx worktree` creates or reuses a worktree. Runs any shell command, not only an editor. Also runs for `-c` in place of the built-in Cursor launcher. `--editor` replaces this list for one run. |
 | `onWorktreeCreate` | `ngramx worktree` / `ngramx review --worktree` finishes successfully (create or reuse). This is the worktree-creation hook. It runs as well as `onReview`. |
 | `onWorktreeCleanup` | `ngramx worktree --cleanup` or `ngramx review --cleanup` has removed a worktree. Runs once per worktree that was actually removed. `{path}` is that directory, which no longer exists. |
