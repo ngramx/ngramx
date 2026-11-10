@@ -993,9 +993,23 @@ class GitRepositoryService
     public function moveWorktree(string $repositoryPath, string $fromPath, string $toPath): bool
     {
         $this->lastMoveError = '';
+
+        // Ensure the .ngramx/worktrees directory exists
+        $worktreesDir = $repositoryPath . '/.ngramx/worktrees';
+        if (!is_dir($worktreesDir)) {
+            if (!@mkdir($worktreesDir, 0755, true)) {
+                $this->lastMoveError = "Failed to create .ngramx/worktrees directory";
+                return false;
+            }
+        }
+
+        // Ensure the specific parent directory exists (if there are subdirectories)
         $parent = dirname($toPath);
         if (!is_dir($parent)) {
-            @mkdir($parent, 0755, true);
+            if (!@mkdir($parent, 0755, true)) {
+                $this->lastMoveError = "Failed to create parent directory: {$parent}";
+                return false;
+            }
         }
 
         $process = new Process(['git', 'worktree', 'move', $fromPath, $toPath], $repositoryPath);
