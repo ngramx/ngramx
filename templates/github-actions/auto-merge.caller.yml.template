@@ -3,9 +3,13 @@
 #
 # Enables GitHub's native auto-merge on PRs classified as low-risk + small
 # (carrying both the `{{RISK_LOW_LABEL}}` and `{{SIZE_SMALL_LABEL}}` labels)
-# and applies the `{{AUTO_MERGE_LABEL}}` label as a visible marker.
-# GitHub itself waits for required status checks to pass before merging —
-# this workflow does not poll CI.
+# after Devin has cleared the current head (No Issues Found, or all Devin
+# threads resolved), and applies the `{{AUTO_MERGE_LABEL}}` label as a
+# visible marker. GitHub itself waits for required status checks to pass
+# before merging — this workflow does not poll CI.
+#
+# A new push resets the gate until Devin re-reviews. Resolving every Devin
+# thread without a push re-runs the gate and can enable auto-merge.
 #
 # If a PR is later re-classified out of the low-risk + small bucket
 # (e.g. risk:low is removed and risk:medium added), the workflow disables
@@ -22,7 +26,11 @@ name: Auto-Merge
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review, labeled, unlabeled]
+    types: [opened, reopened, ready_for_review, labeled, unlabeled, synchronize]
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_thread:
+    types: [resolved]
 
 permissions:
   contents: write
