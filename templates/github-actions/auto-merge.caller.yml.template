@@ -3,13 +3,15 @@
 #
 # Enables GitHub's native auto-merge on PRs classified as low-risk + small
 # (carrying both the `{{RISK_LOW_LABEL}}` and `{{SIZE_SMALL_LABEL}}` labels)
-# after Devin has cleared the current head (No Issues Found, or all Devin
-# threads resolved), and applies the `{{AUTO_MERGE_LABEL}}` label as a
-# visible marker. GitHub itself waits for required status checks to pass
-# before merging — this workflow does not poll CI.
+# after Devin has cleared the current head (No Issues Found, or all
+# current-head Devin threads resolved), and applies the `{{AUTO_MERGE_LABEL}}`
+# label as a visible marker. GitHub itself waits for required status checks to
+# pass before merging — this workflow does not poll CI.
 #
-# A new push resets the gate until Devin re-reviews. Resolving every Devin
-# thread without a push re-runs the gate and can enable auto-merge.
+# A new push pauses auto-merge until Devin re-reviews. Resolving every Devin
+# thread on the current head clears the gate logic; nudge with a PR edit or
+# label change to re-run (thread resolve is not an Actions trigger).
+# workflow_run of high-risk-review picks up risk:low applied by classification.
 #
 # If a PR is later re-classified out of the low-risk + small bucket
 # (e.g. risk:low is removed and risk:medium added), the workflow disables
@@ -26,15 +28,17 @@ name: Auto-Merge
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review, labeled, unlabeled, synchronize]
+    types: [opened, reopened, ready_for_review, labeled, unlabeled, synchronize, edited]
   pull_request_review:
     types: [submitted]
-  pull_request_review_thread:
-    types: [resolved]
+  workflow_run:
+    workflows: ["high-risk-review"]
+    types: [completed]
 
 permissions:
   contents: write
   pull-requests: write
+  actions: read
 
 jobs:
   auto-merge:

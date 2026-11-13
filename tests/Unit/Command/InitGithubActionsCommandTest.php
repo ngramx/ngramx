@@ -115,7 +115,7 @@ class InitGithubActionsCommandTest extends TestCase
             );
             $this->assertStringContainsString("merge-method: 'squash'", $autoMerge);
             $this->assertStringContainsString(
-                'types: [opened, reopened, ready_for_review, labeled, unlabeled, synchronize]',
+                'types: [opened, reopened, ready_for_review, labeled, unlabeled, synchronize, edited]',
                 $autoMerge
             );
             $this->assertMatchesRegularExpression(
@@ -123,9 +123,10 @@ class InitGithubActionsCommandTest extends TestCase
                 $autoMerge
             );
             $this->assertMatchesRegularExpression(
-                '/pull_request_review_thread:\r?\n\s+types: \[resolved\]/',
+                '/workflow_run:\r?\n\s+workflows: \["high-risk-review"\]/',
                 $autoMerge
             );
+            $this->assertStringNotContainsString('pull_request_review_thread', $autoMerge);
 
             $gate = file_get_contents($this->testDir . '/.github/workflows/high-risk-review.yml');
             $this->assertIsString($gate);
