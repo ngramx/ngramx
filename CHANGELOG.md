@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.62.0](https://github.com/ngramx/ngramx/compare/v2.61.0...v2.62.0) (2026-11-19)
+
+
+### Features
+
+* **commands:** add optional success text for custom commands ([cd50334](https://github.com/ngramx/ngramx/commit/cd50334c7b7ded760c5183b0d59936ee823c98b4))
+
 # [2.61.0](https://github.com/ngramx/ngramx/compare/v2.60.7...v2.61.0) (2026-11-13)
 
 
