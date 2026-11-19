@@ -14,3 +14,6 @@ Add an optional success-text field to ngramx custom commands (historically "cort
 ## Changes
 
 - Ticket folder created; branch `gig-1134-return-in-output-for-cortex-cli-commands` started from `origin/main` in a worktree (primary checkout has in-progress COR-328 work).
+- Added optional `success` string on `CommandDefinition`, loaded/validated via `ConfigLoader` / `ConfigValidator`.
+- `DynamicCommand` prints configured `success` text on success (escaped for console styles); otherwise keeps the default completion line.
+- Documented in README + `ngramx.example.yml`; coverage in DynamicCommand / ConfigLoader / ConfigValidator tests.

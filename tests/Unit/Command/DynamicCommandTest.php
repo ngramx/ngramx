@@ -121,6 +121,31 @@ class DynamicCommandTest extends TestCase
         $this->assertStringContainsString('completed successfully', $tester->getDisplay());
     }
 
+    public function test_prints_configured_success_text_instead_of_default(): void
+    {
+        $commandDef = new CommandDefinition(
+            command: 'php artisan test',
+            description: 'Run tests',
+            success: 'All tests passed',
+        );
+
+        $config = $this->createMockConfig(['test' => $commandDef]);
+
+        $this->orchestrator->expects($this->once())
+            ->method('run')
+            ->with('test', $config, null)
+            ->willReturn(2.5);
+
+        $command = new DynamicCommand('test', $commandDef, $config, $this->orchestrator, $this->lockFileIn($this->emptyDir()));
+        $tester = new CommandTester($command);
+        $exitCode = $tester->execute([]);
+
+        $display = $tester->getDisplay();
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('All tests passed', $display);
+        $this->assertStringNotContainsString('completed successfully', $display);
+    }
+
     public function test_passes_worktree_namespace_from_lock_file_to_orchestrator(): void
     {
         $commandDef = new CommandDefinition(

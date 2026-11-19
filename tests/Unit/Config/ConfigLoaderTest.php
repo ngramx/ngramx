@@ -252,6 +252,15 @@ class ConfigLoaderTest extends TestCase
         $testCommand = $config->commands['test'];
         $this->assertEquals("echo 'Running tests'", $testCommand->command);
         $this->assertEquals('Run test suite', $testCommand->description);
+        $this->assertSame('Tests finished cleanly', $testCommand->success);
+    }
+
+    public function test_it_defaults_success_to_null_when_omitted(): void
+    {
+        $config = $this->loader->load(__DIR__ . '/../../fixtures/ngramx.yml');
+
+        $initCommand = $config->setup->initialize[0];
+        $this->assertNull($initCommand->success);
     }
 
     public function test_it_loads_default_secrets_config_when_not_specified(): void

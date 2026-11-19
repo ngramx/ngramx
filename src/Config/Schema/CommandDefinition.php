@@ -17,6 +17,8 @@ readonly class CommandDefinition
      *                        leaves the decision to {@see \Ngramx\Executor\Retry\RetryPolicy}, which retries
      *                        only failures that look environmental. An explicit value overrides that judgement:
      *                        any failure is retried that many times, and `0` disables retries outright.
+     * @param string|null $success Optional text written to stdout when a custom CLI command completes
+     *                             successfully. When null, DynamicCommand keeps its default completion line.
      */
     public function __construct(
         public string $command,
@@ -26,6 +28,7 @@ readonly class CommandDefinition
         public bool $ignoreFailure = false,
         public array $commands = [],
         public bool $parallel = true,
+        public ?string $success = null,
     ) {
     }
 

@@ -487,6 +487,76 @@ class ConfigValidatorTest extends TestCase
         $this->validator->validate($config);
     }
 
+    public function test_it_accepts_success_text_on_commands(): void
+    {
+        $config = [
+            'version' => '1.0',
+            'docker' => [
+                'compose_file' => 'docker-compose.yml',
+                'primary_service' => 'app',
+                'app_url' => 'http://localhost:8080',
+            ],
+            'commands' => [
+                'test' => [
+                    'command' => 'php artisan test',
+                    'description' => 'Run tests',
+                    'success' => 'All tests passed',
+                ],
+            ],
+        ];
+
+        $this->validator->validate($config);
+        $this->assertTrue(true);
+    }
+
+    public function test_it_rejects_non_string_success(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('commands.test.success must be a string');
+
+        $config = [
+            'version' => '1.0',
+            'docker' => [
+                'compose_file' => 'docker-compose.yml',
+                'primary_service' => 'app',
+                'app_url' => 'http://localhost:8080',
+            ],
+            'commands' => [
+                'test' => [
+                    'command' => 'php artisan test',
+                    'description' => 'Run tests',
+                    'success' => 123,
+                ],
+            ],
+        ];
+
+        $this->validator->validate($config);
+    }
+
+    public function test_it_rejects_empty_success(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('commands.test.success must be a non-empty string');
+
+        $config = [
+            'version' => '1.0',
+            'docker' => [
+                'compose_file' => 'docker-compose.yml',
+                'primary_service' => 'app',
+                'app_url' => 'http://localhost:8080',
+            ],
+            'commands' => [
+                'test' => [
+                    'command' => 'php artisan test',
+                    'description' => 'Run tests',
+                    'success' => '   ',
+                ],
+            ],
+        ];
+
+        $this->validator->validate($config);
+    }
+
     public function test_it_rejects_parallel_command_list_in_setup_entries(): void
     {
         $this->expectException(ConfigException::class);
