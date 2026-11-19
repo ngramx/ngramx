@@ -1,0 +1,38 @@
+{
+  "title": "GIG-1134: Return In Output For Cortex CLI Commands",
+  "description": "Adds an optional success field to ngramx.yml custom commands so configured text is printed to stdout when a command completes successfully.",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/73",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-1134/return-in-output-for-cortex-cli-commands",
+  "test_urls": [
+    {
+      "label": "Custom Commands docs",
+      "url": "https://github.com/ngramx/ngramx/blob/gig-1134-return-in-output-for-cortex-cli-commands/README.md#custom-commands"
+    },
+    {
+      "label": "Example ngramx.yml",
+      "url": "https://github.com/ngramx/ngramx/blob/gig-1134-return-in-output-for-cortex-cli-commands/ngramx.example.yml"
+    }
+  ],
+  "test_plan": [
+    {
+      "description": "Optional success text prints on successful custom commands",
+      "status": "active",
+      "steps": [
+        "In a project ngramx.yml, add success: \"All tests passed\" under an existing commands entry (e.g. test)",
+        "Run that command via ngramx (e.g. ngramx test) and confirm it completes successfully",
+        "Confirm stdout shows All tests passed instead of Command completed successfully (Xs)",
+        "Remove the success key, re-run, and confirm the default completion line returns"
+      ]
+    },
+    {
+      "description": "Unit coverage for success field",
+      "status": "active",
+      "steps": [
+        "From the ngramx checkout: php vendor/bin/phpunit tests/Unit/Command/DynamicCommandTest.php",
+        "php vendor/bin/phpunit tests/Unit/Config/ConfigLoaderTest.php --filter test_it_parses_custom_commands",
+        "php vendor/bin/phpunit tests/Unit/Config/ConfigValidatorTest.php --filter test_it_rejects_empty_success",
+        "Confirm all pass"
+      ]
+    }
+  ]
+}

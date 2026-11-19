@@ -67,6 +67,7 @@ commands:
   test:
     command: "php artisan test"
     description: "Run test suite"
+    success: "All tests passed"
     
   shell:
     command: "bash"

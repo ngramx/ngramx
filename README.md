@@ -922,6 +922,7 @@ commands:
   test:
     command: "php artisan test"
     description: "Run test suite"
+    success: "All tests passed"
   
   migrate:
     command: "php artisan migrate"
@@ -1263,6 +1264,9 @@ commands:       # Optional: Custom commands
   **Leave it out and ngramx decides for you** — see [Automatic retries](#automatic-retries)
   below. Set it to force retries on *any* failure, or to `0` to never retry.
 - `ignore_failure` (optional, default: false): Continue even if command fails
+- `success` (optional): Text printed to stdout when a custom `commands:` entry
+  completes successfully. When omitted, ngramx prints the default
+  `Command completed successfully (Xs)` line.
 
 ### Automatic retries
 

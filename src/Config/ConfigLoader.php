@@ -1208,6 +1208,7 @@ class ConfigLoader
             ignoreFailure: $command['ignore_failure'] ?? false,
             commands: $commands,
             parallel: $parallel,
+            success: isset($command['success']) ? (string) $command['success'] : null,
         );
     }
 }

@@ -1082,6 +1082,15 @@ class ConfigValidator
                 throw new ConfigException("$path.parallel only applies to a list of commands");
             }
         }
+
+        if (isset($command['success'])) {
+            if (!is_string($command['success'])) {
+                throw new ConfigException("$path.success must be a string");
+            }
+            if (trim($command['success']) === '') {
+                throw new ConfigException("$path.success must be a non-empty string");
+            }
+        }
     }
 
     /**

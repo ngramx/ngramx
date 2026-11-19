@@ -61,10 +61,14 @@ class DynamicCommand extends Command
             $executionTime = $this->orchestrator->run($commandName, $this->config, $namespace);
 
             $output->writeln('');
-            $output->writeln(sprintf(
-                '<fg=#7D55C7>Command completed successfully (%.1fs)</>',
-                $executionTime
-            ));
+            if ($this->commandDef->success !== null) {
+                $formatter->success(OutputFormatter::escape($this->commandDef->success));
+            } else {
+                $output->writeln(sprintf(
+                    '<fg=#7D55C7>Command completed successfully (%.1fs)</>',
+                    $executionTime
+                ));
+            }
             $output->writeln('');
 
             return Command::SUCCESS;

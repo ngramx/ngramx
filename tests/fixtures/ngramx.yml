@@ -22,4 +22,5 @@ commands:
   test:
     command: "echo 'Running tests'"
     description: "Run test suite"
+    success: "Tests finished cleanly"
 
