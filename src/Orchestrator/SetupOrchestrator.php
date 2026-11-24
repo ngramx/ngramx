@@ -98,6 +98,15 @@ class SetupOrchestrator
      *        Given a compose-up error message, remaps any host port Docker
      *        refused to publish and returns the updated port map, or null when
      *        the failure is not a publish error. Compose is retried once.
+     * @param (callable(): void)|null $afterPreStart Invoked after pre_start host
+     *        commands complete and before Docker services start. Used by worktree
+     *        review to restore parent `auth.json` after `pre_start` hooks that may
+     *        have overwritten it, so the bind-mounted file Composer sees during
+     *        container startup is the parent store.
+     * @param string|null $worktreeParentRepo When running in a worktree, the absolute
+     *        path to the parent repository. SetupOrchestrator uses this to restore
+     *        parent `auth.json` after `pre_start` and before Docker starts, so
+     *        container `composer install` sees the parent Nova credentials.
      * @return array{time: float, namespace: string, port_offset: int, app_url_probe: ?ProbeResult} Setup results
      * @throws \RuntimeException
      * @throws ServiceNotHealthyException
@@ -115,6 +124,8 @@ class SetupOrchestrator
         string $configDirectory = '',
         ?callable $onReady = null,
         ?callable $recoverComposeFailure = null,
+        ?callable $afterPreStart = null,
+        ?string $worktreeParentRepo = null,
     ): array {
         $startTime = microtime(true);
 
@@ -138,6 +149,19 @@ class SetupOrchestrator
         // Phase 1: Pre-start commands
         if (!empty($config->setup->preStart)) {
             $this->runPreStartCommands($config->setup->preStart);
+        }
+
+        // Phase 1.5: After pre-start, before Docker starts.
+        // Worktree review passes `afterPreStart` or `worktreeParentRepo` to
+        // restore parent `auth.json` after any `pre_start` hook that may have
+        // rewritten it from `.env`, so the bind-mounted file Composer sees
+        // during container startup is the parent store.
+        if ($afterPreStart !== null) {
+            $afterPreStart();
+        }
+
+        if ($worktreeParentRepo !== null) {
+            $this->restoreWorktreeComposerAuth($worktreeParentRepo, $configDirectory);
         }
 
         // Phase 2: Start Docker services
@@ -452,6 +476,25 @@ class SetupOrchestrator
 
         foreach ($commands as $cmd) {
             $this->executeHostCommand($cmd);
+        }
+    }
+
+    /**
+     * Restore parent auth.json into the worktree after pre_start hooks finish
+     * but before Docker starts, so container composer install uses the parent
+     * Nova credentials instead of a leftover `.env` account.
+     */
+    private function restoreWorktreeComposerAuth(string $parentRepo, string $worktreePath): void
+    {
+        $parentAuth = $parentRepo . '/auth.json';
+        if (!is_file($parentAuth)) {
+            return;
+        }
+
+        $worktreeAuth = $worktreePath . '/auth.json';
+        if (@copy($parentAuth, $worktreeAuth)) {
+            @chmod($worktreeAuth, 0600);
+            $this->formatter->info('Restored auth.json from parent checkout');
         }
     }
 

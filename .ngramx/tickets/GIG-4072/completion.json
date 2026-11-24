@@ -1,6 +1,6 @@
 {
   "title": "GIG-4072: Restore Parent Auth Json After Pre Start Before Compose Up",
-  "description": "Copies parent auth.json over the worktree file before up so container composer install uses the working Nova login.",
+  "description": "Restores parent auth.json after pre_start hooks and before Docker starts so container composer install uses the parent Nova credentials.",
   "pr_url": "https://github.com/ngramx/ngramx/pull/58",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-4072/restore-parent-authjson-after-pre-start-before-compose-up",
   "test_urls": [
