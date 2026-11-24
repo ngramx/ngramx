@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.62.1](https://github.com/ngramx/ngramx/compare/v2.62.0...v2.62.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* restore parent auth.json after pre_start and before Docker starts ([e469a1f](https://github.com/ngramx/ngramx/commit/e469a1f2ffa30e145cd18a243546dd925b6d9b48))
+
 # [2.62.0](https://github.com/ngramx/ngramx/compare/v2.61.0...v2.62.0) (2026-11-19)
 
 
