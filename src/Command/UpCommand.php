@@ -213,6 +213,10 @@ class UpCommand extends Command
             // hostname to the "<folder>.localhost" family.)
             $this->seedEndpointEnv($projectRoot, $config->docker, EndpointUrls::shifted($config->docker, $portOffset, $portMap), $formatter);
 
+            // Detect if we're in a worktree so SetupOrchestrator can restore
+            // parent auth.json after pre_start hooks and before Docker starts.
+            $worktreeParentRepo = $this->detectWorktreeParent($projectRoot);
+
             // Free host ports 80/443 when requested (Herd uses nginx; Caddy is a separate common listener)
             $herdStopped = false;
             $caddyStopped = false;
@@ -295,6 +299,8 @@ class UpCommand extends Command
                     $formatter,
                     $portMap,
                 ),
+                afterPreStart: null,
+                worktreeParentRepo: $worktreeParentRepo,
             );
 
             // Tests (and any caller that does not invoke onReady) still persist
@@ -912,5 +918,24 @@ class UpCommand extends Command
                 $formatter->warning('Could not fully clean up containers: ' . $e->getMessage());
             }
         }
+    }
+
+    /**
+     * Detect if the current directory is a worktree and return the parent
+     * repository path, or null if not in a worktree.
+     */
+    private function detectWorktreeParent(string $projectRoot): ?string
+    {
+        // Worktrees live under .ngramx/worktrees/[folder]
+        if (!preg_match('#^(.+)/\.ngramx/worktrees/[^/]+$#', $projectRoot, $matches)) {
+            return null;
+        }
+
+        $parentRepo = $matches[1];
+        if (!is_dir($parentRepo)) {
+            return null;
+        }
+
+        return $parentRepo;
     }
 }
