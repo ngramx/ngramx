@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.62.2](https://github.com/ngramx/ngramx/compare/v2.62.1...v2.62.2) (2026-11-25)
+
+
+### Bug Fixes
+
+* recover from host port clashes on every start path ([6e2657b](https://github.com/ngramx/ngramx/commit/6e2657b2c8de5bde9606d9b304f41d7f076c01b2))
+
 ## [2.62.1](https://github.com/ngramx/ngramx/compare/v2.62.0...v2.62.1) (2026-11-24)
 
 
