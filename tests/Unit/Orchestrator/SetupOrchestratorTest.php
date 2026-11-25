@@ -18,6 +18,7 @@ use Ngramx\Config\Schema\SetupConfig;
 use Ngramx\Docker\DockerCompose;
 use Ngramx\Docker\HealthChecker;
 use Ngramx\Docker\NetworkAttachmentChecker;
+use Ngramx\Docker\SharedNetworkIsolator;
 use Ngramx\Docker\NetworkAttachmentIssue;
 use Ngramx\Docker\StaleBindMountSweeper;
 use Ngramx\Executor\HostCommandExecutor;
@@ -622,6 +623,8 @@ class SetupOrchestratorTest extends TestCase
             // A stubbed sweeper by default: the real one reads the host's
             // mount table, which no unit test should depend on (or touch).
             staleBindMountSweeper: $staleBindMountSweeper ?? $this->createMock(StaleBindMountSweeper::class),
+            // Stubbed: the real one shells out to docker.
+            sharedNetworkIsolator: $this->createMock(SharedNetworkIsolator::class),
             // Tests default to 1 attempt with no retry sleep so failure-path
             // tests don't sit blocked on the 60s production retry budget.
             appUrlProbeAttempts: $appUrlProbeAttempts,
