@@ -1,0 +1,35 @@
+{
+  "title": "GIG-4858: Isolate Worktree Stacks On The Shared Docker Network",
+  "description": "`ngramx up` now disconnects every non-web container of a worktree stack from external shared Docker networks, so service names like `app` resolve only to that stack's own container and the login redirect loop no longer occurs.",
+  "pr_url": "",
+  "linear_url": "https://linear.app/gigabyte/issue/GIG-4858/isolate-worktree-stacks-from-each-other-on-the-shared-docker-network",
+  "test_urls": [],
+  "test_plan": [
+    {
+      "description": "Two worktree stacks of one project resolve their own app container",
+      "status": "active",
+      "steps": [
+        "Run `ngramx up` in two worktrees of a project whose compose file joins `app` and `nginx` to an external shared network",
+        "Look for the 'Isolated from shared network(s)' line in each up output",
+        "Run `docker exec <stack>-nginx-1 getent hosts app` in each stack and confirm it returns that stack's own app container IP",
+        "Confirm only the nginx container remains attached to the shared network (`docker inspect`)"
+      ]
+    },
+    {
+      "description": "Login works on both stacks with no redirect loop",
+      "status": "active",
+      "steps": [
+        "Log in on the first stack, then on the second, in either start order",
+        "Confirm /login and /dashboard do not redirect to each other on either stack"
+      ]
+    },
+    {
+      "description": "Already-isolated stacks are untouched",
+      "status": "active",
+      "steps": [
+        "Run `ngramx up` again on an already isolated stack, or start one via Cortex Coder",
+        "Confirm no 'Isolated from shared network(s)' line is printed and the stack still works"
+      ]
+    }
+  ]
+}
