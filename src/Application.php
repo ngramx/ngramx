@@ -218,7 +218,7 @@ class Application extends BaseApplication
             $overrideGenerator,
             $herdService
         ));
-        $this->add(new ReviewCommand(
+        $reviewCommand = new ReviewCommand(
             $configLoader,
             $dockerCompose,
             $lockFile,
@@ -229,8 +229,10 @@ class Application extends BaseApplication
             new GitExcludeManager(),
             $namespaceResolver,
             new ImageReuser()
-        ));
-        $this->add(new WorktreeCommand(
+        );
+        $reviewCommand->useDockerLauncher($dockerLauncher);
+        $this->add($reviewCommand);
+        $worktreeCommand = new WorktreeCommand(
             $configLoader,
             $dockerCompose,
             $lockFile,
@@ -241,7 +243,9 @@ class Application extends BaseApplication
             new GitExcludeManager(),
             $namespaceResolver,
             new ImageReuser()
-        ));
+        );
+        $worktreeCommand->useDockerLauncher($dockerLauncher);
+        $this->add($worktreeCommand);
         $this->add(new StatusCommand(
             $configLoader,
             $dockerCompose,

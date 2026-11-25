@@ -42,6 +42,15 @@ class DockerLauncher
     private const POLL_INTERVAL = 2;
 
     /**
+     * After the daemon answers, how long to wait for restart-policy containers
+     * to finish coming back, how often to look, and how many consecutive equal
+     * readings count as settled.
+     */
+    private const SETTLE_TIMEOUT = 30;
+    private const SETTLE_INTERVAL = 2;
+    private const SETTLE_STABLE_READS = 2;
+
+    /**
      * Per-probe timeout for `docker info` while polling. Short on purpose:
      * a daemon that is genuinely down fails fast (connection refused), and
      * a daemon that is mid-startup will keep the connection open — we'd
@@ -101,6 +110,7 @@ class DockerLauncher
         }
 
         if ($this->waitForDaemon($formatter)) {
+            $this->waitForContainersToSettle($formatter);
             return true;
         }
 
@@ -336,6 +346,58 @@ class DockerLauncher
         }
 
         return false;
+    }
+
+    /**
+     * A freshly started daemon brings back every container with a restart
+     * policy a few seconds after it starts answering. Those containers claim
+     * their host ports as they come up, so a port scan taken straight after
+     * "Docker is ready" misses them and a later start collides. Wait until the
+     * running-container count stops changing before callers scan for free ports.
+     */
+    private function waitForContainersToSettle(OutputFormatter $formatter): void
+    {
+        $deadline = time() + self::SETTLE_TIMEOUT;
+        $last = $this->runningContainerCount();
+        if ($last === null) {
+            return;
+        }
+
+        $stableReads = 0;
+        while ($stableReads < self::SETTLE_STABLE_READS && time() < $deadline) {
+            $this->sleep(self::SETTLE_INTERVAL);
+            $count = $this->runningContainerCount();
+            if ($count === null) {
+                return;
+            }
+
+            $stableReads = $count === $last ? $stableReads + 1 : 0;
+            $last = $count;
+        }
+    }
+
+    /**
+     * Number of running containers, or null when it cannot be read. Overridable
+     * hook for tests.
+     */
+    protected function runningContainerCount(): ?int
+    {
+        $process = new Process(['docker', 'ps', '-q']);
+        $process->setTimeout(self::PROBE_TIMEOUT);
+
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException | RuntimeException) {
+            return null;
+        }
+
+        if (!$process->isSuccessful()) {
+            return null;
+        }
+
+        $output = trim($process->getOutput());
+
+        return $output === '' ? 0 : count(explode("\n", $output));
     }
 
     /**

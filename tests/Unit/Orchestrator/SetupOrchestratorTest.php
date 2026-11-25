@@ -731,6 +731,105 @@ class SetupOrchestratorTest extends TestCase
         $this->assertStringContainsString('Retrying now that the host port has been remapped', $this->output->fetch());
     }
 
+    public function test_setup_keeps_remapping_until_every_clashing_host_port_is_moved(): void
+    {
+        $config = $this->createConfig();
+
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+
+        // Compose names only the first port it fails on, so a stack clashing on
+        // db (5432) and mail (1025) needs two remap-and-retry rounds.
+        $failures = [
+            'Bind for 0.0.0.0:5432 failed: port is already allocated',
+            'Bind for 0.0.0.0:1025 failed: port is already allocated',
+        ];
+        $attempts = 0;
+        $this->dockerCompose->expects($this->exactly(3))
+            ->method('up')
+            ->willReturnCallback(static function () use (&$attempts, $failures): void {
+                if (isset($failures[$attempts])) {
+                    $attempts++;
+                    throw new \RuntimeException($failures[$attempts - 1]);
+                }
+                $attempts++;
+            });
+
+        $map = [];
+        $this->createOrchestrator()->setup(
+            $config,
+            skipWait: true,
+            recoverComposeFailure: static function (string $message) use (&$map): array {
+                if (str_contains($message, '5432')) {
+                    $map[5432] = 5532;
+                } elseif (str_contains($message, '1025')) {
+                    $map[1025] = 1125;
+                }
+
+                return $map;
+            },
+        );
+
+        $this->assertSame([5432 => 5532, 1025 => 1125], $map);
+    }
+
+    public function test_setup_remaps_and_retries_when_the_network_recreate_hits_a_port_clash(): void
+    {
+        $config = $this->createConfig();
+
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+        $this->dockerCompose->expects($this->once())->method('up');
+
+        $checker = $this->createMock(NetworkAttachmentChecker::class);
+        $checker->method('checkAll')->willReturn([new NetworkAttachmentIssue('mailhog', 'abc123abc123', 'net')]);
+        $checker->method('checkService')->willReturn(null);
+
+        $recreates = 0;
+        $this->dockerCompose->expects($this->exactly(2))
+            ->method('recreateService')
+            ->willReturnCallback(static function () use (&$recreates): void {
+                $recreates++;
+                if ($recreates === 1) {
+                    throw new \RuntimeException(
+                        'Error response from daemon: Bind for 0.0.0.0:1025 failed: port is already allocated'
+                    );
+                }
+            });
+
+        $remapped = null;
+        $this->createOrchestrator(checker: $checker)->setup(
+            $config,
+            skipWait: true,
+            recoverComposeFailure: static function (string $message) use (&$remapped): ?array {
+                $remapped = str_contains($message, '1025') ? [1025 => 1125] : null;
+
+                return $remapped;
+            },
+        );
+
+        $this->assertSame([1025 => 1125], $remapped);
+        $this->assertSame(2, $recreates);
+        $this->assertStringContainsString('reattached', $this->output->fetch());
+    }
+
+    public function test_setup_still_fails_the_network_recreate_when_the_failure_is_not_a_port_clash(): void
+    {
+        $config = $this->createConfig();
+
+        $this->dockerCompose->method('hasExistingImages')->willReturn(true);
+        $checker = $this->createMock(NetworkAttachmentChecker::class);
+        $checker->method('checkAll')->willReturn([new NetworkAttachmentIssue('db', 'abc123abc123', 'net')]);
+        $this->dockerCompose->method('recreateService')->willThrowException(new \RuntimeException('boom'));
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Automatic recovery failed: boom');
+
+        $this->createOrchestrator(checker: $checker)->setup(
+            $config,
+            skipWait: true,
+            recoverComposeFailure: static fn (string $message): ?array => null,
+        );
+    }
+
     public function test_setup_rethrows_start_failures_it_cannot_attribute_to_a_stale_mount(): void
     {
         $config = $this->createConfig();

@@ -182,14 +182,16 @@ class PortOffsetManager
      * a conflict on redis must not push the web service off port 80.
      *
      * @param int[] $basePorts Host ports the compose file wants to bind
+     * @param int[] $reserved Ports that must not be handed out as replacements
+     *        (e.g. replacements a previous pass already promised)
      * @return array<int, int> conflicted base port => free replacement port (empty when nothing conflicts)
      * @throws \RuntimeException When no free replacement can be found for a conflicted port
      */
-    public function resolvePortConflicts(array $basePorts): array
+    public function resolvePortConflicts(array $basePorts, array $reserved = []): array
     {
         $map = [];
         /** @var list<int> $claimed Replacements already promised in this resolution */
-        $claimed = [];
+        $claimed = $reserved;
 
         foreach ($basePorts as $basePort) {
             if (!$this->isHostPortTaken($basePort)) {
@@ -301,6 +303,16 @@ class PortOffsetManager
      * Check if a specific port is available on the host
      * Uses Docker to check actual host port bindings (works even when running in a container)
      */
+    /**
+     * Forget the cached `docker ps` snapshot so the next check sees containers
+     * that started (or stopped) since the first scan. Recovery paths call this:
+     * by the time Docker rejects a port, the earlier snapshot is stale.
+     */
+    public function refresh(): void
+    {
+        $this->usedPortsCache = null;
+    }
+
     private function isPortAvailable(int $port): bool
     {
         if ($this->usedPortsCache === null) {

@@ -22,6 +22,7 @@ use Ngramx\Config\Validator\SecretsValidator;
 use Ngramx\Database\TablePlusLinkResolver;
 use Ngramx\Docker\ComposeOverrideGenerator;
 use Ngramx\Docker\DockerCompose;
+use Ngramx\Docker\DockerLauncher;
 use Ngramx\Docker\ImageReuser;
 use Ngramx\Docker\NamespaceResolver;
 use Ngramx\Docker\PortOffsetManager;
@@ -64,6 +65,7 @@ class ReviewCommand extends Command
     private const EXCLUDE_ENTRY = '/.ngramx/worktrees/';
 
     private readonly PortOffsetManager $portOffsetManager;
+    private ?DockerLauncher $dockerLauncher = null;
     private readonly GitExcludeManager $gitExcludeManager;
     private readonly NamespaceResolver $namespaceResolver;
     private readonly ImageReuser $imageReuser;
@@ -118,6 +120,16 @@ class ReviewCommand extends Command
         $this->hookRunner = $hookRunner ?? new HookRunner();
         $this->overrideGenerator = $overrideGenerator ?? new ComposeOverrideGenerator();
         $this->staleBindMountSweeper = $staleBindMountSweeper ?? new StaleBindMountSweeper();
+    }
+
+    /**
+     * Optional: lets a worktree start Docker *before* it scans for free host
+     * ports. Without this, a daemon that is still down yields an empty
+     * `docker ps`, every port looks free, and the offset is chosen blind.
+     */
+    public function useDockerLauncher(DockerLauncher $dockerLauncher): void
+    {
+        $this->dockerLauncher = $dockerLauncher;
     }
 
     protected function configure(): void
@@ -399,6 +411,14 @@ class ReviewCommand extends Command
 
         $noHostMapping = (bool) $input->getOption('no-host-mapping');
         $publishHostPorts = !$noHostMapping;
+
+        // The port scan below reads `docker ps`. If the daemon is down it reads
+        // nothing and every port looks free, so bring Docker up (and let its
+        // restart-policy containers settle) first.
+        if ($publishHostPorts && $this->dockerLauncher !== null && !$this->dockerLauncher->ensureRunning($formatter)) {
+            $formatter->error('Docker is not running. Please start Docker and re-run this command.');
+            return Command::FAILURE;
+        }
         $authBypass = new AuthBypassLink();
         $portMap = [];
 
