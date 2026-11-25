@@ -35,6 +35,12 @@ class SetupOrchestrator
      * takes ~42s on a warm Docker), short enough that a genuinely broken
      * upstream doesn't keep the user waiting indefinitely.
      */
+    /**
+     * Upper bound on `compose up` / recreate attempts while remapping host
+     * ports one failure at a time. Generous enough for a stack whose services
+     * all clash with another running environment (db, redis, mail SMTP + UI…).
+     */
+    private const MAX_START_ATTEMPTS = 8;
     private const DEFAULT_APP_URL_PROBE_ATTEMPTS = 30;
     private const DEFAULT_APP_URL_PROBE_RETRY_SECONDS = 2;
 
@@ -183,7 +189,12 @@ class SetupOrchestrator
         // Has to run *before* readiness waits, otherwise we'd sit watching
         // a service that can never reach its peers and only timeout after
         // the wait_for budget expires.
-        $this->reconcileNetworkAttachments($config->docker->composeFile, $namespace);
+        $portMap = $this->reconcileNetworkAttachments(
+            $config->docker->composeFile,
+            $namespace,
+            $portMap,
+            $recoverComposeFailure,
+        );
 
         // Phase 3: Wait for services with live status display. Even when the
         // user has no explicit wait_for entries, we still scan every compose
@@ -233,12 +244,23 @@ class SetupOrchestrator
      * offender. If the recreate doesn't clear the desync, throw — the user
      * is going to have a bad time and we'd rather surface it loudly here
      * than let it cascade into a 502.
+     *
+     * The recreate publishes host ports again, so it can hit the same port
+     * clash `compose up` can; a port-publish failure is remapped and retried.
+     *
+     * @param array<int, int> $portMap
+     * @param (callable(string): ?array<int, int>)|null $recoverComposeFailure
+     * @return array<int, int> the port map, updated when a recreate had to remap host ports
      */
-    private function reconcileNetworkAttachments(string $composeFile, ?string $namespace): void
-    {
+    private function reconcileNetworkAttachments(
+        string $composeFile,
+        ?string $namespace,
+        array $portMap = [],
+        ?callable $recoverComposeFailure = null,
+    ): array {
         $issues = $this->networkAttachmentChecker->checkAll($composeFile, $namespace);
         if ($issues === []) {
-            return;
+            return $portMap;
         }
 
         $this->formatter->section('Reconciling container networks');
@@ -247,13 +269,27 @@ class SetupOrchestrator
             $this->formatter->warning('⚠ ' . $issue->describe());
             $this->formatter->info("Recreating `{$issue->service}` to restore its network attachment...");
 
-            try {
-                $this->dockerCompose->recreateService($composeFile, $issue->service, $namespace);
-            } catch (\RuntimeException $e) {
-                throw new \RuntimeException(
-                    $issue->describe()
-                        . "\n\nAutomatic recovery failed: " . $e->getMessage()
-                );
+            for ($attempt = 1; ; $attempt++) {
+                try {
+                    $this->dockerCompose->recreateService($composeFile, $issue->service, $namespace);
+                    break;
+                } catch (\RuntimeException $e) {
+                    // The recreate publishes host ports again, so it can hit the
+                    // same clash `compose up` did. Remap and retry instead of
+                    // giving up on a port conflict.
+                    $updated = $attempt < self::MAX_START_ATTEMPTS && $recoverComposeFailure !== null
+                        ? $recoverComposeFailure($e->getMessage())
+                        : null;
+                    if (!is_array($updated)) {
+                        throw new \RuntimeException(
+                            $issue->describe()
+                                . "\n\nAutomatic recovery failed: " . $e->getMessage()
+                        );
+                    }
+
+                    $portMap = $updated;
+                    $this->formatter->info("Retrying `{$issue->service}` now that the host port has been remapped...");
+                }
             }
 
             $stillBroken = $this->networkAttachmentChecker->checkService($composeFile, $issue->service, $namespace);
@@ -267,6 +303,8 @@ class SetupOrchestrator
 
             $this->formatter->info("✓ `{$issue->service}` reattached.");
         }
+
+        return $portMap;
     }
 
     /**
@@ -542,32 +580,35 @@ class SetupOrchestrator
         // error into a no-op.
         $this->staleBindMountSweeper->sweepUnder(dirname($composeFile), $this->formatter);
 
-        try {
-            $this->runComposeUp($composeFile, $namespace, $rebuild, $effectiveTimeout);
-        } catch (\RuntimeException $e) {
-            // A staged mount can also go stale between our sweep and the
-            // container create, and compose can name paths outside the project
-            // that the scoped sweep deliberately leaves alone. Either way the
-            // engine has just told us exactly which entries it could not
-            // resolve, so clear those and give the start one more go.
-            $retried = false;
-            if ($this->staleBindMountSweeper->recoverFromFailure($e->getMessage(), $this->formatter)) {
-                $this->formatter->info('Retrying now that the stale mounts are gone...');
-                $retried = true;
-            } elseif ($recoverComposeFailure !== null) {
-                $updated = $recoverComposeFailure($e->getMessage());
-                if (is_array($updated)) {
-                    $portMap = $updated;
-                    $this->formatter->info('Retrying now that the host port has been remapped...');
-                    $retried = true;
+        // Compose reports only the first port it could not bind, so a stack that
+        // clashes on several host ports needs one remap-and-retry per port.
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                $this->runComposeUp($composeFile, $namespace, $rebuild, $effectiveTimeout);
+                break;
+            } catch (\RuntimeException $e) {
+                // A staged mount can also go stale between our sweep and the
+                // container create, and compose can name paths outside the project
+                // that the scoped sweep deliberately leaves alone. Either way the
+                // engine has just told us exactly which entries it could not
+                // resolve, so clear those and give the start another go.
+                if ($attempt >= self::MAX_START_ATTEMPTS) {
+                    throw $e;
                 }
-            }
 
-            if (!$retried) {
-                throw $e;
-            }
+                if ($this->staleBindMountSweeper->recoverFromFailure($e->getMessage(), $this->formatter)) {
+                    $this->formatter->info('Retrying now that the stale mounts are gone...');
+                    continue;
+                }
 
-            $this->runComposeUp($composeFile, $namespace, $rebuild, $effectiveTimeout);
+                $updated = $recoverComposeFailure !== null ? $recoverComposeFailure($e->getMessage()) : null;
+                if (!is_array($updated)) {
+                    throw $e;
+                }
+
+                $portMap = $updated;
+                $this->formatter->info('Retrying now that the host port has been remapped...');
+            }
         }
 
         $this->formatter->info('Docker services started');

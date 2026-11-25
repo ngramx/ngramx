@@ -26,6 +26,16 @@ class StubDockerLauncher extends DockerLauncher
     public int $waitTimeout = 120;
     public int $pollInterval = 2;
     public int $sleepCalls = 0;
+    /** @var list<?int> Successive running-container counts; null once exhausted = unreadable */
+    public array $containerCounts = [];
+    public int $countReads = 0;
+
+    protected function runningContainerCount(): ?int
+    {
+        $this->countReads++;
+
+        return array_shift($this->containerCounts);
+    }
 
     protected function launch(Platform $platform): bool
     {
@@ -157,6 +167,31 @@ class DockerLauncherTest extends TestCase
 
         $this->assertTrue($launcher->ensureRunning($this->formatter()));
         $this->assertTrue($launcher->launchCalled);
+    }
+
+    public function test_waits_for_restart_policy_containers_to_settle_after_launch(): void
+    {
+        $compose = $this->createMock(DockerCompose::class);
+        $compose->method('isDockerRunning')->willReturn(false);
+
+        $launcher = new StubDockerLauncher($compose, $this->detector(Platform::Wsl));
+        // 0 -> 2 -> 3 containers coming back, then two equal reads = settled.
+        $launcher->containerCounts = [0, 2, 3, 3, 3, 99];
+
+        $this->assertTrue($launcher->ensureRunning($this->formatter()));
+        $this->assertSame(5, $launcher->countReads, 'stops reading once the count is stable');
+    }
+
+    public function test_settling_gives_up_quietly_when_container_count_is_unreadable(): void
+    {
+        $compose = $this->createMock(DockerCompose::class);
+        $compose->method('isDockerRunning')->willReturn(false);
+
+        $launcher = new StubDockerLauncher($compose, $this->detector(Platform::Wsl));
+        $launcher->containerCounts = [];
+
+        $this->assertTrue($launcher->ensureRunning($this->formatter()));
+        $this->assertSame(1, $launcher->countReads);
     }
 
     public function test_returns_false_when_launch_fails(): void

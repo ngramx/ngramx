@@ -696,6 +696,14 @@ class UpCommand extends Command
                 array_values($portMap),
             )));
 
+            // The `docker ps` snapshot taken before the first start predates
+            // anything Docker restarted since; pick replacements from fresh data.
+            // Only the failed ports are re-pointed here (not a blanket rescan):
+            // containers this very run already started legitimately hold their
+            // own ports. Compose reports one failure at a time, so the caller
+            // retries until every clashing port has been moved.
+            $this->portOffsetManager->refresh();
+
             foreach ($failed as $port) {
                 $replacement = $this->portOffsetManager->allocateReplacement($port, $claimed);
                 // Re-point the post-offset original, not the current
