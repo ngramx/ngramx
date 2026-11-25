@@ -1,7 +1,7 @@
 {
   "title": "GIG-4858: Isolate Worktree Stacks On The Shared Docker Network",
   "description": "`ngramx up` now disconnects every non-web container of a worktree stack from external shared Docker networks, so service names like `app` resolve only to that stack's own container and the login redirect loop no longer occurs.",
-  "pr_url": "",
+  "pr_url": "https://github.com/ngramx/ngramx/pull/76",
   "linear_url": "https://linear.app/gigabyte/issue/GIG-4858/isolate-worktree-stacks-from-each-other-on-the-shared-docker-network",
   "test_urls": [],
   "test_plan": [
