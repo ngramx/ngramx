@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.63.0](https://github.com/ngramx/ngramx/compare/v2.62.3...v2.63.0) (2026-11-26)
+
+
+### Features
+
+* docs(GIG-4838): document hook timing migration for worktree creation ([#77](https://github.com/ngramx/ngramx/issues/77)) ([cccda45](https://github.com/ngramx/ngramx/commit/cccda450db068518d3695a9a46b5cd16ec24cdab)), closes [#70](https://github.com/ngramx/ngramx/issues/70)
+
 ## [2.62.3](https://github.com/ngramx/ngramx/compare/v2.62.2...v2.62.3) (2026-11-26)
 
 
