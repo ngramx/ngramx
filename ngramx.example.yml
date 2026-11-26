@@ -248,11 +248,15 @@ agents:
 # $NGRAMX_BRANCH. Use the variable when the path has to sit inside quotes.
 #
 # hooks:
-#   # Runs after worktree is created but before environment starts
+#   # Runs after worktree is created but before environment starts.
+#   # Prefer this for workspace setup (TMUX windows, editor launches) so you can
+#   # start working immediately while the Docker environment spins up in the background.
 #   onPreEnvironment:
+#     - "tmux new-window -c {worktree_path}"
 #     - command: "echo Preparing {folder}"
 #       description: "Pre-environment setup"
-#   # Runs after environment starts but before database reset
+#   # Runs after environment starts but before database reset.
+#   # Use for tasks that need the Docker stack running but execute before migrations.
 #   onPostEnvironment:
 #     - command: "echo Environment ready at {url}"
 #       description: "Post-environment notification"
@@ -261,10 +265,12 @@ agents:
 #       description: "Open the review in Zed"
 #     # Or any command, for example Zed on the Windows host from WSL:
 #     # - command: 'cd /mnt/c && setsid /mnt/c/Users/rob/AppData/Local/Programs/Zed/bin/zed.exe --wsl rob@Ubuntu "$NGRAMX_PATH" >> ~/.local/share/zed/launch-win.log 2>&1 < /dev/null & disown'
+#   # Runs at the very end after everything is ready.
+#   # Only use this for tasks that require a fully running environment (database queries, HTTP requests).
+#   # For workspace setup like TMUX, use onPreEnvironment instead.
 #   onWorktreeCreate:
-#     - command: "cursor --new-window {worktree_path}"
-#       description: "Open the worktree in Cursor"
-#     - "tmux new-window -c {worktree_path}"
+#     - command: "echo Worktree fully ready at {url}"
+#       description: "Final completion notification"
 #   onWorktreeCleanup:
 #     - command: "echo removed {folder}"
 #       description: "Note that the worktree is gone"
