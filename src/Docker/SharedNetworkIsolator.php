@@ -18,7 +18,7 @@ use Symfony\Component\Process\Process;
  *
  * Compose cannot remove a network from a service in an override file, so after
  * the stack is up we disconnect every non-web container from each external
- * network. The web-facing container (the service publishing port 80/443) stays
+ * network. The web-facing container (the one exposing port 80/443) stays
  * attached because outside tooling reaches the stack through it. Every other
  * service name then resolves on the stack's own project network only.
  *
@@ -27,7 +27,7 @@ use Symfony\Component\Process\Process;
  */
 class SharedNetworkIsolator
 {
-    private const WEB_PORTS = [80, 443];
+    private const WEB_PORTS = ['80/tcp', '443/tcp'];
 
     /** @var callable(list<string>): array{0: int, 1: string} */
     private $runner;
@@ -61,18 +61,21 @@ class SharedNetworkIsolator
         }
 
         $externalNetworks = $this->externalNetworks($config);
-        $webServices = $this->webServices($config);
-        if ($externalNetworks === [] || $webServices === []) {
-            // Without a web service we cannot tell which container to keep.
+        if ($externalNetworks === []) {
+            return [];
+        }
+
+        $containers = $this->projectContainers($namespace);
+        $webContainers = $this->webContainers($containers);
+        if ($webContainers === []) {
+            // Without a web container we cannot tell which one to keep.
             return [];
         }
 
         $disconnected = [];
-        $webContainers = [];
 
-        foreach ($this->projectContainers($namespace) as $container) {
-            if (in_array($container['service'], $webServices, true)) {
-                $webContainers[] = $container['name'];
+        foreach ($containers as $container) {
+            if (in_array($container['name'], $webContainers, true)) {
                 continue;
             }
 
@@ -91,9 +94,10 @@ class SharedNetworkIsolator
             }
         }
 
-        if ($disconnected !== []) {
-            $this->reloadWebServers($webContainers);
-        }
+        // Reload even when nothing was disconnected: this stack's nginx may have
+        // been (re)created after its app was isolated, while another stack's
+        // `app` was still on the shared network, and cached that address.
+        $this->reloadWebServers($webContainers);
 
         return $disconnected;
     }
@@ -139,33 +143,7 @@ class SharedNetworkIsolator
     }
 
     /**
-     * Services that publish or expose port 80/443.
-     *
-     * @param array<string, mixed> $config
-     * @return list<string>
-     */
-    private function webServices(array $config): array
-    {
-        $services = [];
-        foreach ((array) ($config['services'] ?? []) as $name => $service) {
-            foreach ((array) ($service['ports'] ?? []) as $port) {
-                $target = is_array($port) ? ($port['target'] ?? null) : $port;
-                if (is_string($target)) {
-                    $parts = explode(':', preg_replace('#/.*$#', '', $target) ?? $target);
-                    $target = end($parts);
-                }
-                if (in_array((int) $target, self::WEB_PORTS, true)) {
-                    $services[] = (string) $name;
-                    break;
-                }
-            }
-        }
-
-        return $services;
-    }
-
-    /**
-     * @return list<array{name: string, service: string, networks: array<string, mixed>}>
+     * @return list<array{name: string, published: bool, exposed: bool, networks: array<string, mixed>}>
      */
     private function projectContainers(string $namespace): array
     {
@@ -182,23 +160,58 @@ class SharedNetworkIsolator
         foreach (array_filter(array_map('trim', explode("\n", $output))) as $name) {
             [$exit, $inspect] = ($this->runner)([
                 'docker', 'inspect', '--format',
-                '{{index .Config.Labels "com.docker.compose.service"}}' . "\t" . '{{json .NetworkSettings.Networks}}',
+                '{{json .NetworkSettings.Networks}}' . "\t" . '{{json .HostConfig.PortBindings}}' . "\t" . '{{json .Config.ExposedPorts}}',
                 $name,
             ]);
             if ($exit !== 0) {
                 continue;
             }
 
-            $parts = explode("\t", trim($inspect), 2);
-            $networks = count($parts) === 2 ? json_decode($parts[1], true) : null;
+            $parts = explode("\t", trim($inspect), 3);
+            $networks = count($parts) === 3 ? json_decode($parts[0], true) : null;
             if (!is_array($networks)) {
                 continue;
             }
 
-            $containers[] = ['name' => $name, 'service' => $parts[0], 'networks' => $networks];
+            // Read from the container itself, not the compose config:
+            // `--no-host-mapping` clears `ports`, but the web server still
+            // exposes 80/443.
+            $containers[] = [
+                'name' => $name,
+                'published' => $this->hasWebPort($parts[1]),
+                'exposed' => $this->hasWebPort($parts[2]),
+                'networks' => $networks,
+            ];
         }
 
         return $containers;
+    }
+
+    private function hasWebPort(string $json): bool
+    {
+        $ports = json_decode($json, true);
+
+        return is_array($ports) && array_intersect(self::WEB_PORTS, array_keys($ports)) !== [];
+    }
+
+    /**
+     * The containers to keep on the shared network: those publishing 80/443,
+     * or when none do (`--no-host-mapping`), those exposing it. If several
+     * containers expose it we keep all of them rather than guess.
+     *
+     * @param list<array{name: string, published: bool, exposed: bool, networks: array<string, mixed>}> $containers
+     * @return list<string>
+     */
+    private function webContainers(array $containers): array
+    {
+        foreach (['published', 'exposed'] as $tier) {
+            $names = array_column(array_filter($containers, static fn (array $c): bool => $c[$tier]), 'name');
+            if ($names !== []) {
+                return $names;
+            }
+        }
+
+        return [];
     }
 
     /**

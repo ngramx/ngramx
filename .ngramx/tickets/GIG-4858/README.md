@@ -16,3 +16,5 @@ Two worktree stacks of the same project joined to a shared external Docker netwo
 - `SetupOrchestrator` runs it as phase 2.6 for namespaced (worktree) stacks, after network reconcile and before readiness waits.
 - Unit tests for the isolator; orchestrator tests stub it.
 - Verified against real Docker with two stacks on one external network: each stack's `app` resolved to its own container only.
+- Review fix: web container is now detected from the running container (published 80/443, else exposed 80/443) instead of the merged compose `ports`, so stacks started with `--no-host-mapping` are isolated too. If several containers merely expose 80/443, all are kept rather than guessing.
+- Review fix: nginx is reloaded whenever a web container is found, even if nothing was disconnected, so a recreated nginx cannot keep a stale upstream address.

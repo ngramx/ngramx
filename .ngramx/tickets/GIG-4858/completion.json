@@ -7,7 +7,7 @@
   "test_plan": [
     {
       "description": "Two worktree stacks of one project resolve their own app container",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run `ngramx up` in two worktrees of a project whose compose file joins `app` and `nginx` to an external shared network",
         "Look for the 'Isolated from shared network(s)' line in each up output",
@@ -17,7 +17,7 @@
     },
     {
       "description": "Login works on both stacks with no redirect loop",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Log in on the first stack, then on the second, in either start order",
         "Confirm /login and /dashboard do not redirect to each other on either stack"
@@ -25,10 +25,27 @@
     },
     {
       "description": "Already-isolated stacks are untouched",
-      "status": "active",
+      "status": "stale",
       "steps": [
         "Run `ngramx up` again on an already isolated stack, or start one via Cortex Coder",
         "Confirm no 'Isolated from shared network(s)' line is printed and the stack still works"
+      ]
+    },
+    {
+      "description": "Stack started with --no-host-mapping (no published ports) is still isolated (review fix)",
+      "status": "active",
+      "steps": [
+        "Run `ngramx up --no-host-mapping` (or `ngramx worktree`) in two worktrees of a project whose compose file joins `app` and `nginx` to an external shared network",
+        "Confirm the 'Isolated from shared network(s)' line lists the non-web containers",
+        "Confirm only the nginx container is still attached to the shared network, and `getent hosts app` inside each nginx returns that stack's own app IP"
+      ]
+    },
+    {
+      "description": "nginx is reloaded on re-run even when nothing needs disconnecting (review fix)",
+      "status": "active",
+      "steps": [
+        "Run `ngramx up` again on an already isolated stack",
+        "Confirm no 'Isolated' line is printed, the stack still works, and login on both stacks has no redirect loop"
       ]
     }
   ]
