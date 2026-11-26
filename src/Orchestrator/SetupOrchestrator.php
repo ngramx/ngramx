@@ -13,6 +13,7 @@ use Ngramx\Docker\HealthChecker;
 use Ngramx\Docker\ImageBuildFreshnessChecker;
 use Ngramx\Docker\NetworkAttachmentChecker;
 use Ngramx\Docker\ServiceReadinessWaiter;
+use Ngramx\Docker\SharedNetworkIsolator;
 use Ngramx\Docker\StaleBindMountSweeper;
 use Ngramx\Executor\ContainerCommandExecutor;
 use Ngramx\Executor\HostCommandExecutor;
@@ -48,6 +49,7 @@ class SetupOrchestrator
     private readonly AppUrlProbe $appUrlProbe;
     private readonly NetworkAttachmentChecker $networkAttachmentChecker;
     private readonly RetryPolicy $retryPolicy;
+    private readonly SharedNetworkIsolator $sharedNetworkIsolator;
     private readonly StaleBindMountSweeper $staleBindMountSweeper;
 
     /** @var array<string, string> */
@@ -65,6 +67,7 @@ class SetupOrchestrator
         ?NetworkAttachmentChecker $networkAttachmentChecker = null,
         ?RetryPolicy $retryPolicy = null,
         ?StaleBindMountSweeper $staleBindMountSweeper = null,
+        ?SharedNetworkIsolator $sharedNetworkIsolator = null,
         private readonly int $appUrlProbeAttempts = self::DEFAULT_APP_URL_PROBE_ATTEMPTS,
         private readonly int $appUrlProbeRetrySeconds = self::DEFAULT_APP_URL_PROBE_RETRY_SECONDS,
     ) {
@@ -78,6 +81,7 @@ class SetupOrchestrator
         $this->networkAttachmentChecker = $networkAttachmentChecker
             ?? new NetworkAttachmentChecker($this->dockerCompose);
         $this->retryPolicy = $retryPolicy ?? new RetryPolicy();
+        $this->sharedNetworkIsolator = $sharedNetworkIsolator ?? new SharedNetworkIsolator();
         $this->staleBindMountSweeper = $staleBindMountSweeper ?? new StaleBindMountSweeper();
     }
 
@@ -196,6 +200,12 @@ class SetupOrchestrator
             $recoverComposeFailure,
         );
 
+        // Phase 2.6: Keep this stack's services off any external network shared
+        // with other stacks, so `app` resolves to this stack's container only.
+        if ($namespace !== null) {
+            $this->isolateSharedNetworks($config->docker->composeFile, $namespace);
+        }
+
         // Phase 3: Wait for services with live status display. Even when the
         // user has no explicit wait_for entries, we still scan every compose
         // service for crash-loops so a broken container never masquerades as a
@@ -235,6 +245,18 @@ class SetupOrchestrator
             'port_offset' => $portOffset ?? 0,
             'app_url_probe' => $probe,
         ];
+    }
+
+    private function isolateSharedNetworks(string $composeFile, string $namespace): void
+    {
+        $disconnected = $this->sharedNetworkIsolator->isolate($composeFile, $namespace);
+        if ($disconnected === []) {
+            return;
+        }
+
+        $this->formatter->info(
+            'Isolated from shared network(s): ' . implode(', ', $disconnected)
+        );
     }
 
     /**
