@@ -1,0 +1,45 @@
+{
+  "ticket": "GIG-4838",
+  "title": "ngramx: run worktree hooks before environment spin-up, not after",
+  "status": "completed",
+  "summary": "Verified hook execution order and documented migration from onWorktreeCreate to onPreEnvironment",
+  "changes": [
+    {
+      "type": "documentation",
+      "file": "README.md",
+      "description": "Added execution order section showing complete hook sequence and migration guidance"
+    },
+    {
+      "type": "documentation",
+      "file": "ngramx.example.yml",
+      "description": "Updated hook examples to show onPreEnvironment for TMUX and added explanatory comments"
+    },
+    {
+      "type": "documentation",
+      "file": "docs/hook-migration-guide.md",
+      "description": "Created comprehensive migration guide with step-by-step instructions and Rob's TMUX example"
+    },
+    {
+      "type": "documentation",
+      "file": ".ngramx/tickets/GIG-4838/README.md",
+      "description": "Documented investigation, verification, and changes made"
+    }
+  ],
+  "verification": {
+    "code_review": "Reviewed src/Command/ReviewCommand.php lines 551-952 to confirm hook execution order",
+    "implementation_status": "Feature already implemented in v2.61.0 (PR #70, commit 2eb23d7)",
+    "hook_order_verified": "onPreEnvironment runs before environment startup (line 566), onWorktreeCreate runs at the end (line 943)"
+  },
+  "migration_path": {
+    "from": "hooks.onWorktreeCreate",
+    "to": "hooks.onPreEnvironment",
+    "example": "Move TMUX window creation from onWorktreeCreate to onPreEnvironment in ~/.ngramx.yaml",
+    "benefit": "Start working immediately while Docker environment spins up in parallel"
+  },
+  "notes": [
+    "No code changes required - feature was already implemented",
+    "Migration is backward compatible - onWorktreeCreate still works as before",
+    "Migration guide created at docs/hook-migration-guide.md",
+    "Users can migrate at their convenience - no breaking changes"
+  ]
+}

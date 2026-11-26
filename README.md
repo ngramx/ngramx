@@ -407,6 +407,35 @@ hooks:
 | `onWorktreeCleanup` | `ngramx worktree --cleanup` or `ngramx review --cleanup` has removed a worktree. Runs once per worktree that was actually removed. `{path}` is that directory, which no longer exists. |
 | `onEnvironmentUp` | `ngramx up` finishes successfully |
 
+#### Execution order
+
+Worktree creation runs hooks in this sequence:
+
+```
+branch checkout → onPreEnvironment → environment startup →
+onPostEnvironment → database reset → onReview → onWorktreeCreate
+```
+
+**Prefer `onPreEnvironment` over `onWorktreeCreate`** for workspace setup tasks like opening editor windows or creating TMUX sessions. This lets you start working immediately while the Docker environment spins up in the background, rather than waiting for the full stack to be ready.
+
+**Migration example** — move TMUX window creation from the end to the start:
+
+```yaml
+# Before: runs after environment is fully up (slower)
+hooks:
+  onWorktreeCreate:
+    - "tmux new-window -c {worktree_path}"
+
+# After: runs immediately while environment starts (faster)
+hooks:
+  onPreEnvironment:
+    - "tmux new-window -c {worktree_path}"
+```
+
+Use `onWorktreeCreate` only for tasks that require a fully running environment (database queries, HTTP requests to the app). Use `onPostEnvironment` for tasks that need the environment running but execute before the database reset.
+
+**Migrating from `onWorktreeCreate`?** See the [hook migration guide](docs/hook-migration-guide.md) for step-by-step instructions on moving TMUX and editor setup to `onPreEnvironment`.
+
 `onWorktreeCreate` is the creation hook. It already runs for both `ngramx worktree` and `ngramx review --worktree`. `onReview` is the command hook from GIG-3795: leave it unset and `-c` still opens Cursor. Set it in `~/.ngramx.yaml` and both `ngramx review` and `ngramx worktree` run it, including when you pass `-c`. `--editor zed` (or `code`, `cursor`, or a full command) overrides `onReview` for a single run on either command. `onReview` stays as the name to use; it is not renamed.
 
 `onWorktreeCleanup` is separate. It runs after each worktree is removed, including when several are cleaned up at once. A failed removal does not run the hook for that worktree. The hook's own failure is ignored unless `ignore_failure` is set to `false`, and the directory is still gone. `{path}` and `$NGRAMX_PATH` are the path that was removed. The working directory of the hook is the repository, because the worktree directory no longer exists.
