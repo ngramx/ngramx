@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.62.3](https://github.com/ngramx/ngramx/compare/v2.62.2...v2.62.3) (2026-11-26)
+
+
+### Bug Fixes
+
+* **GIG-4858:** detect web container from the running stack and always reload nginx ([c07a6ce](https://github.com/ngramx/ngramx/commit/c07a6ce37924fe7f280f704f5bf6427fc4683e4e))
+* **GIG-4858:** isolate worktree stacks from shared external Docker networks ([9828d7c](https://github.com/ngramx/ngramx/commit/9828d7c67aa771bfb9d78c5e92f44de1e8b983e3))
+
 ## [2.62.2](https://github.com/ngramx/ngramx/compare/v2.62.1...v2.62.2) (2026-11-25)
 
 
