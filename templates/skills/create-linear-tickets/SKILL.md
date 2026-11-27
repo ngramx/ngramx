@@ -22,17 +22,35 @@ Pick the team that matches the work.
 
 If you have access to the codebase when creating tickets, do whatever analysis you think is useful — read relevant files, check existing patterns, understand dependencies — so the tickets you draft reflect the real shape of the work.
 
-## Conventions
+## Defaults
 
-**Assignees.** Always assign to the user who requested the work, unless they specify otherwise.
+Apply these without asking, so the user doesn't have to repeat them on every ticket. List the defaults you applied in your draft summary so the user can override any of them.
 
-**Priorities.** `1` Urgent, `2` High, `3` Medium, `4` Low. Default to `3` if unclear.
+- **Assignee:** the user who requested the work, unless they name someone else.
+- **Priority:** `3` Medium, unless the user specifies otherwise.
+- **Status:** `Scheduled`, unless the user specifies otherwise (e.g. `Backlog`, `In Progress`, or `Today`).
+- **Estimate:** use only `0, 1, 2, 4, 8, 16`. Most tickets are `0–4`. Use `8` rarely; `16` almost never — if it feels like a 16, decompose it into multiple separate tickets.
 
-**Estimates.** Use only `0, 1, 2, 4, 8, 16`. Most tickets are `0–4`. Use `8` rarely; `16` almost never — if it feels like a 16, decompose it into multiple separate tickets.
+Only ask about a value when it cannot be inferred from the request and has no default above (for example, the team when the work fits several).
 
-**Status.** Default to `Scheduled` unless the user specifies otherwise (e.g. `Backlog`, `In Progress`, or `Today`).
+## Repository (required)
 
-**Labels.** Apply the `Client → [Client Name]` label whenever the client is identifiable. Use only labels that already exist.
+Every ticket must carry exactly one repository label from the Linear **`repo`** label group, named `owner/repo` (for example `gigabyte-software/cortex`).
+
+Cursor's Linear integration reads this label to decide which repository the agent works in. Without it, Cursor falls back to its default repository and may work on the wrong code.
+
+- Set the repo label **on the issue itself**. Do not rely on the project's repo label.
+- Choose only from labels that already exist in the `repo` group. Check with `list_issue_labels` before creating the ticket.
+- If the repository is not in the list, **stop and ask the user**. Do not guess the closest match, and do not create a label.
+- If the work spans more than one repository, create **one ticket per repository** (see Sizing tickets).
+
+## Labels
+
+- **Client:** apply the client's label from the `Client` label group, for example `Earl Kendrick` or `Think Fire Defence`, whenever the client is identifiable. Only one client label can be applied per issue.
+- **Repo:** exactly one label from the `repo` group (see above). Only one repo label can be applied per issue.
+- Use only labels that already exist. Never create labels.
+- When creating an issue, pass the full label set in `labels`.
+- When changing labels on an existing issue, use `addLabels` / `removeLabels`. Passing `labels` replaces the whole set and can remove existing labels.
 
 ## Ticket description format
 
@@ -58,6 +76,8 @@ Don't silently invent milestones.
 ## Sizing tickets
 
 Each ticket should be a focused, narrow unit of work that fits comfortably in a single PR. If a piece of work feels too large for one ticket, **create several separate tickets** for the natural seams (typically design, backend, frontend, tests, integration) rather than one giant ticket. Show the proposed breakdown to the user before creating anything — if the split is wrong, every PR will be wrong.
+
+Each ticket targets exactly one repository, so a split across repositories always produces separate tickets.
 
 ## Dependencies and ordering
 
