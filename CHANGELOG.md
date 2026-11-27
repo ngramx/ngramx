@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [2.64.0](https://github.com/ngramx/ngramx/compare/v2.63.0...v2.64.0) (2026-11-27)
+
+
+### Features
+
+* require repo label on Linear tickets from create-linear-tickets skill ([620b69f](https://github.com/ngramx/ngramx/commit/620b69fbca0ddc0aa0c5595c4b248955ce61033d))
+
 # [2.63.0](https://github.com/ngramx/ngramx/compare/v2.62.3...v2.63.0) (2026-11-26)
 
 
